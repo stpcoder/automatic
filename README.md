@@ -17,6 +17,8 @@ This repository contains a concrete draft for an enterprise workflow agent syste
 - [Implementation Blueprint](docs/implementation-blueprint.md)
 - [MVP Backlog](docs/mvp-backlog.md)
 - [Decision Checklist](docs/decision-checklist.md)
+- [Integration Test Strategy](docs/integration-test-strategy.md)
+- [Test Status](docs/test-status.md)
 - [Operator Runbook](docs/operator-runbook.md)
 
 ## Design Principles
