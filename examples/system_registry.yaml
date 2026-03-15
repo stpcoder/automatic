@@ -9,8 +9,9 @@ systems:
     type: web
     base_url: https://security.internal
     login_method: sso
-    harness: page_agent_dom
+    harness: bookmarklet_bridge
     supported_harnesses:
+      - bookmarklet_bridge
       - page_agent_dom
       - live_chrome
     pages:
@@ -35,8 +36,9 @@ systems:
     type: web
     base_url: https://mydhl.express.dhl
     login_method: password
-    harness: page_agent_dom
+    harness: bookmarklet_bridge
     supported_harnesses:
+      - bookmarklet_bridge
       - page_agent_dom
       - live_chrome
     pages:
@@ -57,7 +59,7 @@ systems:
           approval_required: true
 
   - system_id: cube
-    type: windows_app_or_web
-    adapter: cube_adapter
+    type: web_or_windows_app
+    adapter: bookmarklet_bridge
     login_method: existing_session
-    notes: Use API first, web second, UI automation third.
+    notes: Prefer Cube web through bookmarklet bridge. If only desktop is available, add a Windows UIA adapter.

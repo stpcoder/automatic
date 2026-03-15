@@ -2,7 +2,13 @@
 
 ## 1. Operating Model
 
-The web worker uses a `Page Agent` style DOM harness and supports two adapters:
+The web worker uses a `Page Agent` style DOM harness and supports three adapters:
+
+- `bookmarklet_bridge`
+  - works with normal Chrome bookmarks
+  - injects a bridge loop into the current page
+  - sends reduced DOM observations to the local orchestrator
+  - executes queued fill and submit commands from the orchestrator
 
 - `page_agent_dom`
   - in-memory harness for deterministic local development and tests
@@ -74,18 +80,22 @@ If either condition fails, submission must stop.
 
 The current implementation provides:
 
+- a bookmarklet bridge for normal Chrome sessions
 - a Page-Agent-style in-memory DOM harness adapter
 - a live Chrome adapter over CDP using `playwright-core`
+- a Windows Outlook COM execution path
+- a Cube web execution path over the bookmarklet bridge
 - semantic field fill
 - preview
 - final-button validation
-- adapter selection through `WEB_WORKER_ADAPTER=page_agent_dom|live_chrome`
+- adapter selection through `WEB_WORKER_ADAPTER=bookmarklet_bridge|page_agent_dom|live_chrome`
 - CDP endpoint selection through `WEB_WORKER_CDP_URL`
 
 The current implementation does not yet provide:
 
 - Page Agent JS injection into a production browser session
 - site-specific locator packs beyond the shared system definitions
+- a production-tested Outlook reply poller service
 - production validation against the real internal websites
 
 ## 7. Live Chrome Runtime
@@ -107,3 +117,15 @@ Example:
 open -na "Google Chrome" --args --remote-debugging-port=9222
 WEB_WORKER_ADAPTER=live_chrome npm run demo
 ```
+
+## 8. Bookmarklet Bridge Runtime
+
+To use the normal Chrome path:
+
+1. run `WEB_WORKER_ADAPTER=bookmarklet_bridge npm run dev`
+2. open `/bridge/bookmarklet?systemId=security_portal`
+3. create a normal Chrome bookmark and paste the returned `bookmarklet` value into the bookmark URL
+4. navigate to the target internal page in normal Chrome
+5. click the bookmark
+6. verify `/bridge/sessions` shows the attached page
+7. call the existing web tools through the orchestrator API

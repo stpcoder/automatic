@@ -1,6 +1,9 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
+import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 import { approvalDecisionInputSchema, createCaseInputSchema, incomingEmailPayloadSchema } from "../../../packages/contracts/src/index.js";
+import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bookmarklet-script.js";
+import { getWebSystemDefinition } from "../../../workers/web-worker/src/system-definitions.js";
 import { OrchestratorService } from "./orchestrator.js";
 
 export async function createApp(orchestrator?: OrchestratorService): Promise<FastifyInstance> {
@@ -8,6 +11,50 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   const app = Fastify({ logger: false });
 
   app.get("/health", async () => ({ ok: true }));
+
+  app.get("/bridge/sessions", async () => browserBridgeCoordinator.listSessions());
+
+  app.get("/bridge/bookmarklet", async (request) => {
+    const query = request.query as { systemId?: string };
+    const systemId = query.systemId ?? "security_portal";
+    const host = request.headers.host ?? "127.0.0.1:3000";
+    const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
+    return {
+      system_id: systemId,
+      bookmarklet: `javascript:${encodeURIComponent(script)}`,
+      install_instructions: "Create a normal Chrome bookmark and paste the bookmarklet value into the URL field."
+    };
+  });
+
+  app.get("/bridge/bookmarklet.js", async (request, reply) => {
+    const query = request.query as { systemId?: string };
+    const systemId = query.systemId ?? "security_portal";
+    const host = request.headers.host ?? "127.0.0.1:3000";
+    const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
+    reply.header("content-type", "application/javascript; charset=utf-8");
+    return script;
+  });
+
+  app.post("/bridge/sessions/register", async (request) => {
+    const body = request.body as { session_id: string; system_id: string; title?: string; url?: string };
+    return browserBridgeCoordinator.registerSession(body);
+  });
+
+  app.post("/bridge/sessions/:sessionId/snapshot", async (request) => {
+    const params = request.params as { sessionId: string };
+    return browserBridgeCoordinator.updateObservation(params.sessionId, request.body);
+  });
+
+  app.get("/bridge/sessions/:sessionId/commands", async (request) => {
+    const params = request.params as { sessionId: string };
+    return browserBridgeCoordinator.pullPendingCommands(params.sessionId);
+  });
+
+  app.post("/bridge/sessions/:sessionId/commands/:commandId/result", async (request) => {
+    const params = request.params as { sessionId: string; commandId: string };
+    const body = request.body as { success: boolean; result?: Record<string, unknown>; error?: string };
+    return browserBridgeCoordinator.completeCommand(params.sessionId, params.commandId, body);
+  });
 
   app.post("/cases", async (request, reply) => {
     const body = createCaseInputSchema.parse(request.body);

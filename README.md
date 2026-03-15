@@ -48,7 +48,10 @@ The repository now includes an executable MVP skeleton:
 - in-memory orchestrator service
 - approval-gated commit flow
 - email wait/resume event handling
-- Page-Agent-style web worker with `page_agent_dom` and `live_chrome` adapters
+- browser bridge coordinator for normal Chrome bookmarklets
+- Page-Agent-style web worker with `bookmarklet_bridge`, `page_agent_dom`, and `live_chrome` adapters
+- Windows Outlook COM path for real draft/send/watch registration
+- Cube web path through the bookmarklet bridge
 - shipment workflow demo through the customs-number request path
 
 ## Run
@@ -66,11 +69,24 @@ Run the demo HTTP API:
 npm run dev
 ```
 
-Use the live Chrome adapter with an existing Chrome or Chromium session:
+Use the normal Chrome bookmarklet bridge:
 
 ```bash
-open -na "Google Chrome" --args --remote-debugging-port=9222
-WEB_WORKER_ADAPTER=live_chrome WEB_WORKER_CDP_URL=http://127.0.0.1:9222 npm run dev
+WEB_WORKER_ADAPTER=bookmarklet_bridge npm run dev
+```
+
+Then open:
+
+- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=security_portal`
+- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=dhl`
+- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=cube`
+
+Copy the returned `bookmarklet` value into a normal Chrome bookmark URL field and click it on the target page.
+
+Use the Windows Outlook COM path:
+
+```bash
+OUTLOOK_WORKER_ADAPTER=outlook_com npm run dev
 ```
 
 API endpoints:
@@ -89,16 +105,18 @@ API endpoints:
 - immediate auto-advance through non-blocking steps
 - draft creation before commit
 - human approval requirement before commit
-- vendor email send simulation
+- Outlook COM execution path
+- Cube bookmarklet bridge execution path
 - waiting on incoming email
 - resume on matched email with extracted fields
 - move to the next draft step after reply
 - web worker adapter selection
+- normal Chrome bookmarklet bridge
 - live Chrome DOM observation mapping over CDP
 
 ## Next Build Steps
 
-1. Replace the demo tool executor with real Outlook and web workers
+1. Add an Outlook reply poller service that converts new mail into `/cases/:id/events/email`
 2. Add persistent database-backed storage
 3. Add real approval UI
 4. Add planner integration through the internal LLM endpoint

@@ -17,6 +17,7 @@ Define which agent is responsible for each step and what that agent is allowed t
 - Drafts mail
 - Sends mail only after approval
 - Registers email reply expectations
+- Preferred real path: `outlook_com`
 
 ### WebAgent
 
@@ -25,11 +26,14 @@ Define which agent is responsible for each step and what that agent is allowed t
 - Fills fields by semantic key
 - Produces preview before final submit
 - Submits only after approval
+- Preferred real path: `bookmarklet_bridge`
+- Optional real path: `live_chrome`
 
 ### CubeAgent
 
 - Drafts and sends chat messages
 - Supports approval gate before send
+- Preferred real path: `bookmarklet_bridge`
 
 ### SchedulerAgent
 
@@ -58,7 +62,7 @@ Define which agent is responsible for each step and what that agent is allowed t
 ### register_security_portal
 
 - owner agent: `WebAgent`
-- harness: `page_agent_dom`
+- harness: `bookmarklet_bridge`
 - draft action:
   - `open_system`
   - `fill_web_form`
@@ -70,7 +74,7 @@ Define which agent is responsible for each step and what that agent is allowed t
 ### create_dhl_shipment
 
 - owner agent: `WebAgent`
-- harness: `page_agent_dom`
+- harness: `bookmarklet_bridge`
 - draft action:
   - `open_system`
   - `fill_web_form`
@@ -90,6 +94,7 @@ Define which agent is responsible for each step and what that agent is allowed t
 ### notify_current_assignee
 
 - owner agent: `CubeAgent`
+- harness: `bookmarklet_bridge`
 - draft action:
   - `draft_cube_message`
 - commit action:
@@ -99,7 +104,7 @@ Define which agent is responsible for each step and what that agent is allowed t
 ### register_internal_intake
 
 - owner agent: `WebAgent`
-- harness: `page_agent_dom`
+- harness: `bookmarklet_bridge`
 - commit action:
   - `submit_web_form`
 - approval required: yes

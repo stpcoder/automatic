@@ -15,7 +15,7 @@ npm run demo
 - TypeScript check: `PASS`
 - Automated test suite: `PASS`
 - Demo flow: `PASS`
-- Automated test count: `17/17 PASS`
+- Automated test count: `21/21 PASS`
 
 ## Current Test Inventory
 
@@ -55,6 +55,7 @@ npm run demo
 
 - `workers/cube-worker/src/index.test.ts`
   - draft/send path
+  - bookmarklet bridge send path
   - status: `PASS`
 
 - `workers/scheduler-worker/src/index.test.ts`
@@ -77,6 +78,7 @@ npm run demo
   - advance through approval gate
   - approve through API
   - email event resume through API
+  - bookmarklet bridge endpoint exposure
   - status: `PASS`
 
 ## Interpretation
@@ -89,11 +91,13 @@ Current implementation success means:
 - worker boundaries work
 - HTTP surface works
 - page-agent-style DOM harness works
+- bookmarklet bridge coordinator works
+- normal Chrome bookmarklet path is exposed through the HTTP app
 - live Chrome adapter mapping and selection logic work
 
 Current implementation success does not yet mean:
 
-- Windows Outlook integration is production-ready
+- Windows Outlook COM was executed on a real Windows machine during this verification run
 - internal web automation has been validated against the real internal websites
-- Cube integration is production-ready
+- Cube web automation has been validated against the real Cube UI
 - a live Chrome CDP session was available during this verification run

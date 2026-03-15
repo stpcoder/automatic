@@ -75,3 +75,23 @@ test("http api creates, advances, approves, and resumes a shipment case", async 
 
   await app.close();
 });
+
+test("http api exposes bookmarklet bridge endpoints", async () => {
+  const app = await createApp();
+
+  const bookmarkletResponse = await app.inject({
+    method: "GET",
+    url: "/bridge/bookmarklet?systemId=security_portal"
+  });
+  assert.equal(bookmarkletResponse.statusCode, 200);
+  assert.equal(bookmarkletResponse.json().system_id, "security_portal");
+
+  const scriptResponse = await app.inject({
+    method: "GET",
+    url: "/bridge/bookmarklet.js?systemId=security_portal"
+  });
+  assert.equal(scriptResponse.statusCode, 200);
+  assert.match(scriptResponse.body, /SKH agent bridge/i);
+
+  await app.close();
+});

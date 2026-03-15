@@ -1,4 +1,5 @@
 import { type ToolExecutor, type ToolRequest, type ToolResult } from "../../../packages/contracts/src/index.js";
+import { OutlookComAdapter } from "./outlook-com-adapter.js";
 
 interface MailDraft {
   draftId: string;
@@ -11,6 +12,11 @@ interface MailDraft {
 export class OutlookWorker implements ToolExecutor {
   private readonly drafts = new Map<string, MailDraft>();
   private readonly watchedConversations = new Set<string>();
+  private readonly useRealAdapter: boolean;
+
+  constructor() {
+    this.useRealAdapter = process.env.OUTLOOK_WORKER_ADAPTER === "outlook_com";
+  }
 
   async execute(request: ToolRequest): Promise<ToolResult> {
     switch (request.tool_name) {
@@ -26,6 +32,25 @@ export class OutlookWorker implements ToolExecutor {
   }
 
   private async draftMail(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().draftMail({
+        template_id: String(request.input.template_id ?? "unknown"),
+        to: Array.isArray(request.input.to) ? (request.input.to as string[]) : [],
+        cc: Array.isArray(request.input.cc) ? (request.input.cc as string[]) : [],
+        variables:
+          typeof request.input.variables === "object" && request.input.variables !== null
+            ? (request.input.variables as Record<string, unknown>)
+            : {}
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
     const draftId = `DRAFT-${crypto.randomUUID()}`;
     const draft: MailDraft = {
       draftId,
@@ -53,6 +78,19 @@ export class OutlookWorker implements ToolExecutor {
   }
 
   private async sendMail(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().sendMail({
+        draft_id: String(request.input.draft_id ?? "")
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
     const draftId = String(request.input.draft_id ?? "");
     const draft = this.drafts.get(draftId);
     if (!draft) {
@@ -76,6 +114,21 @@ export class OutlookWorker implements ToolExecutor {
   }
 
   private async watchReply(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().watchReply({
+        conversation_id: String(request.input.conversation_id ?? ""),
+        expected_from: Array.isArray(request.input.expected_from) ? (request.input.expected_from as string[]) : [],
+        required_fields: Array.isArray(request.input.required_fields) ? (request.input.required_fields as string[]) : []
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
     const conversationId = String(request.input.conversation_id ?? "");
     if (conversationId) {
       this.watchedConversations.add(conversationId);

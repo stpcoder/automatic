@@ -55,6 +55,18 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
       { key: "save_draft", label: "Save Draft" },
       { key: "submit", label: "Submit" }
     ]
+  },
+  cube: {
+    systemId: "cube",
+    pageId: "chat_room",
+    title: "Cube Messenger",
+    url: "https://cube.internal/chat",
+    summary: "Cube chat room is open.",
+    finalActionButton: "Send",
+    fields: [
+      { key: "message_body", label: "Message", aliases: ["message", "메시지", "chat message"], required: true }
+    ],
+    buttons: [{ key: "send", label: "Send" }]
   }
 };
 

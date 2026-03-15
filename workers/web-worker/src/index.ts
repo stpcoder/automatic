@@ -1,11 +1,12 @@
 import { type ToolExecutor, type ToolRequest, type ToolResult } from "../../../packages/contracts/src/index.js";
+import { BookmarkletBridgeAdapter } from "./bookmarklet-bridge-adapter.js";
 import { LiveChromeDomAdapter } from "./live-chrome-dom-adapter.js";
 import { PageAgentDomAdapter } from "./page-agent-dom-adapter.js";
 import type { WebAdapter } from "./types.js";
 
 export interface WebWorkerOptions {
   adapter?: WebAdapter;
-  adapterKind?: "page_agent_dom" | "live_chrome";
+  adapterKind?: "page_agent_dom" | "live_chrome" | "bookmarklet_bridge";
   cdpUrl?: string;
 }
 
@@ -17,6 +18,8 @@ export class WebWorker implements ToolExecutor {
       options.adapter ??
       (options.adapterKind === "live_chrome" || process.env.WEB_WORKER_ADAPTER === "live_chrome"
         ? new LiveChromeDomAdapter({ cdpUrl: options.cdpUrl })
+        : options.adapterKind === "bookmarklet_bridge" || process.env.WEB_WORKER_ADAPTER === "bookmarklet_bridge"
+          ? new BookmarkletBridgeAdapter()
         : new PageAgentDomAdapter());
   }
 
