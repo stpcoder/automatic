@@ -36,6 +36,62 @@ This repository contains a concrete draft for an enterprise workflow agent syste
 - `packages/`: shared contracts and schemas
 - `infra/`: deployment and environment notes
 
+## Current Implementation
+
+The repository now includes an executable MVP skeleton:
+
+- shared contracts with Zod schemas
+- YAML workflow registry loader
+- legacy OpenAI-compatible LLM adapter
+- in-memory orchestrator service
+- approval-gated commit flow
+- email wait/resume event handling
+- shipment workflow demo through the customs-number request path
+
+## Run
+
+```bash
+npm install
+npm run check
+npm test
+npm run demo
+```
+
+Run the demo HTTP API:
+
+```bash
+npm run dev
+```
+
+API endpoints:
+
+- `POST /cases`
+- `GET /cases/:caseId`
+- `POST /cases/:caseId/advance`
+- `POST /cases/:caseId/events/email`
+- `GET /approvals`
+- `POST /approvals/:approvalId/decision`
+
+## What Works Today
+
+- case creation
+- workflow loading from YAML
+- immediate auto-advance through non-blocking steps
+- draft creation before commit
+- human approval requirement before commit
+- vendor email send simulation
+- waiting on incoming email
+- resume on matched email with extracted fields
+- move to the next draft step after reply
+
+## Next Build Steps
+
+1. Replace the demo tool executor with real Outlook and web workers
+2. Add persistent database-backed storage
+3. Add real approval UI
+4. Add planner integration through the internal LLM endpoint
+5. Add sample-intake workflow execution
+
 ## Recommended Product Direction
 
 The recommended baseline is:
