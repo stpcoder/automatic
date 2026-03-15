@@ -14,6 +14,9 @@ This repository contains a concrete draft for an enterprise workflow agent syste
 - [Runtime Spec](docs/runtime-spec.md)
 - [Workflow Library](docs/workflows.md)
 - [Implementation Plan](docs/implementation-plan.md)
+- [Implementation Blueprint](docs/implementation-blueprint.md)
+- [MVP Backlog](docs/mvp-backlog.md)
+- [Decision Checklist](docs/decision-checklist.md)
 - [Operator Runbook](docs/operator-runbook.md)
 
 ## Design Principles
@@ -28,6 +31,10 @@ This repository contains a concrete draft for an enterprise workflow agent syste
 
 - `docs/`: architecture and planning documents
 - `examples/`: YAML examples for prompts, tools, systems, workflows, and policies
+- `apps/`: services and operator-facing applications
+- `workers/`: Windows and channel-specific executors
+- `packages/`: shared contracts and schemas
+- `infra/`: deployment and environment notes
 
 ## Recommended Product Direction
 
