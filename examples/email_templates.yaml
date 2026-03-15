@@ -1,0 +1,41 @@
+templates:
+  - template_id: request_customs_number
+    channel: outlook
+    subject: "[{case_id}] 통관번호 요청"
+    body_markdown: |
+      안녕하세요.
+
+      아래 발송 건 관련하여 통관번호 회신 부탁드립니다.
+
+      - 케이스 번호: {case_id}
+      - 출장자: {traveler_name}
+      - 목적지: {destination_country}
+      - 요청 기한: {due_date}
+
+      회신 부탁드립니다.
+    checklist:
+      - recipient_verified
+      - case_id_included
+      - due_date_included
+      - customs_number_request_phrase_included
+    approval_required: true
+
+  - template_id: notify_security_request
+    channel: outlook
+    subject: "[{case_id}] 장비 반출 등록 요청"
+    body_markdown: |
+      안녕하세요.
+
+      아래 건에 대한 반출 등록 검토를 요청드립니다.
+
+      - 케이스 번호: {case_id}
+      - 출장자: {traveler_name}
+      - 목적지: {destination_country}
+      - 장비 목록: {device_summary}
+
+      검토 부탁드립니다.
+    checklist:
+      - recipient_verified
+      - case_id_included
+      - device_summary_included
+    approval_required: true

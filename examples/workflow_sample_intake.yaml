@@ -1,0 +1,74 @@
+workflow:
+  workflow_id: sample_intake
+  trigger:
+    - manual_case_creation
+    - incoming_sample_notice
+  steps:
+    - step_id: resolve_shift_assignee
+      goal: Determine the current assignee from the shift file.
+      required_inputs:
+        - shift_file_path
+        - target_time
+        - role
+      checklist:
+        - shift_file_exists
+        - target_time_present
+        - role_present
+      allowed_tools:
+        - read_shift_file
+
+    - step_id: notify_current_assignee
+      goal: Draft and send Cube message to the current assignee.
+      required_inputs:
+        - current_assignee
+        - sample_id
+        - location
+      checklist:
+        - assignee_present
+        - sample_id_present
+        - location_present
+      allowed_tools:
+        - draft_cube_message
+        - send_cube_message
+      approval_policy:
+        required_before:
+          - send_cube_message
+
+    - step_id: register_internal_intake
+      goal: Prepare and submit sample intake in the internal system.
+      required_inputs:
+        - sample_id
+        - location
+        - current_assignee
+      checklist:
+        - target_page_verified
+        - sample_id_present
+        - location_present
+      allowed_tools:
+        - open_system
+        - fill_web_form
+        - preview_web_submission
+        - submit_web_form
+      approval_policy:
+        required_before:
+          - submit_web_form
+
+    - step_id: create_physical_receipt_task
+      goal: Create a physical receipt task and wait for confirmation.
+      required_inputs:
+        - current_assignee
+        - sample_id
+      checklist:
+        - assignee_present
+        - sample_id_present
+      allowed_tools:
+        - create_human_task
+      approval_policy:
+        required_before:
+          - create_human_task
+      waiting:
+        type: human_confirmation
+        required_fields:
+          - receipt_confirmed
+        remind_after_minutes: 30
+        escalate_after_minutes: 60

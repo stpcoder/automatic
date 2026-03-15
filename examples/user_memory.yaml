@@ -1,0 +1,16 @@
+user_memory:
+  user_id: taeho
+  display_name: Taeho
+  department: logistics
+  language: ko-KR
+  email_signature: |
+    감사합니다.
+    물류팀 Taeho
+  default_approvers:
+    - team_lead@example.com
+  preferred_recipients:
+    security_team: security@example.com
+    default_vendor_contact: vendor@example.com
+  approval_scope:
+    can_request: true
+    can_commit_without_approval: false

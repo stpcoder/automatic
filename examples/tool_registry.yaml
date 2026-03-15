@@ -1,0 +1,139 @@
+tools:
+  - name: draft_outlook_mail
+    mode: draft
+    description: Create an Outlook email draft without sending it.
+    inputs:
+      template_id: string
+      to: list[string]
+      cc: list[string]
+      variables: object
+    side_effects:
+      - email_draft_created
+    success_signal: draft_id_created
+    approval_required: false
+    idempotent: false
+
+  - name: send_outlook_mail
+    mode: commit
+    description: Send a previously drafted Outlook email.
+    inputs:
+      draft_id: string
+    side_effects:
+      - outbound_email_sent
+    success_signal: message_id_created
+    approval_required: true
+    idempotent: false
+
+  - name: watch_email_reply
+    mode: preview
+    description: Register an expectation for an incoming email reply.
+    inputs:
+      case_id: string
+      expected_from: list[string]
+      conversation_id: string
+      required_fields: list[string]
+      remind_after_minutes: integer
+      escalate_after_minutes: integer
+    side_effects:
+      - expectation_registered
+    success_signal: expectation_id_created
+    approval_required: false
+    idempotent: true
+
+  - name: open_system
+    mode: preview
+    description: Open a configured internal system and navigate to its landing page.
+    inputs:
+      system_id: string
+      page_id: string
+    side_effects:
+      - browser_context_changed
+    success_signal: target_page_loaded
+    approval_required: false
+    idempotent: true
+
+  - name: fill_web_form
+    mode: draft
+    description: Fill one or more known fields in the current internal web form.
+    inputs:
+      system_id: string
+      field_values: object
+    side_effects:
+      - draft_form_state_updated
+    success_signal: required_values_visible
+    approval_required: false
+    idempotent: true
+
+  - name: preview_web_submission
+    mode: preview
+    description: Collect a structured preview before final save or submit.
+    inputs:
+      system_id: string
+    side_effects:
+      - submission_preview_captured
+    success_signal: preview_ready
+    approval_required: false
+    idempotent: true
+
+  - name: submit_web_form
+    mode: commit
+    description: Trigger the final save or submit action for the current internal system page.
+    inputs:
+      system_id: string
+      expected_button: string
+    side_effects:
+      - system_record_changed
+    success_signal: record_id_or_success_banner
+    approval_required: true
+    idempotent: false
+
+  - name: read_shift_file
+    mode: preview
+    description: Read the shift file and resolve the current assignee.
+    inputs:
+      file_path: string
+      target_time: string
+      role: string
+    side_effects:
+      - assignee_candidates_resolved
+    success_signal: assignee_found
+    approval_required: false
+    idempotent: true
+
+  - name: draft_cube_message
+    mode: draft
+    description: Draft a Cube message for a person or room.
+    inputs:
+      template_id: string
+      recipient: string
+      variables: object
+    side_effects:
+      - message_draft_created
+    success_signal: draft_id_created
+    approval_required: false
+    idempotent: false
+
+  - name: send_cube_message
+    mode: commit
+    description: Send a previously drafted Cube message.
+    inputs:
+      draft_id: string
+    side_effects:
+      - outbound_chat_sent
+    success_signal: message_sent
+    approval_required: true
+    idempotent: false
+
+  - name: create_human_task
+    mode: commit
+    description: Create a human task for physical work and notify the responsible person.
+    inputs:
+      task_type: string
+      assignee: string
+      checklist: list[string]
+      due_at: string
+    side_effects:
+      - human_task_created
+    success_signal: task_id_created
+    approval_required: true
+    idempotent: false

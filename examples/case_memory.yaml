@@ -1,0 +1,28 @@
+case_memory:
+  case_id: CASE-2026-0041
+  workflow_id: overseas_equipment_shipment
+  current_state: WAITING_EMAIL
+  current_step: request_customs_number
+  facts:
+    traveler_name: Kim
+    destination_country: Germany
+    vendor_email: vendor@example.com
+    equipment_list:
+      - serial_number: SN123
+        asset_tag: AT-001
+  completed_steps:
+    - collect_facts
+  expectations:
+    - expectation_id: EXP-01
+      type: email_reply
+      expected_from:
+        - vendor@example.com
+      conversation_id: CONV-7788
+      required_fields:
+        - customs_number
+      status: waiting
+      remind_at: "2026-03-16T10:00:00+09:00"
+      escalate_at: "2026-03-17T10:00:00+09:00"
+  linked_artifacts:
+    - kind: mail_draft
+      id: DRAFT-1001

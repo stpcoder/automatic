@@ -1,0 +1,86 @@
+workflow:
+  workflow_id: overseas_equipment_shipment
+  trigger:
+    - manual_case_creation
+  steps:
+    - step_id: collect_facts
+      goal: Gather traveler, destination, equipment, and vendor facts.
+      required_inputs:
+        - traveler_name
+        - destination_country
+        - equipment_list
+        - vendor_email
+      checklist:
+        - traveler_name_present
+        - destination_country_present
+        - equipment_list_present
+        - vendor_email_present
+      allowed_tools:
+        - open_system
+
+    - step_id: request_customs_number
+      goal: Draft and send a vendor email asking for customs number.
+      required_inputs:
+        - case_id
+        - vendor_email
+        - traveler_name
+        - destination_country
+        - due_date
+      checklist:
+        - recipient_verified
+        - case_id_included
+        - due_date_included
+      allowed_tools:
+        - draft_outlook_mail
+        - send_outlook_mail
+        - watch_email_reply
+      approval_policy:
+        required_before:
+          - send_outlook_mail
+      waiting:
+        type: email_reply
+        expected_from:
+          - "{vendor_email}"
+        required_fields:
+          - customs_number
+        remind_after_minutes: 1440
+        escalate_after_minutes: 2880
+
+    - step_id: register_security_portal
+      goal: Prepare and submit security registration.
+      required_inputs:
+        - traveler_name
+        - destination_country
+        - equipment_list
+        - customs_number
+      checklist:
+        - customs_number_present
+        - target_page_verified
+        - required_fields_visible
+      allowed_tools:
+        - open_system
+        - fill_web_form
+        - preview_web_submission
+        - submit_web_form
+      approval_policy:
+        required_before:
+          - submit_web_form
+
+    - step_id: create_dhl_shipment
+      goal: Prepare and submit DHL shipment.
+      required_inputs:
+        - receiver_address
+        - customs_number
+        - equipment_list
+      checklist:
+        - receiver_address_present
+        - customs_number_present
+        - item_description_present
+      allowed_tools:
+        - open_system
+        - fill_web_form
+        - preview_web_submission
+        - submit_web_form
+      approval_policy:
+        required_before:
+          - submit_web_form

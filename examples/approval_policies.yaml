@@ -1,0 +1,35 @@
+policies:
+  - action: send_outlook_mail
+    approval_required: true
+    reason: External or internal mail send must be reviewed before dispatch.
+
+  - action: send_cube_message
+    approval_required: true
+    reason: Chat notifications may trigger real-world actions and must be reviewed.
+
+  - action: submit_web_form
+    approval_required: true
+    reason: Final save or submit changes internal system records.
+
+  - action: submit_approval_document
+    approval_required: true
+    reason: Approval submission is an irreversible workflow event.
+
+  - action: create_human_task
+    approval_required: true
+    reason: Task issuance should be reviewed before assigning real-world work.
+
+approval_ui:
+  required_preview_fields:
+    - action
+    - target_system
+    - recipients
+    - subject
+    - body_markdown
+    - changed_fields
+    - checklist
+    - policy_reason
+  outcomes:
+    - approve
+    - reject
+    - request_revision

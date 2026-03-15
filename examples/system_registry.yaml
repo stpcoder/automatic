@@ -1,0 +1,48 @@
+systems:
+  - system_id: outlook_desktop
+    type: windows_app
+    adapter: outlook_com
+    login_method: existing_profile
+    notes: Prefer Classic Outlook. New Outlook requires a different path.
+
+  - system_id: security_portal
+    type: web
+    base_url: https://security.internal
+    login_method: sso
+    harness: page_agent_or_playwright
+    pages:
+      - page_id: export_registration
+        success_markers:
+          - 반출 등록
+        required_fields:
+          - traveler_name
+          - destination_country
+          - serial_number
+          - customs_number
+        final_action:
+          button_text: 등록
+          approval_required: true
+
+  - system_id: dhl
+    type: web
+    base_url: https://mydhl.express.dhl
+    login_method: password
+    harness: playwright
+    pages:
+      - page_id: create_shipment
+        success_markers:
+          - Create Shipment
+        required_fields:
+          - shipper
+          - receiver
+          - customs_number
+          - item_description
+        final_action:
+          button_text: Submit
+          approval_required: true
+
+  - system_id: cube
+    type: windows_app_or_web
+    adapter: cube_adapter
+    login_method: existing_session
+    notes: Use API first, web second, UI automation third.

@@ -1,0 +1,40 @@
+llm_adapter:
+  mode: chat_completions_legacy
+  description: >
+    Adapter for internal OpenAI-compatible endpoints that do not fully support
+    the newest API surface.
+
+  endpoint:
+    base_url: http://internal-llm.local/v1
+    path: /chat/completions
+
+  compatibility:
+    supports_responses_api: false
+    supports_parallel_tool_calls: false
+    supports_json_schema_response_format: false
+    supports_function_calling: partial
+    supports_streaming: optional
+
+  request_shape:
+    model_field: model
+    messages_field: messages
+    tools_field: tools
+    tool_choice_field: tool_choice
+
+  fallback_order:
+    - use_function_calling_if_supported
+    - use_single-tool-choice_if_supported
+    - request_strict_json_text_output
+    - parse_json_from_text_response
+
+  normalization_rules:
+    - convert internal tool schema to legacy function tool schema
+    - disable parallel tool calls
+    - enforce one action per turn
+    - retry once on malformed JSON
+    - route extraction tasks through strict JSON prompts
+
+  recommended_task_split:
+    planner: short-context, one-action output
+    extractor: strict JSON text output
+    drafter: plain text output with deterministic templates
