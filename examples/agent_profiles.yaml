@@ -1,0 +1,51 @@
+agents:
+  - agent_id: planner_agent
+    role: PlannerAgent
+    responsibilities:
+      - choose next bounded action
+      - evaluate waiting/resume conditions
+      - never commit irreversible actions directly
+    tools:
+      - draft_outlook_mail
+      - fill_web_form
+      - draft_cube_message
+      - preview_web_submission
+      - watch_email_reply
+
+  - agent_id: outlook_agent
+    role: OutlookAgent
+    responsibilities:
+      - draft email
+      - send after approval
+      - watch for replies
+    tools:
+      - draft_outlook_mail
+      - send_outlook_mail
+      - watch_email_reply
+
+  - agent_id: web_agent
+    role: WebAgent
+    harness: page_agent_dom
+    responsibilities:
+      - open system
+      - read structured DOM observation
+      - fill semantic fields
+      - preview and submit after approval
+    tools:
+      - open_system
+      - fill_web_form
+      - preview_web_submission
+      - submit_web_form
+
+  - agent_id: cube_agent
+    role: CubeAgent
+    responsibilities:
+      - draft and send Cube messages
+    tools:
+      - draft_cube_message
+      - send_cube_message
+
+  - agent_id: scheduler_agent
+    role: SchedulerAgent
+    responsibilities:
+      - evaluate remind/escalate timing

@@ -15,7 +15,7 @@ npm run demo
 - TypeScript check: `PASS`
 - Automated test suite: `PASS`
 - Demo flow: `PASS`
-- Automated test count: `13/13 PASS`
+- Automated test count: `17/17 PASS`
 
 ## Current Test Inventory
 
@@ -46,6 +46,11 @@ npm run demo
 
 - `workers/web-worker/src/index.test.ts`
   - fill/preview/submit path
+  - status: `PASS`
+
+- `workers/web-worker/src/dom-mapping.test.ts`
+  - semantic DOM label mapping
+  - live DOM snapshot conversion
   - status: `PASS`
 
 - `workers/cube-worker/src/index.test.ts`
@@ -83,9 +88,12 @@ Current implementation success means:
 - waiting/resume works
 - worker boundaries work
 - HTTP surface works
+- page-agent-style DOM harness works
+- live Chrome adapter mapping and selection logic work
 
 Current implementation success does not yet mean:
 
 - Windows Outlook integration is production-ready
-- internal web automation is production-ready
+- internal web automation has been validated against the real internal websites
 - Cube integration is production-ready
+- a live Chrome CDP session was available during this verification run

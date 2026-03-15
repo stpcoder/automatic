@@ -48,6 +48,7 @@ The repository now includes an executable MVP skeleton:
 - in-memory orchestrator service
 - approval-gated commit flow
 - email wait/resume event handling
+- Page-Agent-style web worker with `page_agent_dom` and `live_chrome` adapters
 - shipment workflow demo through the customs-number request path
 
 ## Run
@@ -63,6 +64,13 @@ Run the demo HTTP API:
 
 ```bash
 npm run dev
+```
+
+Use the live Chrome adapter with an existing Chrome or Chromium session:
+
+```bash
+open -na "Google Chrome" --args --remote-debugging-port=9222
+WEB_WORKER_ADAPTER=live_chrome WEB_WORKER_CDP_URL=http://127.0.0.1:9222 npm run dev
 ```
 
 API endpoints:
@@ -85,6 +93,8 @@ API endpoints:
 - waiting on incoming email
 - resume on matched email with extracted fields
 - move to the next draft step after reply
+- web worker adapter selection
+- live Chrome DOM observation mapping over CDP
 
 ## Next Build Steps
 

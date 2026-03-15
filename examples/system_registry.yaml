@@ -9,11 +9,19 @@ systems:
     type: web
     base_url: https://security.internal
     login_method: sso
-    harness: page_agent_or_playwright
+    harness: page_agent_dom
+    supported_harnesses:
+      - page_agent_dom
+      - live_chrome
     pages:
       - page_id: export_registration
         success_markers:
           - 반출 등록
+        field_labels:
+          traveler_name: 출장자명
+          destination_country: 국가
+          serial_number: 시리얼번호
+          customs_number: 통관번호
         required_fields:
           - traveler_name
           - destination_country
@@ -27,11 +35,18 @@ systems:
     type: web
     base_url: https://mydhl.express.dhl
     login_method: password
-    harness: playwright
+    harness: page_agent_dom
+    supported_harnesses:
+      - page_agent_dom
+      - live_chrome
     pages:
       - page_id: create_shipment
         success_markers:
           - Create Shipment
+        field_labels:
+          receiver_address: Receiver Address
+          customs_number: Customs Number
+          item_description: Item Description
         required_fields:
           - shipper
           - receiver
