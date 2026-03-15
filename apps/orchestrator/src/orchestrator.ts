@@ -23,6 +23,7 @@ import {
 } from "../../../packages/contracts/src/index.js";
 import { WorkflowRegistry } from "../../../packages/workflow-registry/src/index.js";
 import { InMemoryStore } from "./store.js";
+import { CompositeToolExecutor } from "./tool-executors.js";
 
 interface OrchestratorOptions {
   registry: WorkflowRegistry;
@@ -44,7 +45,7 @@ export class OrchestratorService {
     const registry = await WorkflowRegistry.fromExampleDirectory(exampleDir);
     return new OrchestratorService(new InMemoryStore(), {
       registry,
-      toolExecutor: new (await import("./tool-executors.js")).DemoToolExecutor()
+      toolExecutor: new CompositeToolExecutor()
     });
   }
 

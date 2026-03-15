@@ -12,7 +12,7 @@
     "check": "tsc -p tsconfig.json --noEmit",
     "dev": "node --import tsx apps/orchestrator/src/server.ts",
     "demo": "node --import tsx apps/orchestrator/src/demo.ts",
-    "test": "node --import tsx --test apps/**/*.test.ts packages/**/*.test.ts"
+    "test": "node --import tsx --test $(find apps packages workers -name '*.test.ts' | sort)"
   },
   "dependencies": {
     "fastify": "^5.4.0",
