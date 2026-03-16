@@ -1,3 +1,7 @@
+import { generateText, tool } from "ai";
+import { createOpenAICompatible } from "@ai-sdk/openai-compatible";
+import { z } from "zod";
+
 import { plannerOutputSchema, type PlannerClient, type PlannerOutput, type PlannerRequest } from "../../contracts/src/index.js";
 
 export interface LegacyChatCompletionConfig {
@@ -79,6 +83,56 @@ export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
     }
 
     return plannerOutputSchema.parse(parseJsonSafely(content));
+  }
+}
+
+export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
+  constructor(private readonly config: LegacyChatCompletionConfig) {}
+
+  async plan(request: PlannerRequest): Promise<PlannerOutput> {
+    const provider = createOpenAICompatible({
+      name: "skhynix-llm",
+      baseURL: this.config.baseUrl,
+      apiKey: this.config.apiKey
+    });
+    const system = request.messages.find((message) => message.role === "system")?.content;
+    const prompt = [...request.messages].reverse().find((message) => message.role === "user")?.content ?? "";
+
+    const result = await generateText({
+      model: provider.chatModel(request.model ?? this.config.model),
+      system,
+      prompt,
+      toolChoice: "auto",
+      tools: Object.fromEntries(
+        request.tools.map((toolDefinition) => [
+          toolDefinition.name,
+          tool({
+            description: toolDefinition.description,
+            inputSchema: z.object({}).passthrough()
+          })
+        ])
+      )
+    });
+
+    const toolCall = result.toolCalls[0];
+    if (toolCall?.toolName) {
+      return plannerOutputSchema.parse({
+        objective: "LLM generated tool action",
+        rationale: "Parsed from AI SDK tool call response",
+        next_action: {
+          tool: toolCall.toolName,
+          input: typeof toolCall.input === "object" && toolCall.input !== null ? toolCall.input : {}
+        },
+        requires_approval: false,
+        expected_transition: "RUNNING"
+      });
+    }
+
+    if (!result.text) {
+      throw new Error("AI SDK planner returned no tool call and no text");
+    }
+
+    return plannerOutputSchema.parse(parseJsonSafely(result.text));
   }
 }
 

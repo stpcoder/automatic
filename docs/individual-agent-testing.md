@@ -32,6 +32,13 @@ npm run win:health
 npm run win:debug:overview
 ```
 
+If `win:debug:overview` says it cannot connect to the remote server, the local server is not running yet or `ORCHESTRATOR_BASE_URL` points to the wrong address.
+Start it again with:
+
+```powershell
+npm run win:start-all
+```
+
 If you already know the API key, write it in one command:
 
 ```powershell

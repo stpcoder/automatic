@@ -37,6 +37,8 @@
     "win:debug:agent:run": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-agent-run.ps1"
   },
   "dependencies": {
+    "@ai-sdk/openai-compatible": "^2.0.35",
+    "ai": "^6.0.116",
     "fastify": "^5.4.0",
     "playwright-core": "^1.58.2",
     "yaml": "^2.8.1",

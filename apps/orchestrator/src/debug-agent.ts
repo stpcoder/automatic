@@ -3,7 +3,7 @@ import {
   type PlannerOutput,
   type PlannerRequest
 } from "../../../packages/contracts/src/index.js";
-import { LegacyOpenAICompatiblePlannerClient } from "../../../packages/llm-adapter/src/index.js";
+import { AISDKOpenAICompatiblePlannerClient } from "../../../packages/llm-adapter/src/index.js";
 import { resolveLlmConfig } from "./llm-config.js";
 
 export interface DebugAgentToolSpec {
@@ -16,7 +16,7 @@ export function createDebugPlanner(): PlannerClient {
   const config = resolveLlmConfig();
 
   if (config.baseUrl && config.apiKey && config.model) {
-    return new LegacyOpenAICompatiblePlannerClient({
+    return new AISDKOpenAICompatiblePlannerClient({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       model: config.model,
