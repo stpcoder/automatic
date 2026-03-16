@@ -5,12 +5,33 @@ import { approvalDecisionInputSchema, createCaseInputSchema, incomingEmailPayloa
 import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bookmarklet-script.js";
 import { getWebSystemDefinition } from "../../../workers/web-worker/src/system-definitions.js";
 import { OrchestratorService } from "./orchestrator.js";
+import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
 
 export async function createApp(orchestrator?: OrchestratorService): Promise<FastifyInstance> {
   const resolvedOrchestrator = orchestrator ?? (await OrchestratorService.createDefault());
   const app = Fastify({ logger: false });
 
   app.get("/health", async () => ({ ok: true }));
+
+  app.get("/ui", async (_request, reply) => {
+    reply.redirect("/ui/approvals");
+  });
+
+  app.get("/ui/approvals", async (_request, reply) => {
+    reply.header("content-type", "text/html; charset=utf-8");
+    return renderApprovalsPage(resolvedOrchestrator.listApprovals());
+  });
+
+  app.get("/ui/cases/:caseId", async (request, reply) => {
+    const params = request.params as { caseId: string };
+    reply.header("content-type", "text/html; charset=utf-8");
+    return renderCaseDetailPage({
+      caseRecord: resolvedOrchestrator.getCase(params.caseId),
+      approvals: resolvedOrchestrator.listApprovals(params.caseId),
+      artifacts: resolvedOrchestrator.listArtifacts(params.caseId),
+      events: resolvedOrchestrator.listEvents(params.caseId)
+    });
+  });
 
   app.get("/bridge/sessions", async () => browserBridgeCoordinator.listSessions());
 

@@ -95,3 +95,54 @@ test("http api exposes bookmarklet bridge endpoints", async () => {
 
   await app.close();
 });
+
+test("approval ui renders pending approvals and case detail", async () => {
+  const app = await createApp();
+
+  const createResponse = await app.inject({
+    method: "POST",
+    url: "/cases",
+    payload: {
+      workflow_id: "overseas_equipment_shipment",
+      facts: {
+        case_id: "CASE-UI-001",
+        traveler_name: "Kim",
+        destination_country: "Germany",
+        equipment_list: [{ serial_number: "SN123", asset_tag: "AT-001" }],
+        vendor_email: "vendor@example.com",
+        due_date: "2026-03-20",
+        receiver_address: "Berlin Office"
+      }
+    }
+  });
+  const caseId = createResponse.json().case_id as string;
+
+  await app.inject({
+    method: "POST",
+    url: `/cases/${caseId}/advance`
+  });
+  await app.inject({
+    method: "POST",
+    url: `/cases/${caseId}/advance`
+  });
+
+  const approvalsPage = await app.inject({
+    method: "GET",
+    url: "/ui/approvals"
+  });
+  assert.equal(approvalsPage.statusCode, 200);
+  assert.match(approvalsPage.body, /Approval Center/);
+  assert.match(approvalsPage.body, /request_customs_number/);
+  assert.match(approvalsPage.body, /Approve/);
+
+  const casePage = await app.inject({
+    method: "GET",
+    url: `/ui/cases/${caseId}`
+  });
+  assert.equal(casePage.statusCode, 200);
+  assert.match(casePage.body, new RegExp(caseId));
+  assert.match(casePage.body, /request_customs_number/);
+  assert.match(casePage.body, /vendor@example.com/);
+
+  await app.close();
+});

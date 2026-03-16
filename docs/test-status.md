@@ -15,7 +15,7 @@ npm run demo
 - TypeScript check: `PASS`
 - Automated test suite: `PASS`
 - Demo flow: `PASS`
-- Automated test count: `24/24 PASS`
+- Automated test count: `25/25 PASS`
 
 ## Current Test Inventory
 
@@ -85,6 +85,7 @@ npm run demo
   - approve through API
   - email event resume through API
   - bookmarklet bridge endpoint exposure
+  - approval UI rendering
   - status: `PASS`
 
 ## Interpretation
@@ -102,6 +103,7 @@ Current implementation success means:
 - live Chrome adapter mapping and selection logic work
 - Outlook reply poller logic works
 - SQLite persistence works
+- approval UI rendering works
 
 Current implementation success does not yet mean:
 

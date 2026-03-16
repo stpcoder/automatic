@@ -106,6 +106,11 @@ API endpoints:
 - `GET /approvals`
 - `POST /approvals/:approvalId/decision`
 
+Operator UI:
+
+- `/ui/approvals`
+- `/ui/cases/:caseId`
+
 ## What Works Today
 
 - case creation
@@ -114,6 +119,7 @@ API endpoints:
 - immediate auto-advance through non-blocking steps
 - draft creation before commit
 - human approval requirement before commit
+- approval UI for pending commit actions
 - Outlook COM execution path
 - Outlook reply poller service
 - Cube bookmarklet bridge execution path
