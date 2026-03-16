@@ -10,4 +10,5 @@ if (-not (Test-Path (Join-Path $repoRoot "node_modules\ai"))) {
 if (-not (Test-Path (Join-Path $repoRoot "node_modules\@ai-sdk\openai-compatible"))) {
   throw "Missing dependency '@ai-sdk/openai-compatible'. Run 'npm install' or 'npm run win:setup' first."
 }
-Invoke-AgentNpm -Arguments @("run", "dev")
+Invoke-AgentNpm -Arguments @("run", "build")
+Invoke-AgentNpm -Arguments @("run", "dev:compiled")

@@ -4,4 +4,5 @@ param()
 $repoRoot = Set-AgentEnvironment
 
 Set-Location $repoRoot
-Invoke-AgentNpm -Arguments @("run", "outlook:poller")
+Invoke-AgentNpm -Arguments @("run", "build")
+Invoke-AgentNpm -Arguments @("run", "outlook:poller:compiled")
