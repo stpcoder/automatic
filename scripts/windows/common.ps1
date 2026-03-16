@@ -125,6 +125,25 @@ function Invoke-AgentApi {
   }
 }
 
+function Get-AgentSessions {
+  return @(Invoke-AgentApi -Method "GET" -Uri (Get-AgentUrl "/bridge/sessions"))
+}
+
+function Assert-AgentSessionForSystem {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$SystemId
+  )
+
+  $sessions = Get-AgentSessions
+  $matched = @($sessions | Where-Object { $_.system_id -eq $SystemId })
+  if ($matched.Count -eq 0) {
+    throw "No active extension session found for system '$SystemId'. Open the target page in Chrome with the extension enabled, wait a few seconds, then run 'npm run win:doctor'."
+  }
+
+  return $matched
+}
+
 function Format-AgentRunResult {
   param(
     [Parameter(Mandatory = $true)]

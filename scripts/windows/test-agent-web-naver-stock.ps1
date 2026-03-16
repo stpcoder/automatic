@@ -3,6 +3,11 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
+Write-Host "[skh-agent] checking extension session for naver_search..."
+$sessions = Assert-AgentSessionForSystem -SystemId "naver_search"
+Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
+Write-Host "[skh-agent] running multi-step agent loop for naver_search..."
+
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
   instruction = "Open Naver search and search for SK hynix stock price"
   context = @{
