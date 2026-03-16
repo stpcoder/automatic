@@ -18,10 +18,18 @@ if (-not (Test-Path $configPath)) {
   else {
     @'
 {
-  "llm": {
-    "base_url": "https://common.llm.skhynix.com/v1",
-    "apiKey": "",
-    "model": "zai-org/GLM-4.7"
+  "provider": {
+    "name": "zai-org/GLM4.7",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "GLM4.7": {
+        "name": "GLM4.7"
+      }
+    },
+    "options": {
+      "baseURL": "http://common.llm.skhynix.com/v1",
+      "apiKey": ""
+    }
   }
 }
 '@ | Set-Content -Path $configPath -Encoding UTF8
@@ -30,9 +38,17 @@ if (-not (Test-Path $configPath)) {
 
 if ($ApiKey) {
   $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
-  $config.llm.apiKey = $ApiKey
-  if ($config.llm.PSObject.Properties["api_key"]) {
-    $config.llm.PSObject.Properties.Remove("api_key")
+  if ($config.provider -and $config.provider.options) {
+    $config.provider.options.apiKey = $ApiKey
+    if ($config.provider.options.PSObject.Properties["api_key"]) {
+      $config.provider.options.PSObject.Properties.Remove("api_key")
+    }
+  }
+  elseif ($config.llm) {
+    $config.llm.apiKey = $ApiKey
+    if ($config.llm.PSObject.Properties["api_key"]) {
+      $config.llm.PSObject.Properties.Remove("api_key")
+    }
   }
   $config | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding UTF8
 }

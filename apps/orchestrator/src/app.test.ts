@@ -292,6 +292,36 @@ test("llm config resolves from opencode.ai config file", () => {
   assert.equal(resolved.apiKey, "test-key");
 });
 
+test("llm config resolves from opencode provider config file", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-provider-"));
+  const configDir = path.join(tempDir, "opencode.ai");
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(configDir, "config.json"),
+    JSON.stringify({
+      provider: {
+        name: "zai-org/GLM4.7",
+        npm: "@ai-sdk/openai-compatible",
+        models: {
+          "GLM4.7": {
+            name: "GLM4.7"
+          }
+        },
+        options: {
+          apiKey: "provider-test-key",
+          baseURL: "http://common.llm.skhynix.com/v1"
+        }
+      }
+    })
+  );
+
+  const resolved = resolveLlmConfig(tempDir);
+  assert.equal(resolved.source, "file");
+  assert.equal(resolved.baseUrl, "http://common.llm.skhynix.com/v1");
+  assert.equal(resolved.model, "GLM4.7");
+  assert.equal(resolved.apiKey, "provider-test-key");
+});
+
 test("llm config falls back safely on malformed config file", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-bad-"));
   const configDir = path.join(tempDir, "opencode.ai");

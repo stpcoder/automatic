@@ -126,7 +126,7 @@ npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -Con
 See `docs/individual-agent-testing.md` for step-by-step bookmarklet and Outlook setup.
 
 The natural-language debug agent uses `@ai-sdk/openai-compatible` when `opencode.ai/config.json` contains a valid API key.
-The config file only needs `base_url`, `apiKey`, and `model`.
+It supports both a simple `llm` block and an OpenCode-style `provider/options/models` block.
 
 API endpoints:
 

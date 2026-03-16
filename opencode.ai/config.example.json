@@ -1,7 +1,15 @@
 {
-  "llm": {
-    "base_url": "https://common.llm.skhynix.com/v1",
-    "apiKey": "",
-    "model": "zai-org/GLM-4.7"
+  "provider": {
+    "name": "zai-org/GLM4.7",
+    "npm": "@ai-sdk/openai-compatible",
+    "models": {
+      "GLM4.7": {
+        "name": "GLM4.7"
+      }
+    },
+    "options": {
+      "baseURL": "http://common.llm.skhynix.com/v1",
+      "apiKey": ""
+    }
   }
 }
