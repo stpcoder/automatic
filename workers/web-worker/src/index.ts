@@ -158,8 +158,11 @@ export class WebWorker implements ToolExecutor {
       requiredIndicators.length > 0
         ? includesAllTerms(pageText, requiredIndicators)
         : matchedSnippets.length > 0;
+    const stockResult = parseStockResult(systemId, pageText);
     const summary =
-      matchedSnippets[0] ??
+      stockResult
+        ? `${stockResult.company} ${stockResult.price} ${stockResult.currency}`
+        : matchedSnippets[0] ??
       (goalSatisfied
         ? `${observation.title} result appears to satisfy the goal.`
         : `${observation.title} result was observed but goal could not be confirmed.`);
@@ -176,6 +179,7 @@ export class WebWorker implements ToolExecutor {
         query,
         goal_satisfied: goalSatisfied,
         matched_snippets: matchedSnippets,
+        stock_result: stockResult,
         summary,
         observation
       },
@@ -224,4 +228,22 @@ function collectMatchedSnippets(pageText: string, terms: string[]): string[] {
 function includesAllTerms(pageText: string, terms: string[]): boolean {
   const normalized = pageText.toLowerCase();
   return terms.every((term) => normalized.includes(term));
+}
+
+function parseStockResult(systemId: string, pageText: string): { company: string; price: string; currency: string } | undefined {
+  if (systemId !== "naver_search" && systemId !== "naver_stock") {
+    return undefined;
+  }
+
+  const company = /sk hynix/i.test(pageText) ? "SK hynix" : undefined;
+  const priceMatch = pageText.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*(KRW|원)/i);
+  if (!company || !priceMatch) {
+    return undefined;
+  }
+
+  return {
+    company,
+    price: priceMatch[1],
+    currency: /krw/i.test(priceMatch[2]) ? "KRW" : "KRW"
+  };
 }

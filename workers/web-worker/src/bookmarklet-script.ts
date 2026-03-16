@@ -41,6 +41,10 @@ function getPageText(){
   const raw=document.body&&document.body.innerText?document.body.innerText:"";
   return raw.replace(/\\s+/g," ").trim().slice(0,4000);
 }
+function getObservationSignature(){
+  const text=getPageText();
+  return [location.href,document.title,text.slice(0,200)].join("|");
+}
 function buildObservation(){
   const controls=Array.from(document.querySelectorAll("input, textarea, select, button")).filter((element)=>{
     const style=window.getComputedStyle(element);
@@ -79,6 +83,17 @@ async function registerSession(){
 }
 async function pushObservation(){
   await fetch(CONFIG.serverOrigin+"/bridge/sessions/"+SESSION_ID+"/snapshot",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify(buildObservation())});
+}
+async function waitForObservationChange(previousSignature,timeoutMs){
+  const started=Date.now();
+  while(Date.now()-started<timeoutMs){
+    await new Promise((resolve)=>setTimeout(resolve,250));
+    const nextSignature=getObservationSignature();
+    if(nextSignature!==previousSignature){
+      return true;
+    }
+  }
+  return false;
 }
 function findControlForKey(key){
   const controls=Array.from(document.querySelectorAll("input, textarea, select"));
@@ -139,10 +154,14 @@ async function handleCommands(){
         }
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }else if(command.type==="submit"){
+        const previousSignature=getObservationSignature();
         clickSubmit(String(command.payload.expected_button||CONFIG.finalActionButton));
+        await waitForObservationChange(previousSignature,4000);
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }else if(command.type==="click"){
+        const previousSignature=getObservationSignature();
         clickTarget(String(command.payload.target_key||""));
+        await waitForObservationChange(previousSignature,4000);
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }
     }catch(error){

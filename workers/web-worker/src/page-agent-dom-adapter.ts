@@ -141,7 +141,7 @@ export class PageAgentDomAdapter implements WebAdapter {
 
   private toObservation(page: HarnessPageDefinition, systemId: string): PageObservation {
     const pageText =
-      systemId === "naver_search"
+      systemId === "naver_search" || systemId === "naver_stock"
         ? this.buildNaverPageText(page)
         : page.interactiveElements
             .map((element) => `${element.label}${element.value ? `: ${element.value}` : ""}`)
@@ -170,6 +170,9 @@ export class PageAgentDomAdapter implements WebAdapter {
   }
 
   private buildNaverPageText(page: HarnessPageDefinition): string {
+    if (page.title === "Naver Finance - SK hynix") {
+      return "Naver Finance SK hynix page. SK hynix 210,000 KRW. Day change +1.45%.";
+    }
     const query = page.interactiveElements.find((element) => element.key === "query")?.value ?? "";
     if (page.title === "Naver Search Results") {
       return `Naver search results for ${query}. Stock result card shows SK hynix stock price 210,000 KRW. Related query SK hynix stock price.`;

@@ -341,6 +341,14 @@ function planLoopContinuation(
     });
   }
 
+  if (systemId === "naver_stock" && selectedTools.includes("open_system") && !selectedTools.includes("extract_web_result")) {
+    return buildOutput("Read stock result from current page", "extract_web_result", {
+      system_id: systemId,
+      goal: instruction,
+      query: ""
+    });
+  }
+
   if (interactiveElements.length > 0 && Object.keys(fieldValues).length > 0 && !selectedTools.includes("fill_web_form")) {
     return buildOutput("Fill target form", "fill_web_form", {
       system_id: systemId,
@@ -403,7 +411,10 @@ function inferSystemId(instruction: string, context: Record<string, unknown>): s
     return "security_portal";
   }
   if (includesAny(instruction, ["naver", "네이버", "stock", "주가"])) {
-    return "naver_search";
+    if (includesAny(instruction, ["current page", "현재 페이지", "finance", "시세"])) {
+      return "naver_stock";
+    }
+    return typeof context.system_id === "string" ? context.system_id : "naver_search";
   }
   if (includesAny(instruction, ["dhl"])) {
     return "dhl";

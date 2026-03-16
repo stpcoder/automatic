@@ -7,8 +7,10 @@ param(
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/extract") -Body @{
+$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/extract") -Body @{
   system_id = $SystemId
   goal = $Goal
   query = $Query
-} | ConvertTo-Json -Depth 30
+}
+
+Format-WebExtractResult -Result $result

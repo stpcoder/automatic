@@ -368,6 +368,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
             ok: true,
             completed: true,
             final_response: typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
+            final_result: lastToolResult ?? null,
             steps,
             timing: {
               total_ms: Date.now() - startedAt

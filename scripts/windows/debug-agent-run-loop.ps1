@@ -9,9 +9,10 @@ param(
 Set-AgentEnvironment | Out-Null
 
 $context = ConvertFrom-AgentJson -Json $ContextJson
-
-Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
+$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
   instruction = $Instruction
   context = $context
   max_steps = $MaxSteps
-} | ConvertTo-Json -Depth 30
+}
+
+Format-AgentRunResult -Result $result

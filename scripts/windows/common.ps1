@@ -121,3 +121,45 @@ function Invoke-AgentApi {
     throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=${env:ORCHESTRATOR_BASE_URL}. Original error: $($_.Exception.Message)"
   }
 }
+
+function Format-AgentRunResult {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Result
+  )
+
+  if ($Result.ok -eq $true) {
+    $output = [ordered]@{
+      ok = $true
+      final_response = $Result.final_response
+      stock_result = $Result.final_result.stock_result
+      goal_satisfied = $Result.final_result.goal_satisfied
+      total_ms = $Result.timing.total_ms
+      steps = @($Result.steps | ForEach-Object { $_.tool })
+    }
+    return ($output | ConvertTo-Json -Depth 10)
+  }
+
+  $output = [ordered]@{
+    ok = $false
+    error_stage = $Result.error_stage
+    error_message = $Result.error_message
+    total_ms = $Result.timing.total_ms
+  }
+  return ($output | ConvertTo-Json -Depth 10)
+}
+
+function Format-WebExtractResult {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Result
+  )
+
+  $output = [ordered]@{
+    success = $Result.success
+    summary = $Result.output.summary
+    stock_result = $Result.output.stock_result
+    goal_satisfied = $Result.output.goal_satisfied
+  }
+  return ($output | ConvertTo-Json -Depth 10)
+}

@@ -317,6 +317,36 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
   process.env.WEB_WORKER_ADAPTER = previousAdapter;
 });
 
+test("debug agent loop can read stock result from a direct naver stock page", async () => {
+  const previousAdapter = process.env.WEB_WORKER_ADAPTER;
+  delete process.env.WEB_WORKER_ADAPTER;
+  const app = await createApp();
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/debug/agent/run-loop",
+    payload: {
+      instruction: "Read SK hynix stock result from the current Naver stock page",
+      context: {
+        system_id: "naver_stock"
+      },
+      max_steps: 4
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().ok, true);
+  assert.equal(response.json().completed, true);
+  assert.deepEqual(
+    response.json().steps.map((step: { tool: string }) => step.tool),
+    ["open_system", "extract_web_result"]
+  );
+  assert.equal(response.json().final_result.stock_result.company, "SK hynix");
+
+  await app.close();
+  process.env.WEB_WORKER_ADAPTER = previousAdapter;
+});
+
 test("llm config resolves from opencode.ai config file", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-"));
   const configDir = path.join(tempDir, "opencode.ai");

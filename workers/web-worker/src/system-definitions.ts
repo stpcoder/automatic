@@ -81,6 +81,16 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
       { key: "query", label: "검색어", aliases: ["search", "search query", "query", "검색", "검색창"], required: true }
     ],
     buttons: [{ key: "search", label: "검색", aliases: ["search"] }]
+  },
+  naver_stock: {
+    systemId: "naver_stock",
+    pageId: "stock_page",
+    title: "Naver Finance - SK hynix",
+    url: "https://finance.naver.com/item/main.naver?code=000660",
+    summary: "Naver Finance SK hynix stock page is open.",
+    resultIndicators: ["sk hynix", "krw"],
+    fields: [],
+    buttons: []
   }
 };
 
