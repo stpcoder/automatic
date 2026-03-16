@@ -26,10 +26,29 @@ If `npm run win:sessions` returns `[]`, one of these is true:
 ## 3. Start The Local Test Environment
 
 ```powershell
+npm run win:llm:init
 npm run win:start-all
 npm run win:health
 npm run win:debug:overview
 ```
+
+If you already know the API key, write it in one command:
+
+```powershell
+npm run win:llm:init -- -ApiKey YOUR_API_KEY
+```
+
+The created file is:
+
+`opencode.ai/config.json`
+
+Default values are already set for:
+
+- base URL: `https://common.llm.skhynix.com/v1`
+- model: `zai-org/GLM-4.7`
+- path: `/chat/completions`
+
+So you only need to fill `api_key`.
 
 ## 4. Install And Verify A Bookmarklet
 
@@ -166,3 +185,4 @@ npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -Con
 ```
 
 This route uses the local LLM if `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL` are configured. Otherwise it falls back to a simple heuristic planner.
+It also uses the local LLM automatically when `opencode.ai/config.json` exists and contains the API key.

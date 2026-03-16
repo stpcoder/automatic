@@ -1,8 +1,12 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 import { createApp } from "./app.js";
+import { resolveLlmConfig } from "./llm-config.js";
 
 test("http api creates, advances, approves, and resumes a shipment case", async () => {
   const app = await createApp();
@@ -251,4 +255,27 @@ test("debug agent can route a natural language mail draft instruction", async ()
   assert.equal(response.json().tool_result.output.artifact_kind, "mail_draft");
 
   await app.close();
+});
+
+test("llm config resolves from opencode.ai config file", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-"));
+  const configDir = path.join(tempDir, "opencode.ai");
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(
+    path.join(configDir, "config.json"),
+    JSON.stringify({
+      llm: {
+        base_url: "https://common.llm.skhynix.com/v1",
+        api_key: "test-key",
+        model: "zai-org/GLM-4.7",
+        path: "/chat/completions"
+      }
+    })
+  );
+
+  const resolved = resolveLlmConfig(tempDir);
+  assert.equal(resolved.source, "file");
+  assert.equal(resolved.baseUrl, "https://common.llm.skhynix.com/v1");
+  assert.equal(resolved.model, "zai-org/GLM-4.7");
+  assert.equal(resolved.apiKey, "test-key");
 });

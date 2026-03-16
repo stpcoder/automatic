@@ -115,6 +115,7 @@ npm run win:approve-latest
 Standalone agent tests:
 
 ```bash
+npm run win:llm:init
 npm run win:debug:overview
 npm run win:debug:web:open -- -SystemId security_portal
 npm run win:debug:web:fill -- -SystemId security_portal -FieldsJson '{"traveler_name":"Kim"}'

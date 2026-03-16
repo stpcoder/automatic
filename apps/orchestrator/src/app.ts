@@ -9,6 +9,7 @@ import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bo
 import { getWebSystemDefinition } from "../../../workers/web-worker/src/system-definitions.js";
 import { WebWorker } from "../../../workers/web-worker/src/index.js";
 import { buildDebugPlannerRequest, createDebugPlanner } from "./debug-agent.js";
+import { resolveLlmConfig } from "./llm-config.js";
 import { OrchestratorService } from "./orchestrator.js";
 import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
 
@@ -20,6 +21,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   const webWorker = new WebWorker();
   const outlookWorker = new OutlookWorker();
   const debugPlanner = createDebugPlanner();
+  const llmConfig = resolveLlmConfig();
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -71,6 +73,14 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     outlook_adapter: process.env.OUTLOOK_WORKER_ADAPTER ?? "fake",
     cube_adapter: process.env.CUBE_WORKER_ADAPTER ?? "fake",
     orchestrator_base_url: process.env.ORCHESTRATOR_BASE_URL ?? `http://${defaultHost}`,
+    llm: {
+      enabled: Boolean(llmConfig.baseUrl && llmConfig.apiKey && llmConfig.model),
+      source: llmConfig.source,
+      base_url: llmConfig.baseUrl,
+      model: llmConfig.model,
+      path: llmConfig.path,
+      config_path: llmConfig.configPath
+    },
     bridge_sessions: browserBridgeCoordinator.listSessions()
   }));
 

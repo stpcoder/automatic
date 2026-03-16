@@ -4,6 +4,7 @@ import {
   type PlannerRequest
 } from "../../../packages/contracts/src/index.js";
 import { LegacyOpenAICompatiblePlannerClient } from "../../../packages/llm-adapter/src/index.js";
+import { resolveLlmConfig } from "./llm-config.js";
 
 export interface DebugAgentToolSpec {
   name: string;
@@ -12,16 +13,14 @@ export interface DebugAgentToolSpec {
 }
 
 export function createDebugPlanner(): PlannerClient {
-  const baseUrl = process.env.LLM_BASE_URL;
-  const apiKey = process.env.LLM_API_KEY;
-  const model = process.env.LLM_MODEL;
+  const config = resolveLlmConfig();
 
-  if (baseUrl && apiKey && model) {
+  if (config.baseUrl && config.apiKey && config.model) {
     return new LegacyOpenAICompatiblePlannerClient({
-      baseUrl,
-      apiKey,
-      model,
-      path: process.env.LLM_PATH ?? "/chat/completions"
+      baseUrl: config.baseUrl,
+      apiKey: config.apiKey,
+      model: config.model,
+      path: config.path
     });
   }
 
