@@ -67,6 +67,18 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
       { key: "message_body", label: "Message", aliases: ["message", "메시지", "chat message"], required: true }
     ],
     buttons: [{ key: "send", label: "Send" }]
+  },
+  naver_search: {
+    systemId: "naver_search",
+    pageId: "search_home",
+    title: "Naver Search",
+    url: "https://www.naver.com",
+    summary: "Naver search page is open.",
+    finalActionButton: "검색",
+    fields: [
+      { key: "query", label: "검색어", aliases: ["search", "search query", "query", "검색", "검색창"], required: true }
+    ],
+    buttons: [{ key: "search", label: "검색" }]
   }
 };
 

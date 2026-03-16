@@ -42,7 +42,10 @@
     "win:test:mail:draft-self": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-mail-draft-self.ps1",
     "win:test:mail:search-ae-school": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-mail-search-ae-school.ps1",
     "win:test:agent:mail-draft-self": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-mail-draft-self.ps1",
-    "win:test:agent:mail-search-ae-school": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-mail-search-ae-school.ps1"
+    "win:test:agent:mail-search-ae-school": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-mail-search-ae-school.ps1",
+    "win:test:web:naver-stock-fill": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-web-naver-stock-fill.ps1",
+    "win:test:web:naver-stock-submit": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-web-naver-stock-submit.ps1",
+    "win:test:agent:web-naver-stock": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-web-naver-stock.ps1"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.35",
