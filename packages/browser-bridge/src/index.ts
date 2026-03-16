@@ -33,6 +33,8 @@ interface BridgeSessionState {
 
 export class BrowserBridgeCoordinator {
   private readonly sessions = new Map<string, BridgeSessionState>();
+  private readonly observationTimeoutMs = Number(process.env.BRIDGE_OBSERVATION_TIMEOUT_MS ?? "30000");
+  private readonly commandTimeoutMs = Number(process.env.BRIDGE_COMMAND_TIMEOUT_MS ?? "30000");
 
   reset(): void {
     this.sessions.clear();
@@ -128,7 +130,7 @@ export class BrowserBridgeCoordinator {
     return state?.commands.find((command) => command.command_id === commandId);
   }
 
-  async waitForObservation(systemId: string, timeoutMs = 15_000): Promise<z.infer<typeof observationSchema>> {
+  async waitForObservation(systemId: string, timeoutMs = this.observationTimeoutMs): Promise<z.infer<typeof observationSchema>> {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const observation = this.getLatestObservation(systemId);
@@ -140,7 +142,7 @@ export class BrowserBridgeCoordinator {
     throw new Error(`Timed out waiting for bridge observation for system ${systemId}`);
   }
 
-  async waitForCommandResult(systemId: string, commandId: string, timeoutMs = 15_000): Promise<BridgeCommand> {
+  async waitForCommandResult(systemId: string, commandId: string, timeoutMs = this.commandTimeoutMs): Promise<BridgeCommand> {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
       const command = this.getCommand(systemId, commandId);

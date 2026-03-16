@@ -13,7 +13,8 @@ export function buildBookmarkletBridgeScript(serverOrigin: string, definition: W
 if(window.__SKH_AGENT_BRIDGE_ACTIVE__){alert("SKH agent bridge is already running on this page.");return;}
 const CONFIG=${config};
 const SESSION_ID="bridge-"+Math.random().toString(36).slice(2)+"-"+Date.now();
-const POLL_MS=1000;
+const POLL_MS=Number(window.__SKH_AGENT_BRIDGE_POLL_MS__||1000);
+const OBSERVATION_CHANGE_TIMEOUT_MS=Number(window.__SKH_AGENT_OBSERVATION_CHANGE_TIMEOUT_MS__||4000);
 
 function normalize(value){return String(value||"").trim().toLowerCase().replace(/\\s+/g," ");}
 function slugify(value){return normalize(value).replace(/[^a-z0-9가-힣]+/g,"_").replace(/^_+|_+$/g,"")||"field";}
@@ -156,12 +157,12 @@ async function handleCommands(){
       }else if(command.type==="submit"){
         const previousSignature=getObservationSignature();
         clickSubmit(String(command.payload.expected_button||CONFIG.finalActionButton));
-        await waitForObservationChange(previousSignature,4000);
+        await waitForObservationChange(previousSignature,OBSERVATION_CHANGE_TIMEOUT_MS);
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }else if(command.type==="click"){
         const previousSignature=getObservationSignature();
         clickTarget(String(command.payload.target_key||""));
-        await waitForObservationChange(previousSignature,4000);
+        await waitForObservationChange(previousSignature,OBSERVATION_CHANGE_TIMEOUT_MS);
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }
     }catch(error){

@@ -14,6 +14,9 @@ function Set-AgentEnvironment {
   $env:ORCHESTRATOR_STORE = if ($env:ORCHESTRATOR_STORE) { $env:ORCHESTRATOR_STORE } else { "sqlite" }
   $env:ORCHESTRATOR_DB_PATH = if ($env:ORCHESTRATOR_DB_PATH) { $env:ORCHESTRATOR_DB_PATH } else { Join-Path $RepoRoot "data\orchestrator.sqlite" }
   $env:ORCHESTRATOR_BASE_URL = if ($env:ORCHESTRATOR_BASE_URL) { $env:ORCHESTRATOR_BASE_URL } else { "http://127.0.0.1:$($env:ORCHESTRATOR_PORT)" }
+  $env:LLM_TIMEOUT_MS = if ($env:LLM_TIMEOUT_MS) { $env:LLM_TIMEOUT_MS } else { "60000" }
+  $env:BRIDGE_OBSERVATION_TIMEOUT_MS = if ($env:BRIDGE_OBSERVATION_TIMEOUT_MS) { $env:BRIDGE_OBSERVATION_TIMEOUT_MS } else { "30000" }
+  $env:BRIDGE_COMMAND_TIMEOUT_MS = if ($env:BRIDGE_COMMAND_TIMEOUT_MS) { $env:BRIDGE_COMMAND_TIMEOUT_MS } else { "30000" }
 
   return $RepoRoot
 }
@@ -136,6 +139,33 @@ function Format-AgentRunResult {
       goal_satisfied = $Result.final_result.goal_satisfied
       total_ms = $Result.timing.total_ms
       steps = @($Result.steps | ForEach-Object { $_.tool })
+    }
+    return ($output | ConvertTo-Json -Depth 10)
+  }
+
+  $output = [ordered]@{
+    ok = $false
+    error_stage = $Result.error_stage
+    error_message = $Result.error_message
+    total_ms = $Result.timing.total_ms
+  }
+  return ($output | ConvertTo-Json -Depth 10)
+}
+
+function Format-AgentSingleRunResult {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Result
+  )
+
+  if ($Result.ok -eq $true) {
+    $output = [ordered]@{
+      ok = $true
+      tool = $Result.planner_output.next_action.tool
+      summary = $Result.tool_result.output.summary
+      stock_result = $Result.tool_result.output.stock_result
+      goal_satisfied = $Result.tool_result.output.goal_satisfied
+      total_ms = $Result.timing.total_ms
     }
     return ($output | ConvertTo-Json -Depth 10)
   }

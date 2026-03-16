@@ -42,6 +42,7 @@
     "win:debug:mail:poll-once": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-poll-once.ps1",
     "win:debug:agent:run": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-agent-run.ps1",
     "win:debug:agent:run-loop": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-agent-run-loop.ps1",
+    "win:test:agent:prompt": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-prompt.ps1",
     "win:test:mail:draft-self": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-mail-draft-self.ps1",
     "win:test:mail:search-ae-school": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-mail-search-ae-school.ps1",
     "win:test:agent:mail-draft-self": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-mail-draft-self.ps1",
