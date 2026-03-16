@@ -306,11 +306,13 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       planner_ms: 0,
       tool_ms: 0
     };
+    logDebugAgentStart("run", instruction, context);
     try {
       const plannerStartedAt = Date.now();
       const plannerOutput = await debugPlanner.plan(plannerRequest);
       timing.planner_ms = Date.now() - plannerStartedAt;
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, context, instruction);
+      logDebugPlannerDecision("run", 1, plannerOutput.next_action.tool, normalizedInput);
 
       const toolStartedAt = Date.now();
       const toolResult =
@@ -319,6 +321,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
           : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", normalizedInput));
       timing.tool_ms = Date.now() - toolStartedAt;
       timing.total_ms = Date.now() - startedAt;
+      logDebugToolResult("run", 1, toolResult, timing);
 
       const debugTrace = {
         planner_request: plannerRequest,
@@ -338,6 +341,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       };
     } catch (error) {
       timing.total_ms = Date.now() - startedAt;
+      logDebugAgentFailure("run", 1, error, timing);
       const debugTrace = {
         planner_request: plannerRequest,
         planner_trace: debugPlanner.getTrace(),
@@ -373,6 +377,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     let lastToolResult: Record<string, unknown> | undefined;
     const steps: Array<Record<string, unknown>> = [];
     const startedAt = Date.now();
+    logDebugAgentStart("run-loop", instruction, context);
 
     for (let stepIndex = 1; stepIndex <= maxSteps; stepIndex += 1) {
       const loopContext = {
@@ -396,8 +401,15 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         const plannerOutput = await debugPlanner.plan(plannerRequest);
         stepTiming.planner_ms = Date.now() - plannerStartedAt;
         const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
+        logDebugPlannerDecision("run-loop", stepIndex, plannerOutput.next_action.tool, normalizedInput);
 
         if (plannerOutput.next_action.tool === "finish_task") {
+          logDebugAgentFinish(
+            "run-loop",
+            stepIndex,
+            typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
+            { total_ms: Date.now() - startedAt }
+          );
           const response = {
             ok: true,
             completed: true,
@@ -423,6 +435,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
             ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput))
             : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput));
         stepTiming.tool_ms = Date.now() - toolStartedAt;
+        logDebugToolResult("run-loop", stepIndex, toolResult, stepTiming);
 
         const observationCandidate =
           typeof toolResult.output.observation === "object" && toolResult.output.observation !== null
@@ -444,6 +457,9 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         });
 
         if (!toolResult.success) {
+          logDebugAgentFailure("run-loop", stepIndex, String(toolResult.output.error ?? "Tool execution failed"), {
+            total_ms: Date.now() - startedAt
+          });
           return {
             ok: false,
             completed: false,
@@ -456,6 +472,9 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
           };
         }
       } catch (error) {
+        logDebugAgentFailure("run-loop", stepIndex, error, {
+          total_ms: Date.now() - startedAt
+        });
         return {
           ok: false,
           completed: false,
@@ -550,6 +569,113 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   return app;
+}
+
+function logDebugAgentStart(mode: "run" | "run-loop", instruction: string, context: Record<string, unknown>): void {
+  const systemId = typeof context.system_id === "string" ? context.system_id : "-";
+  const sessionId = typeof context.session_id === "string" ? context.session_id : "-";
+  console.log(`[debug-agent:${mode}] instruction="${truncateForLog(instruction, 140)}" system=${systemId} session=${sessionId}`);
+}
+
+function logDebugPlannerDecision(
+  mode: "run" | "run-loop",
+  step: number,
+  toolName: string,
+  normalizedInput: Record<string, unknown>
+): void {
+  console.log(
+    `[debug-agent:${mode}] step=${step} tool=${toolName} target=${formatToolTarget(toolName, normalizedInput)}`
+  );
+}
+
+function logDebugToolResult(
+  mode: "run" | "run-loop",
+  step: number,
+  toolResult: { success: boolean; output: Record<string, unknown> },
+  timing: { planner_ms?: number; tool_ms?: number; total_ms?: number }
+): void {
+  const observation =
+    typeof toolResult.output.observation === "object" && toolResult.output.observation !== null
+      ? (toolResult.output.observation as Record<string, unknown>)
+      : undefined;
+  const title = typeof observation?.title === "string" ? observation.title : undefined;
+  const url = typeof observation?.url === "string" ? observation.url : undefined;
+  const sessionId =
+    typeof toolResult.output.session_id === "string"
+      ? toolResult.output.session_id
+      : typeof observation?.sessionId === "string"
+        ? observation.sessionId
+        : undefined;
+  const summary =
+    typeof toolResult.output.summary === "string"
+      ? toolResult.output.summary
+      : typeof observation?.summary === "string"
+        ? observation.summary
+        : undefined;
+
+  console.log(
+    `[debug-agent:${mode}] step=${step} result=${toolResult.success ? "ok" : "fail"} session=${sessionId ?? "-"} title="${truncateForLog(title, 80)}" url="${truncateForLog(url, 120)}" summary="${truncateForLog(summary, 120)}" planner_ms=${timing.planner_ms ?? 0} tool_ms=${timing.tool_ms ?? 0}`
+  );
+}
+
+function logDebugAgentFinish(
+  mode: "run" | "run-loop",
+  step: number,
+  summary: string,
+  timing: { total_ms?: number }
+): void {
+  console.log(
+    `[debug-agent:${mode}] step=${step} finish summary="${truncateForLog(summary, 140)}" total_ms=${timing.total_ms ?? 0}`
+  );
+}
+
+function logDebugAgentFailure(
+  mode: "run" | "run-loop",
+  step: number,
+  error: unknown,
+  timing: { total_ms?: number }
+): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.log(
+    `[debug-agent:${mode}] step=${step} error="${truncateForLog(message, 180)}" total_ms=${timing.total_ms ?? 0}`
+  );
+}
+
+function formatToolTarget(toolName: string, input: Record<string, unknown>): string {
+  if (toolName === "open_system") {
+    return `system=${stringForLog(input.system_id)} page=${stringForLog(input.page_id)}`;
+  }
+  if (toolName === "fill_web_form") {
+    const fieldValues =
+      typeof input.field_values === "object" && input.field_values !== null ? (input.field_values as Record<string, unknown>) : {};
+    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} fields=${Object.keys(fieldValues).join(",") || "-"}`;
+  }
+  if (toolName === "click_web_element") {
+    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} target=${stringForLog(input.target_key)}`;
+  }
+  if (toolName === "follow_web_navigation") {
+    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)}`;
+  }
+  if (toolName === "extract_web_result") {
+    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} query=${truncateForLog(stringForLog(input.query), 60)}`;
+  }
+  if (toolName === "draft_outlook_mail") {
+    const to = Array.isArray(input.to) ? input.to.join(",") : "-";
+    return `to=${truncateForLog(to, 80)} template=${stringForLog(input.template_id)}`;
+  }
+  if (toolName === "search_outlook_mail") {
+    return `keyword=${truncateForLog(stringForLog(input.keyword), 80)}`;
+  }
+  return `input=${truncateForLog(JSON.stringify(input), 120)}`;
+}
+
+function stringForLog(value: unknown): string {
+  return typeof value === "string" && value.trim().length > 0 ? value : "-";
+}
+
+function truncateForLog(value: unknown, maxLength: number): string {
+  const text = typeof value === "string" ? value : value == null ? "-" : String(value);
+  return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
 }
 
 function buildDebugToolRequest(toolName: string, mode: "draft" | "preview" | "commit", input: Record<string, unknown>) {
