@@ -35,12 +35,26 @@ for ($index = 1; $index -le $maxScan; $index++) {
     $haystack = "$subject`n$body`n$sender"
 
     if ([string]::IsNullOrWhiteSpace($keyword) -or $haystack -match $escapedKeyword) {
+      $receivedTime = ""
+      $conversationId = ""
+      try {
+        $receivedTime = [string]$item.ReceivedTime
+      } catch {
+        $receivedTime = ""
+      }
+
+      try {
+        $conversationId = [string]$item.ConversationID
+      } catch {
+        $conversationId = ""
+      }
+
       $matches += @{
         entry_id = [string]$item.EntryID
         subject = $subject
         sender = $sender
-        received_time = try { [string]$item.ReceivedTime } catch { "" }
-        conversation_id = try { [string]$item.ConversationID } catch { "" }
+        received_time = $receivedTime
+        conversation_id = $conversationId
       }
     }
   } catch {
