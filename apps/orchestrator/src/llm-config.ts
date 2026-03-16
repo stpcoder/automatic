@@ -7,8 +7,7 @@ const llmConfigFileSchema = z.object({
   llm: z.object({
     base_url: z.string().min(1),
     api_key: z.string().optional().default(""),
-    model: z.string().min(1),
-    path: z.string().optional().default("/chat/completions")
+    model: z.string().min(1)
   })
 });
 
@@ -16,7 +15,6 @@ export interface ResolvedLlmConfig {
   baseUrl: string;
   apiKey: string;
   model: string;
-  path: string;
   source: "env" | "file" | "none";
   configPath?: string;
 }
@@ -31,7 +29,6 @@ export function resolveLlmConfig(cwd = process.cwd()): ResolvedLlmConfig {
       baseUrl: envBaseUrl,
       apiKey: envApiKey,
       model: envModel,
-      path: process.env.LLM_PATH ?? "/chat/completions",
       source: "env"
     };
   }
@@ -42,7 +39,6 @@ export function resolveLlmConfig(cwd = process.cwd()): ResolvedLlmConfig {
       baseUrl: "",
       apiKey: "",
       model: "",
-      path: "/chat/completions",
       source: "none",
       configPath
     };
@@ -54,7 +50,6 @@ export function resolveLlmConfig(cwd = process.cwd()): ResolvedLlmConfig {
     baseUrl: parsed.llm.base_url,
     apiKey: parsed.llm.api_key,
     model: parsed.llm.model,
-    path: parsed.llm.path,
     source: "file",
     configPath
   };

@@ -12,3 +12,9 @@ Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", 
 
 Write-Host "Started orchestrator and poller in separate PowerShell windows."
 Write-Host "Approval UI: $(Get-AgentUrl '/ui/approvals')"
+try {
+  $health = Invoke-AgentApi -Method "GET" -Uri (Get-AgentUrl "/health")
+  Write-Host "Initial health check: ok"
+} catch {
+  Write-Host "Initial health check failed. Run 'npm run win:start' in the foreground and inspect the server window."
+}

@@ -267,8 +267,7 @@ test("llm config resolves from opencode.ai config file", () => {
       llm: {
         base_url: "https://common.llm.skhynix.com/v1",
         api_key: "test-key",
-        model: "zai-org/GLM-4.7",
-        path: "/chat/completions"
+        model: "zai-org/GLM-4.7"
       }
     })
   );

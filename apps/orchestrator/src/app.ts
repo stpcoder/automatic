@@ -78,7 +78,6 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       source: llmConfig.source,
       base_url: llmConfig.baseUrl,
       model: llmConfig.model,
-      path: llmConfig.path,
       config_path: llmConfig.configPath
     },
     bridge_sessions: browserBridgeCoordinator.listSessions()

@@ -18,6 +18,7 @@
     "win:start": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-orchestrator.ps1",
     "win:poller": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-poller.ps1",
     "win:start-all": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-all.ps1",
+    "win:doctor": "powershell -ExecutionPolicy Bypass -File scripts/windows/doctor.ps1",
     "win:health": "powershell -ExecutionPolicy Bypass -File scripts/windows/health.ps1",
     "win:bookmarklets": "powershell -ExecutionPolicy Bypass -File scripts/windows/bookmarklets.ps1",
     "win:sessions": "powershell -ExecutionPolicy Bypass -File scripts/windows/list-sessions.ps1",

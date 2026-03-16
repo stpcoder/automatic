@@ -19,8 +19,7 @@ export function createDebugPlanner(): PlannerClient {
     return new AISDKOpenAICompatiblePlannerClient({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
-      model: config.model,
-      path: config.path
+      model: config.model
     });
   }
 

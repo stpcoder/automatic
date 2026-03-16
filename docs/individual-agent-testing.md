@@ -39,6 +39,13 @@ Start it again with:
 npm run win:start-all
 ```
 
+If it still fails, run:
+
+```powershell
+npm run win:doctor
+npm run win:start
+```
+
 If you already know the API key, write it in one command:
 
 ```powershell
@@ -53,7 +60,6 @@ Default values are already set for:
 
 - base URL: `https://common.llm.skhynix.com/v1`
 - model: `zai-org/GLM-4.7`
-- path: `/chat/completions`
 
 So you only need to fill `api_key`.
 
