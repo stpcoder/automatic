@@ -107,6 +107,20 @@ function clickSubmit(expectedButton){
   }
   target.click();
 }
+function clickTarget(targetKey){
+  const normalizedTarget=normalize(targetKey);
+  const matchedButton=(CONFIG.buttons||[]).find((button)=>[button.key,button.label].concat(button.aliases||[]).map(normalize).includes(normalizedTarget));
+  const candidateLabels=matchedButton?[matchedButton.label].concat(matchedButton.aliases||[]).map(normalize):[normalizedTarget];
+  const buttons=Array.from(document.querySelectorAll("button, input[type='submit'], input[type='button']"));
+  const target=buttons.find((button)=>{
+    const text=normalize(button.innerText||button.textContent||button.value);
+    return candidateLabels.includes(text)||normalize(resolveSemanticKey(button))===normalizedTarget;
+  });
+  if(!target){
+    throw new Error("Clickable element not found: "+targetKey);
+  }
+  target.click();
+}
 async function completeCommand(commandId,success,result,error){
   await fetch(CONFIG.serverOrigin+"/bridge/sessions/"+SESSION_ID+"/commands/"+commandId+"/result",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({success,result,error})});
 }
@@ -126,6 +140,9 @@ async function handleCommands(){
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }else if(command.type==="submit"){
         clickSubmit(String(command.payload.expected_button||CONFIG.finalActionButton));
+        await completeCommand(command.command_id,true,{observation:buildObservation().payload});
+      }else if(command.type==="click"){
+        clickTarget(String(command.payload.target_key||""));
         await completeCommand(command.command_id,true,{observation:buildObservation().payload});
       }
     }catch(error){

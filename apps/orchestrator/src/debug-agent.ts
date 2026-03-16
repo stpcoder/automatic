@@ -49,7 +49,7 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
       {
         role: "system",
         content:
-          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
+          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, click_web_element, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
       },
       {
         role: "user",
@@ -70,7 +70,7 @@ export function buildDebugLoopPlannerRequest(
       {
         role: "system",
         content:
-          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. After a meaningful page transition, read the updated page state and use extract_web_result before deciding the task is done. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation, last_tool_result, and step_history."
+          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, click_web_element, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. After a meaningful page transition, read the updated page state and use extract_web_result before deciding the task is done. Prefer click_web_element for ordinary page interactions like search buttons, tabs, and links. Reserve submit_web_form for actual final commits. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation, last_tool_result, and step_history."
       },
       {
         role: "user",
@@ -116,6 +116,15 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
       const output = buildOutput("Fill target form", "fill_web_form", {
         system_id: systemId,
         field_values: asRecord(context.field_values)
+      });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
+    }
+
+    if (includesAny(instruction, ["click", "press", "누르", "클릭", "search", "검색"])) {
+      const output = buildOutput("Click target page element", "click_web_element", {
+        system_id: systemId,
+        target_key: inferClickTarget(systemId, instruction, context)
       });
       this.lastTrace = buildHeuristicTrace(request, output);
       return output;
@@ -341,8 +350,20 @@ function planLoopContinuation(
 
   if (
     selectedTools.includes("fill_web_form") &&
+    !selectedTools.includes("click_web_element") &&
+    systemId === "naver_search"
+  ) {
+    return buildOutput("Click search button", "click_web_element", {
+      system_id: systemId,
+      target_key: inferClickTarget(systemId, instruction, context)
+    });
+  }
+
+  if (
+    selectedTools.includes("fill_web_form") &&
     !selectedTools.includes("submit_web_form") &&
-    (includesAny(normalizedInstruction, ["submit", "search", "조회", "주가", "register", "등록"]) || systemId === "naver_search")
+    !selectedTools.includes("click_web_element") &&
+    includesAny(normalizedInstruction, ["submit", "제출", "register", "등록", "save", "저장"])
   ) {
     return buildOutput("Submit target form", "submit_web_form", {
       system_id: systemId,
@@ -350,7 +371,7 @@ function planLoopContinuation(
     });
   }
 
-  if (selectedTools.includes("submit_web_form") && !selectedTools.includes("extract_web_result")) {
+  if ((selectedTools.includes("submit_web_form") || selectedTools.includes("click_web_element")) && !selectedTools.includes("extract_web_result")) {
     return buildOutput("Read result from the updated page", "extract_web_result", {
       system_id: systemId,
       goal: instruction,
@@ -401,6 +422,22 @@ function inferExpectedButton(systemId: string): string {
     return "Send";
   }
   return "Submit";
+}
+
+function inferClickTarget(systemId: string, instruction: string, context: Record<string, unknown>): string {
+  if (typeof context.target_key === "string" && context.target_key.trim().length > 0) {
+    return context.target_key;
+  }
+  if (systemId === "naver_search") {
+    return "search";
+  }
+  if (includesAny(instruction, ["send", "전송"])) {
+    return "send";
+  }
+  if (includesAny(instruction, ["search", "검색"])) {
+    return "search";
+  }
+  return "submit";
 }
 
 function shouldFallbackToHeuristic(error: unknown): boolean {

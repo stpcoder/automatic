@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { WebWorker } from "./index.js";
-import type { FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
 function getOutput(result: { output: unknown }) {
   return result.output as {
@@ -38,6 +38,14 @@ class StubLiveChromeAdapter implements WebAdapter {
     return {
       draftId: "WEBDRAFT-live",
       filledFields: values,
+      observation: await this.openSystem(systemId)
+    };
+  }
+
+  async clickElement(systemId: string, targetKey: string): Promise<ClickResult> {
+    return {
+      clickId: `WEBCLICK-${targetKey}`,
+      targetKey,
       observation: await this.openSystem(systemId)
     };
   }
@@ -185,11 +193,11 @@ test("web worker can extract result text after a naver search submission", async
     request_id: "TR-N-2",
     case_id: "CASE-N",
     step_id: "naver_stock_search",
-    tool_name: "submit_web_form",
-    mode: "commit",
+    tool_name: "click_web_element",
+    mode: "preview",
     input: {
       system_id: "naver_search",
-      expected_button: "search"
+      target_key: "search"
     }
   });
 

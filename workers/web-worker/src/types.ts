@@ -43,6 +43,12 @@ export interface SubmitResult {
   observation: PageObservation;
 }
 
+export interface ClickResult {
+  clickId: string;
+  targetKey: string;
+  observation: PageObservation;
+}
+
 export interface ExtractResult {
   extractionId: string;
   observation: PageObservation;
@@ -58,6 +64,7 @@ export interface WebAdapter {
   openSystem(systemId: string, pageId?: string): Promise<PageObservation>;
   observe(systemId: string): Promise<PageObservation>;
   fillForm(systemId: string, values: Record<string, unknown>): Promise<FillResult>;
+  clickElement(systemId: string, targetKey: string): Promise<ClickResult>;
   previewSubmission(systemId: string): Promise<PreviewResult>;
   submit(systemId: string, expectedButton: string): Promise<SubmitResult>;
 }

@@ -15,6 +15,7 @@ export interface WebSystemDefinition {
   url: string;
   summary: string;
   finalActionButton?: string;
+  resultIndicators?: string[];
   fields: WebFieldDefinition[];
   buttons: Array<{ key: string; label: string; aliases?: string[] }>;
 }
@@ -75,6 +76,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     url: "https://www.naver.com",
     summary: "Naver search page is open.",
     finalActionButton: "search",
+    resultIndicators: ["sk hynix", "stock", "price"],
     fields: [
       { key: "query", label: "검색어", aliases: ["search", "search query", "query", "검색", "검색창"], required: true }
     ],

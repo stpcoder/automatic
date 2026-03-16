@@ -1,7 +1,7 @@
 import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 
 import { getWebSystemDefinition } from "./system-definitions.js";
-import type { FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
 export class BookmarkletBridgeAdapter implements WebAdapter {
   readonly harnessName = "bookmarklet_bridge";
@@ -27,6 +27,21 @@ export class BookmarkletBridgeAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields: values,
+      observation: await this.observe(systemId)
+    };
+  }
+
+  async clickElement(systemId: string, targetKey: string): Promise<ClickResult> {
+    const command = browserBridgeCoordinator.enqueueCommand(systemId, "click", {
+      target_key: targetKey
+    });
+    const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id);
+    if (result.status === "failed") {
+      throw new Error(result.error ?? `Bookmarklet bridge click failed for ${systemId}`);
+    }
+    return {
+      clickId: `WEBCLICK-${crypto.randomUUID()}`,
+      targetKey,
       observation: await this.observe(systemId)
     };
   }

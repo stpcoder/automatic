@@ -1,5 +1,5 @@
 import { buildHarnessPage } from "./system-definitions.js";
-import type { FillResult, HarnessPageDefinition, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import type { ClickResult, FillResult, HarnessPageDefinition, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
 interface SessionState {
   systemId: string;
@@ -47,6 +47,31 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields: values,
+      observation: this.toObservation(session.page, systemId)
+    };
+  }
+
+  async clickElement(systemId: string, targetKey: string): Promise<ClickResult> {
+    const session = this.getOrCreateSession(systemId);
+    const target = session.page.interactiveElements.find((element) => element.type === "button" && element.key === targetKey);
+    if (!target) {
+      throw new Error(`No clickable element found for key ${targetKey}`);
+    }
+
+    if (systemId === "naver_search" && targetKey === "search") {
+      const queryValue = session.page.interactiveElements.find((element) => element.key === "query")?.value ?? "";
+      session.page = {
+        ...session.page,
+        title: "Naver Search Results",
+        summary: `Naver search results loaded for ${queryValue}.`,
+        interactiveElements: session.page.interactiveElements
+      };
+      this.sessions.set(systemId, session);
+    }
+
+    return {
+      clickId: `WEBCLICK-${crypto.randomUUID()}`,
+      targetKey,
       observation: this.toObservation(session.page, systemId)
     };
   }

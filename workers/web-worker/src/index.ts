@@ -2,6 +2,7 @@ import { type ToolExecutor, type ToolRequest, type ToolResult } from "../../../p
 import { BookmarkletBridgeAdapter } from "./bookmarklet-bridge-adapter.js";
 import { LiveChromeDomAdapter } from "./live-chrome-dom-adapter.js";
 import { PageAgentDomAdapter } from "./page-agent-dom-adapter.js";
+import { getWebSystemDefinition } from "./system-definitions.js";
 import type { WebAdapter } from "./types.js";
 
 export interface WebWorkerOptions {
@@ -29,6 +30,8 @@ export class WebWorker implements ToolExecutor {
         return this.openSystem(request);
       case "fill_web_form":
         return this.fillWebForm(request);
+      case "click_web_element":
+        return this.clickWebElement(request);
       case "preview_web_submission":
         return this.previewSubmission(request);
       case "submit_web_form":
@@ -82,6 +85,27 @@ export class WebWorker implements ToolExecutor {
     };
   }
 
+  private async clickWebElement(request: ToolRequest): Promise<ToolResult> {
+    const systemId = String(request.input.system_id ?? "unknown");
+    const targetKey = String(request.input.target_key ?? request.input.expected_button ?? "").trim();
+    const result = await this.adapter.clickElement(systemId, targetKey);
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "web_click",
+        click_id: result.clickId,
+        system_id: systemId,
+        target_key: targetKey,
+        harness: this.adapter.harnessName,
+        observation: result.observation
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
   private async previewSubmission(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
     const result = await this.adapter.previewSubmission(systemId);
@@ -128,9 +152,12 @@ export class WebWorker implements ToolExecutor {
     const pageText = [observation.title, observation.summary, observation.pageText ?? ""].join("\n").trim();
     const matchTerms = buildMatchTerms(goal, query);
     const matchedSnippets = collectMatchedSnippets(pageText, matchTerms);
-    const goalSatisfied = systemId === "naver_search"
-      ? includesAllTerms(pageText, ["sk hynix", "stock", "price"])
-      : matchedSnippets.length > 0;
+    const systemDefinition = getWebSystemDefinition(systemId);
+    const requiredIndicators = systemDefinition.resultIndicators ?? [];
+    const goalSatisfied =
+      requiredIndicators.length > 0
+        ? includesAllTerms(pageText, requiredIndicators)
+        : matchedSnippets.length > 0;
     const summary =
       matchedSnippets[0] ??
       (goalSatisfied

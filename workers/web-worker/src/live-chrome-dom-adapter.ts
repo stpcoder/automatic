@@ -2,7 +2,7 @@ import { chromium, type Browser, type BrowserContext, type Page } from "playwrig
 
 import { mapLiveDomElements, type LiveDomElementSnapshot, normalizeDomText } from "./dom-mapping.js";
 import { getWebSystemDefinition, type WebSystemDefinition } from "./system-definitions.js";
-import type { FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
 interface LiveChromeSession {
   systemId: string;
@@ -127,6 +127,40 @@ export class LiveChromeDomAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields,
+      observation: await this.buildObservation(session)
+    };
+  }
+
+  async clickElement(systemId: string, targetKey: string): Promise<ClickResult> {
+    const session = await this.getOrCreateSession(systemId);
+    const definition = getWebSystemDefinition(systemId);
+    const matchedButton = definition.buttons.find((button) =>
+      [button.key, button.label].concat(button.aliases ?? []).map((value) => value.toLowerCase()).includes(targetKey.toLowerCase())
+    );
+    const labels = matchedButton ? [matchedButton.label].concat(matchedButton.aliases ?? []) : [targetKey];
+
+    const clicked = await session.page.evaluate((candidateLabels: string[]) => {
+      const normalizedCandidates = candidateLabels.map((value) => value.trim().toLowerCase());
+      const buttons = Array.from(document.querySelectorAll("button, input[type='submit'], input[type='button']"));
+      const target = buttons.find((node) => {
+        const element = node as HTMLButtonElement | HTMLInputElement;
+        const text = (element.innerText || element.value || node.textContent || "").trim().toLowerCase();
+        return normalizedCandidates.includes(text);
+      });
+      if (!target) {
+        return false;
+      }
+      (target as HTMLElement).click();
+      return true;
+    }, labels);
+    if (!clicked) {
+      throw new Error(`No clickable element found for key ${targetKey}`);
+    }
+    await session.page.waitForTimeout(250);
+
+    return {
+      clickId: `WEBCLICK-${crypto.randomUUID()}`,
+      targetKey,
       observation: await this.buildObservation(session)
     };
   }

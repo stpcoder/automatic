@@ -117,6 +117,14 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     }));
   });
 
+  app.post("/debug/web/click", async (request) => {
+    const body = request.body as { system_id?: string; target_key?: string };
+    return webWorker.execute(buildDebugToolRequest("click_web_element", "preview", {
+      system_id: body.system_id ?? "security_portal",
+      target_key: body.target_key ?? "submit"
+    }));
+  });
+
   app.post("/debug/web/preview", async (request) => {
     const body = request.body as { system_id?: string };
     return webWorker.execute(buildDebugToolRequest("preview_web_submission", "preview", {
@@ -208,6 +216,11 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         name: "fill_web_form",
         description: "Fill known fields on the active web system.",
         input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
+      },
+      {
+        name: "click_web_element",
+        description: "Click a specific button or clickable control on the active web system.",
+        input_schema: { system_id: { type: "string" }, target_key: { type: "string" } }
       },
       {
         name: "preview_web_submission",
@@ -522,6 +535,11 @@ function buildDebugToolSpecs() {
       input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
     },
     {
+      name: "click_web_element",
+      description: "Click a specific button or clickable control on the active web system.",
+      input_schema: { system_id: { type: "string" }, target_key: { type: "string" } }
+    },
+    {
       name: "preview_web_submission",
       description: "Preview the current web submission state.",
       input_schema: { system_id: { type: "string" } }
@@ -604,6 +622,12 @@ function normalizeDebugToolInput(
     }
     if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
       normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
+    }
+    if (toolName === "click_web_element" && (typeof normalized.target_key !== "string" || normalized.target_key.trim().length === 0)) {
+      normalized.target_key =
+        typeof context.target_key === "string" && context.target_key.trim().length > 0
+          ? context.target_key
+          : inferExpectedButtonFromSystem(String(normalized.system_id));
     }
     if (toolName === "extract_web_result") {
       if (typeof normalized.goal !== "string" || normalized.goal.trim().length === 0) {
