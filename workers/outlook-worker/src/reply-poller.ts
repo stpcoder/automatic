@@ -26,7 +26,7 @@ interface OutlookReplyEventSink {
 export class HttpOutlookReplyEventSink implements OutlookReplyEventSink {
   constructor(
     private readonly baseUrl = process.env.ORCHESTRATOR_BASE_URL ??
-      `http://127.0.0.1:${process.env.ORCHESTRATOR_PORT ?? process.env.PORT ?? "43117"}`
+      `http://127.0.0.1:${process.env.ORCHESTRATOR_PORT ?? "43117"}`
   ) {}
 
   async postIncomingEmail(caseId: string, payload: {

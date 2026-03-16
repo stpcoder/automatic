@@ -10,7 +10,7 @@ import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
 export async function createApp(orchestrator?: OrchestratorService): Promise<FastifyInstance> {
   const resolvedOrchestrator = orchestrator ?? (await OrchestratorService.createDefault());
   const app = Fastify({ logger: false });
-  const defaultPort = process.env.ORCHESTRATOR_PORT ?? process.env.PORT ?? "43117";
+  const defaultPort = process.env.ORCHESTRATOR_PORT ?? "43117";
   const defaultHost = `127.0.0.1:${defaultPort}`;
 
   app.get("/health", async () => ({ ok: true }));
