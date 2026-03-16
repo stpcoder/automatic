@@ -11,47 +11,45 @@ $examplePath = Join-Path $configDir "config.example.json"
 
 New-Item -ItemType Directory -Path $configDir -Force | Out-Null
 
-if (-not (Test-Path $configPath)) {
-  if (Test-Path $examplePath) {
-    Copy-Item $examplePath $configPath
-  }
-  else {
-    @'
-{
-  "provider": {
-    "name": "GLM-4.7",
-    "npm": "@ai-sdk/openai-compatible",
-    "models": {
-      "GLM-4.7": {
-        "name": "GLM-4.7"
-      }
-    },
-    "options": {
-      "baseURL": "http://common.llm.skhynix.com/v1",
-      "apiKey": ""
+$existingApiKey = ""
+
+if (Test-Path $configPath) {
+  try {
+    $existingConfig = Get-Content -Path $configPath -Raw | ConvertFrom-Json
+    if ($existingConfig.provider -and $existingConfig.provider.options -and $existingConfig.provider.options.apiKey) {
+      $existingApiKey = [string]$existingConfig.provider.options.apiKey
     }
+    elseif ($existingConfig.llm -and $existingConfig.llm.apiKey) {
+      $existingApiKey = [string]$existingConfig.llm.apiKey
+    }
+    elseif ($existingConfig.llm -and $existingConfig.llm.api_key) {
+      $existingApiKey = [string]$existingConfig.llm.api_key
+    }
+  } catch {
   }
+} elseif (Test-Path $examplePath) {
+  Copy-Item $examplePath $configPath
 }
-'@ | Set-Content -Path $configPath -Encoding UTF8
+
+$finalApiKey = if ($ApiKey) { $ApiKey } else { $existingApiKey }
+
+$normalizedConfig = [ordered]@{
+  provider = [ordered]@{
+    name = "GLM-4.7"
+    npm = "@ai-sdk/openai-compatible"
+    models = [ordered]@{
+      "GLM-4.7" = [ordered]@{
+        name = "GLM-4.7"
+      }
+    }
+    options = [ordered]@{
+      baseURL = "http://common.llm.skhynix.com/v1"
+      apiKey = $finalApiKey
+    }
   }
 }
 
-if ($ApiKey) {
-  $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
-  if ($config.provider -and $config.provider.options) {
-    $config.provider.options.apiKey = $ApiKey
-    if ($config.provider.options.PSObject.Properties["api_key"]) {
-      $config.provider.options.PSObject.Properties.Remove("api_key")
-    }
-  }
-  elseif ($config.llm) {
-    $config.llm.apiKey = $ApiKey
-    if ($config.llm.PSObject.Properties["api_key"]) {
-      $config.llm.PSObject.Properties.Remove("api_key")
-    }
-  }
-  $config | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding UTF8
-}
+$normalizedConfig | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding UTF8
 
 Write-Host "LLM config path: $configPath"
 Get-Content -Path $configPath

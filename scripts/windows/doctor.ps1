@@ -34,6 +34,25 @@ foreach ($modulePath in $requiredModules) {
 $configPath = Join-Path $repoRoot "opencode.ai\config.json"
 if (Test-Path $configPath) {
   Write-Host "LLM config: present at $configPath"
+  try {
+    $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
+    $providerBaseUrl = if ($config.provider -and $config.provider.options) { $config.provider.options.baseURL } else { $null }
+    $providerApiKey = if ($config.provider -and $config.provider.options) { $config.provider.options.apiKey } else { $null }
+    $providerModel = if ($config.provider -and $config.provider.models) {
+      ($config.provider.models.PSObject.Properties | Select-Object -First 1).Name
+    } else { $null }
+    $llmBaseUrl = if ($config.llm) { if ($config.llm.baseURL) { $config.llm.baseURL } else { $config.llm.base_url } } else { $null }
+    $llmModel = if ($config.llm) { $config.llm.model } else { $null }
+
+    Write-Host "LLM config provider.baseURL: $providerBaseUrl"
+    Write-Host "LLM config provider.model: $providerModel"
+    Write-Host "LLM config provider.apiKey: $(if ($providerApiKey) { '[present]' } else { '[missing]' })"
+    Write-Host "LLM config llm.base_url: $llmBaseUrl"
+    Write-Host "LLM config llm.model: $llmModel"
+  } catch {
+    Write-Host "LLM config parse: failed"
+    Write-Host $_
+  }
 } else {
   Write-Host "LLM config: missing at $configPath"
 }
