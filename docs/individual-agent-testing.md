@@ -61,7 +61,7 @@ Default values are already set for:
 - base URL: `https://common.llm.skhynix.com/v1`
 - model: `zai-org/GLM-4.7`
 
-So you only need to fill `api_key`.
+So you only need to fill `apiKey`.
 
 ## 4. Install And Verify A Bookmarklet
 

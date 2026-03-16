@@ -6,7 +6,8 @@ import { z } from "zod";
 const llmConfigFileSchema = z.object({
   llm: z.object({
     base_url: z.string().min(1),
-    api_key: z.string().optional().default(""),
+    apiKey: z.string().optional(),
+    api_key: z.string().optional(),
     model: z.string().min(1)
   })
 });
@@ -50,7 +51,7 @@ export function resolveLlmConfig(cwd = process.cwd()): ResolvedLlmConfig {
     const parsed = llmConfigFileSchema.parse(JSON.parse(raw));
     return {
       baseUrl: parsed.llm.base_url,
-      apiKey: parsed.llm.api_key,
+      apiKey: parsed.llm.apiKey ?? parsed.llm.api_key ?? "",
       model: parsed.llm.model,
       source: "file",
       configPath

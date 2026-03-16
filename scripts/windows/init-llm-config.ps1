@@ -20,7 +20,7 @@ if (-not (Test-Path $configPath)) {
 {
   "llm": {
     "base_url": "https://common.llm.skhynix.com/v1",
-    "api_key": "",
+    "apiKey": "",
     "model": "zai-org/GLM-4.7"
   }
 }
@@ -30,7 +30,10 @@ if (-not (Test-Path $configPath)) {
 
 if ($ApiKey) {
   $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
-  $config.llm.api_key = $ApiKey
+  $config.llm.apiKey = $ApiKey
+  if ($config.llm.PSObject.Properties["api_key"]) {
+    $config.llm.PSObject.Properties.Remove("api_key")
+  }
   $config | ConvertTo-Json -Depth 10 | Set-Content -Path $configPath -Encoding UTF8
 }
 

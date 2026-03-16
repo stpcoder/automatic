@@ -1,7 +1,7 @@
 {
   "llm": {
     "base_url": "https://common.llm.skhynix.com/v1",
-    "api_key": "",
+    "apiKey": "",
     "model": "zai-org/GLM-4.7"
   }
 }

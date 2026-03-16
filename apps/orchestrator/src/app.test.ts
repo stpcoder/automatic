@@ -279,7 +279,7 @@ test("llm config resolves from opencode.ai config file", () => {
     JSON.stringify({
       llm: {
         base_url: "https://common.llm.skhynix.com/v1",
-        api_key: "test-key",
+        apiKey: "test-key",
         model: "zai-org/GLM-4.7"
       }
     })
