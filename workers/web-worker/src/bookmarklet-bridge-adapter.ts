@@ -61,6 +61,7 @@ export class BookmarkletBridgeAdapter implements WebAdapter {
       url: typeof payload.url === "string" ? payload.url : definition.url,
       title: typeof payload.title === "string" ? payload.title : definition.title,
       summary: observation.summary,
+      pageText: typeof payload.pageText === "string" ? payload.pageText : undefined,
       interactiveElements: Array.isArray(payload.interactiveElements)
         ? (payload.interactiveElements as PageObservation["interactiveElements"])
         : [],

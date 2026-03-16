@@ -9,6 +9,8 @@ function getOutput(result: { output: unknown }) {
     harness: string;
     system_id: string;
     record_id?: string;
+    summary?: string;
+    goal_satisfied?: boolean;
     observation: PageObservation;
   };
 }
@@ -149,4 +151,64 @@ test("web worker reports live_chrome harness when live adapter is injected", asy
   const openOutput = getOutput(open);
   assert.equal(openOutput.harness, "live_chrome");
   assert.equal(openOutput.observation.title, "Live Page");
+});
+
+test("web worker can extract result text after a naver search submission", async () => {
+  const worker = new WebWorker();
+
+  await worker.execute({
+    request_id: "TR-N-0",
+    case_id: "CASE-N",
+    step_id: "naver_stock_search",
+    tool_name: "open_system",
+    mode: "preview",
+    input: {
+      system_id: "naver_search"
+    }
+  });
+
+  await worker.execute({
+    request_id: "TR-N-1",
+    case_id: "CASE-N",
+    step_id: "naver_stock_search",
+    tool_name: "fill_web_form",
+    mode: "draft",
+    input: {
+      system_id: "naver_search",
+      field_values: {
+        query: "SK hynix stock price"
+      }
+    }
+  });
+
+  await worker.execute({
+    request_id: "TR-N-2",
+    case_id: "CASE-N",
+    step_id: "naver_stock_search",
+    tool_name: "submit_web_form",
+    mode: "commit",
+    input: {
+      system_id: "naver_search",
+      expected_button: "search"
+    }
+  });
+
+  const extract = await worker.execute({
+    request_id: "TR-N-3",
+    case_id: "CASE-N",
+    step_id: "naver_stock_search",
+    tool_name: "extract_web_result",
+    mode: "preview",
+    input: {
+      system_id: "naver_search",
+      goal: "Search for SK hynix stock price",
+      query: "SK hynix stock price"
+    }
+  });
+
+  assert.equal(extract.success, true);
+  const extractOutput = getOutput(extract);
+  assert.equal(extractOutput.goal_satisfied, true);
+  assert.match(String(extractOutput.summary), /SK hynix/i);
+  assert.match(String(extractOutput.observation.pageText), /210,000 KRW/i);
 });

@@ -13,6 +13,7 @@ export interface PageObservation {
   url: string;
   title: string;
   summary: string;
+  pageText?: string;
   interactiveElements: InteractiveElement[];
   finalActionButton?: string;
 }
@@ -40,6 +41,16 @@ export interface PreviewResult {
 export interface SubmitResult {
   recordId: string;
   observation: PageObservation;
+}
+
+export interface ExtractResult {
+  extractionId: string;
+  observation: PageObservation;
+  query: string;
+  goal: string;
+  goalSatisfied: boolean;
+  matchedSnippets: string[];
+  summary: string;
 }
 
 export interface WebAdapter {

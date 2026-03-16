@@ -49,7 +49,7 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
       {
         role: "system",
         content:
-          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, preview_web_submission, submit_web_form, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
+          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
       },
       {
         role: "user",
@@ -70,7 +70,7 @@ export function buildDebugLoopPlannerRequest(
       {
         role: "system",
         content:
-          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, preview_web_submission, submit_web_form, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation and step_history."
+          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. After a meaningful page transition, read the updated page state and use extract_web_result before deciding the task is done. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation, last_tool_result, and step_history."
       },
       {
         role: "user",
@@ -168,10 +168,23 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
       return output;
     }
 
-    if (includesAny(instruction, ["search mail", "mail search", "메일 검색", "메일 조회", "mail lookup", "조회"])) {
+    if (
+      includesAny(instruction, ["search mail", "mail search", "메일 검색", "메일 조회", "mail lookup"]) ||
+      (includesAny(instruction, ["조회"]) && includesAny(instruction, ["mail", "email", "outlook", "메일"]))
+    ) {
       const output = buildOutput("Search Outlook mail", "search_outlook_mail", {
         keyword: typeof context.keyword === "string" ? context.keyword : parsed.instruction,
         max_results: typeof context.max_results === "number" ? context.max_results : 10
+      });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
+    }
+
+    if (includesAny(instruction, ["extract", "read result", "결과 읽", "결과 확인"])) {
+      const output = buildOutput("Extract result from current page", "extract_web_result", {
+        system_id: systemId,
+        goal: parsed.instruction,
+        query: typeof asRecord(context.field_values).query === "string" ? String(asRecord(context.field_values).query) : ""
       });
       this.lastTrace = buildHeuristicTrace(request, output);
       return output;
@@ -299,6 +312,7 @@ function planLoopContinuation(
   const interactiveElements = Array.isArray(currentObservation.interactiveElements)
     ? currentObservation.interactiveElements.map(asRecord)
     : [];
+  const lastToolResult = asRecord(context.last_tool_result);
 
   if (selectedTools.includes("search_outlook_mail")) {
     return buildFinishOutput(`Mail search completed for keyword ${String(context.keyword ?? "").trim() || "query"}.`);
@@ -336,8 +350,21 @@ function planLoopContinuation(
     });
   }
 
-  if (selectedTools.includes("submit_web_form")) {
-    return buildFinishOutput("Web interaction completed.");
+  if (selectedTools.includes("submit_web_form") && !selectedTools.includes("extract_web_result")) {
+    return buildOutput("Read result from the updated page", "extract_web_result", {
+      system_id: systemId,
+      goal: instruction,
+      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+    });
+  }
+
+  if (selectedTools.includes("extract_web_result")) {
+    const goalSatisfied = lastToolResult.goal_satisfied === true;
+    const summary =
+      typeof lastToolResult.summary === "string" && lastToolResult.summary.trim().length > 0
+        ? lastToolResult.summary
+        : "Web result extraction completed.";
+    return buildFinishOutput(goalSatisfied ? summary : `${summary} Goal could not be fully confirmed.`);
   }
 
   if (selectedTools.includes("open_system") && interactiveElements.length > 0 && Object.keys(fieldValues).length === 0) {

@@ -74,10 +74,19 @@ export class PageAgentDomAdapter implements WebAdapter {
       throw new Error(`Missing required fields: ${missingRequired.map((field) => field.key).join(", ")}`);
     }
 
-    session.page = {
-      ...session.page,
-      summary: `${session.page.title} submitted successfully.`
-    };
+    const queryValue = session.page.interactiveElements.find((element) => element.key === "query")?.value ?? "";
+    session.page =
+      systemId === "naver_search"
+        ? {
+            ...session.page,
+            title: "Naver Search Results",
+            summary: `Naver search results loaded for ${queryValue}.`,
+            interactiveElements: session.page.interactiveElements
+          }
+        : {
+            ...session.page,
+            summary: `${session.page.title} submitted successfully.`
+          };
     this.sessions.set(systemId, session);
 
     return {
@@ -106,12 +115,19 @@ export class PageAgentDomAdapter implements WebAdapter {
   }
 
   private toObservation(page: HarnessPageDefinition, systemId: string): PageObservation {
+    const pageText =
+      systemId === "naver_search"
+        ? this.buildNaverPageText(page)
+        : page.interactiveElements
+            .map((element) => `${element.label}${element.value ? `: ${element.value}` : ""}`)
+            .join(" | ");
     return {
       systemId,
       pageId: page.pageId,
       url: page.url,
       title: page.title,
       summary: page.summary,
+      pageText,
       interactiveElements: page.interactiveElements,
       finalActionButton: page.finalActionButton
     };
@@ -126,5 +142,13 @@ export class PageAgentDomAdapter implements WebAdapter {
       return value;
     }
     return JSON.stringify(value);
+  }
+
+  private buildNaverPageText(page: HarnessPageDefinition): string {
+    const query = page.interactiveElements.find((element) => element.key === "query")?.value ?? "";
+    if (page.title === "Naver Search Results") {
+      return `Naver search results for ${query}. Stock result card shows SK hynix stock price 210,000 KRW. Related query SK hynix stock price.`;
+    }
+    return `Naver search home. Current query field value: ${query}.`;
   }
 }

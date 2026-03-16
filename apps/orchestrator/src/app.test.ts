@@ -309,8 +309,9 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
   assert.ok(Array.isArray(response.json().steps));
   assert.deepEqual(
     response.json().steps.map((step: { tool: string }) => step.tool),
-    ["open_system", "fill_web_form", "submit_web_form"]
+    ["open_system", "fill_web_form", "submit_web_form", "extract_web_result"]
   );
+  assert.match(String(response.json().final_response), /SK hynix/i);
 
   await app.close();
   process.env.WEB_WORKER_ADAPTER = previousAdapter;

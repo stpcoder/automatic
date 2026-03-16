@@ -132,6 +132,15 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     }));
   });
 
+  app.post("/debug/web/extract", async (request) => {
+    const body = request.body as { system_id?: string; goal?: string; query?: string };
+    return webWorker.execute(buildDebugToolRequest("extract_web_result", "preview", {
+      system_id: body.system_id ?? "security_portal",
+      goal: body.goal ?? "",
+      query: body.query ?? ""
+    }));
+  });
+
   app.post("/debug/mail/draft", async (request) => {
     const body = request.body as {
       template_id?: string;
@@ -209,6 +218,11 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         name: "submit_web_form",
         description: "Click the final submit button on the active web system.",
         input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
+      },
+      {
+        name: "extract_web_result",
+        description: "Read the updated page result and determine whether the goal has been satisfied.",
+        input_schema: { system_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
       },
       {
         name: "draft_outlook_mail",
@@ -518,6 +532,11 @@ function buildDebugToolSpecs() {
       input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
     },
     {
+      name: "extract_web_result",
+      description: "Read the updated page result and determine whether the goal has been satisfied.",
+      input_schema: { system_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
+    },
+    {
       name: "draft_outlook_mail",
       description: "Create an Outlook mail draft.",
       input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
@@ -585,6 +604,16 @@ function normalizeDebugToolInput(
     }
     if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
       normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
+    }
+    if (toolName === "extract_web_result") {
+      if (typeof normalized.goal !== "string" || normalized.goal.trim().length === 0) {
+        normalized.goal = instruction;
+      }
+      if (typeof normalized.query !== "string" || normalized.query.trim().length === 0) {
+        const fieldValues =
+          typeof context.field_values === "object" && context.field_values !== null ? (context.field_values as Record<string, unknown>) : {};
+        normalized.query = typeof fieldValues.query === "string" ? fieldValues.query : "";
+      }
     }
   }
 

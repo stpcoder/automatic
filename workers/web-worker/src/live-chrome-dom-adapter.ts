@@ -263,6 +263,7 @@ export class LiveChromeDomAdapter implements WebAdapter {
           } satisfies LiveDomElementSnapshot;
         });
     });
+    const pageText = await session.page.evaluate(() => (document.body?.innerText ?? "").replace(/\s+/g, " ").trim().slice(0, 4000));
 
     const interactiveElements = mapLiveDomElements(rawElements, session.definition);
     const requiredMissingCount = interactiveElements.filter(
@@ -275,6 +276,7 @@ export class LiveChromeDomAdapter implements WebAdapter {
       url,
       title: title || session.definition.title,
       summary: `${session.definition.title} observed through live Chrome session. Missing required fields: ${requiredMissingCount}.`,
+      pageText,
       interactiveElements,
       finalActionButton: session.definition.finalActionButton
     };

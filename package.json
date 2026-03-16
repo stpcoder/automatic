@@ -33,6 +33,7 @@
     "win:debug:web:fill": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-fill.ps1",
     "win:debug:web:preview": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-preview.ps1",
     "win:debug:web:submit": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-submit.ps1",
+    "win:debug:web:extract": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-extract.ps1",
     "win:debug:mail:draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-draft.ps1",
     "win:debug:mail:search": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-search.ps1",
     "win:debug:mail:send": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-send.ps1",
@@ -46,6 +47,7 @@
     "win:test:agent:mail-search-ae-school": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-mail-search-ae-school.ps1",
     "win:test:web:naver-stock-fill": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-web-naver-stock-fill.ps1",
     "win:test:web:naver-stock-submit": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-web-naver-stock-submit.ps1",
+    "win:test:web:naver-stock-extract": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-web-naver-stock-extract.ps1",
     "win:test:agent:web-naver-stock": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-web-naver-stock.ps1"
   },
   "dependencies": {
