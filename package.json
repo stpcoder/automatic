@@ -17,6 +17,7 @@
     "outlook:poller:compiled": "node dist/workers/outlook-worker/src/poller.js",
     "test": "node scripts/run-tests.mjs",
     "win:setup": "powershell -ExecutionPolicy Bypass -File scripts/windows/setup.ps1",
+    "win:chrome:start": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-chrome-devtools.ps1",
     "win:start": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-orchestrator.ps1",
     "win:poller": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-poller.ps1",
     "win:start-all": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-all.ps1",

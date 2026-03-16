@@ -4,9 +4,9 @@
 
 Validate the real execution paths:
 
-- `bookmarklet_bridge` for normal Chrome
+- `live_chrome` for Chrome DevTools/CDP
 - `outlook_com` for Classic Outlook
-- `cube` through the same bookmarklet bridge
+- `cube` through the shared bridge path when needed
 
 ## 2. Prerequisites
 
@@ -15,6 +15,7 @@ Validate the real execution paths:
 - Git
 - Classic Outlook installed and logged in
 - Normal Chrome installed
+- Chrome or Edge launchable with remote debugging
 - Access to the target internal websites
 
 ## 3. Pull And Install
@@ -28,6 +29,12 @@ npm run win:setup
 ```
 
 ## 4. Start The Orchestrator
+
+First start Chrome in DevTools mode:
+
+```powershell
+npm run win:chrome:start
+```
 
 ```powershell
 npm run win:start
@@ -51,29 +58,25 @@ Or start both:
 npm run win:start-all
 ```
 
-## 5. Install Bookmarklets
+## 5. Verify DevTools Connection
 
-Open:
+```powershell
+npm run win:doctor
+```
 
-- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=security_portal`
-- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=dhl`
-- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=cube`
+Expected:
 
-For each response:
+- `WEB_WORKER_ADAPTER: live_chrome`
+- `Chrome DevTools: ok`
 
-1. copy the `bookmarklet` value
-2. create a normal Chrome bookmark
-3. paste the value into the bookmark URL
-4. name it clearly
-
-## 6. Attach Real Browser Pages
+## 6. Open Real Browser Pages
 
 For each target system:
 
 1. open the real page in normal Chrome
 2. log in normally
-3. click the matching bookmarklet
-4. verify sessions:
+3. keep the page open in the DevTools browser profile
+4. verify sessions if using bridge-based pages:
 
 ```powershell
 npm run win:sessions
@@ -126,13 +129,14 @@ Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:43117/cases/$($case.case_i
 Invoke-RestMethod "http://127.0.0.1:43117/cases/$($case.case_id)"
 ```
 
-Expected behavior:
+Expected behavior with `live_chrome`:
 
-- the attached `security_portal` page receives fill commands
-- the normal Chrome page is updated
+- the DevTools-connected Chrome page receives fill/click commands
+- the connected browser page is updated
 - final submit still waits for approval
 
 ## 10. Remaining Gap
 
 - Cube inbound reply polling is not yet auto-posting into the orchestrator
 - site-specific field mapping still needs validation on the real internal pages
+- Chrome extension bridge is available for page-navigation-heavy cases when CDP is not suitable

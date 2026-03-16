@@ -48,11 +48,11 @@ The repository now includes an executable MVP skeleton:
 - SQLite-backed persistent orchestrator store
 - approval-gated commit flow
 - email wait/resume event handling
-- browser bridge coordinator for normal Chrome bookmarklets
-- Page-Agent-style web worker with `bookmarklet_bridge`, `page_agent_dom`, and `live_chrome` adapters
+- browser bridge coordinator for extension and legacy bridge sessions
+- Page-Agent-style web worker with `live_chrome`, `page_agent_dom`, and bridge-based adapters
 - Windows Outlook COM path for real draft/send/watch registration
 - Outlook reply poller that posts matched replies back into the orchestrator
-- Cube web path through the bookmarklet bridge
+- Cube web path through the shared bridge path
 - shipment workflow demo through the customs-number request path
 
 ## Run
@@ -76,19 +76,18 @@ Enable persistent storage:
 ORCHESTRATOR_STORE=sqlite ORCHESTRATOR_DB_PATH=./data/orchestrator.sqlite npm run dev
 ```
 
-Use the normal Chrome bookmarklet bridge:
+Use the live Chrome DevTools path:
 
 ```bash
-WEB_WORKER_ADAPTER=bookmarklet_bridge npm run dev
+npm run win:chrome:start
+WEB_WORKER_ADAPTER=live_chrome npm run dev
 ```
 
-Then open:
+Chrome DevTools/CDP defaults to:
 
-- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=security_portal`
-- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=dhl`
-- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=cube`
+- `http://127.0.0.1:9222`
 
-Copy the returned `bookmarklet` value into a normal Chrome bookmark URL field and click it on the target page.
+Legacy bridge sessions are still available, but they are no longer the recommended default.
 
 Use the Windows Outlook COM path:
 
@@ -101,11 +100,11 @@ Windows helper commands:
 
 ```bash
 npm run win:setup
+npm run win:chrome:start
 npm run win:start
 npm run win:poller
 npm run win:start-all
 npm run win:health
-npm run win:bookmarklets
 npm run win:sessions
 npm run win:create-shipment-case
 npm run win:advance-case -- -CaseId CASE_ID
@@ -123,7 +122,7 @@ npm run win:debug:mail:draft -- -To vendor@example.com -TemplateId request_custo
 npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -ContextJson '{"template_id":"request_customs_number","to":["vendor@example.com"],"variables":{"traveler_name":"Kim"}}'
 ```
 
-See `docs/individual-agent-testing.md` for step-by-step bookmarklet and Outlook setup.
+See `docs/windows-real-test-runbook.md` for the current Windows DevTools setup.
 
 The natural-language debug agent uses `@ai-sdk/openai-compatible` when `opencode.ai/config.json` contains a valid API key.
 It supports both a simple `llm` block and an OpenCode-style `provider/options/models` block.
@@ -153,13 +152,13 @@ Operator UI:
 - approval UI for pending commit actions
 - Outlook COM execution path
 - Outlook reply poller service
-- Cube bookmarklet bridge execution path
+- Cube bridge execution path
 - waiting on incoming email
 - resume on matched email with extracted fields
 - move to the next draft step after reply
 - web worker adapter selection
-- normal Chrome bookmarklet bridge
 - live Chrome DOM observation mapping over CDP
+- Chrome extension bridge scaffold for page-navigation-safe sessions
 
 ## Next Build Steps
 

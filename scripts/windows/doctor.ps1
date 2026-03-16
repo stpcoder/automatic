@@ -6,6 +6,8 @@ $repoRoot = Set-AgentEnvironment
 Write-Host "RepoRoot: $repoRoot"
 Write-Host "ORCHESTRATOR_BASE_URL: $env:ORCHESTRATOR_BASE_URL"
 Write-Host "ORCHESTRATOR_PORT: $env:ORCHESTRATOR_PORT"
+Write-Host "WEB_WORKER_ADAPTER: $env:WEB_WORKER_ADAPTER"
+Write-Host "WEB_WORKER_CDP_URL: $env:WEB_WORKER_CDP_URL"
 Write-Host "Node: $(node -v)"
 
 try {
@@ -64,6 +66,17 @@ try {
 } catch {
   Write-Host "Server health: failed"
   Write-Host $_
+}
+
+if ($env:WEB_WORKER_ADAPTER -eq "live_chrome") {
+  try {
+    $cdp = Invoke-RestMethod -Method "GET" -Uri "$($env:WEB_WORKER_CDP_URL)/json/version"
+    Write-Host "Chrome DevTools: ok"
+    $cdp | ConvertTo-Json -Depth 10
+  } catch {
+    Write-Host "Chrome DevTools: failed"
+    Write-Host "Start Chrome with 'npm run win:chrome:start' or verify WEB_WORKER_CDP_URL."
+  }
 }
 
 try {

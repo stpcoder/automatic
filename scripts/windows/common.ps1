@@ -8,7 +8,8 @@ function Set-AgentEnvironment {
   }
 
   $env:ORCHESTRATOR_PORT = if ($env:ORCHESTRATOR_PORT) { $env:ORCHESTRATOR_PORT } else { "43117" }
-  $env:WEB_WORKER_ADAPTER = if ($env:WEB_WORKER_ADAPTER) { $env:WEB_WORKER_ADAPTER } else { "bookmarklet_bridge" }
+  $env:WEB_WORKER_ADAPTER = if ($env:WEB_WORKER_ADAPTER) { $env:WEB_WORKER_ADAPTER } else { "live_chrome" }
+  $env:WEB_WORKER_CDP_URL = if ($env:WEB_WORKER_CDP_URL) { $env:WEB_WORKER_CDP_URL } else { "http://127.0.0.1:9222" }
   $env:OUTLOOK_WORKER_ADAPTER = if ($env:OUTLOOK_WORKER_ADAPTER) { $env:OUTLOOK_WORKER_ADAPTER } else { "outlook_com" }
   $env:CUBE_WORKER_ADAPTER = if ($env:CUBE_WORKER_ADAPTER) { $env:CUBE_WORKER_ADAPTER } else { "bookmarklet_bridge" }
   $env:ORCHESTRATOR_STORE = if ($env:ORCHESTRATOR_STORE) { $env:ORCHESTRATOR_STORE } else { "sqlite" }
