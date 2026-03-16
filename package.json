@@ -13,7 +13,7 @@
     "dev": "node --import tsx apps/orchestrator/src/server.ts",
     "demo": "node --import tsx apps/orchestrator/src/demo.ts",
     "outlook:poller": "node --import tsx workers/outlook-worker/src/poller.ts",
-    "test": "node --import tsx --test $(find apps packages workers -name '*.test.ts' | sort)"
+    "test": "node scripts/run-tests.mjs"
   },
   "dependencies": {
     "fastify": "^5.4.0",
