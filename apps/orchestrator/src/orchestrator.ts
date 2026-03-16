@@ -22,7 +22,8 @@ import {
   workflowStepSchema
 } from "../../../packages/contracts/src/index.js";
 import { WorkflowRegistry } from "../../../packages/workflow-registry/src/index.js";
-import { InMemoryStore } from "./store.js";
+import { SqliteStore } from "./sqlite-store.js";
+import { type CaseStore, InMemoryStore } from "./store.js";
 import { CompositeToolExecutor } from "./tool-executors.js";
 
 interface OrchestratorOptions {
@@ -39,11 +40,14 @@ interface AdvanceResult {
 }
 
 export class OrchestratorService {
-  constructor(private readonly store: InMemoryStore, private readonly options: OrchestratorOptions) {}
+  constructor(private readonly store: CaseStore, private readonly options: OrchestratorOptions) {}
 
   static async createDefault(exampleDir = path.resolve(process.cwd(), "examples")): Promise<OrchestratorService> {
     const registry = await WorkflowRegistry.fromExampleDirectory(exampleDir);
-    return new OrchestratorService(new InMemoryStore(), {
+    const store = process.env.ORCHESTRATOR_STORE === "sqlite" || process.env.ORCHESTRATOR_DB_PATH
+      ? new SqliteStore(path.resolve(process.env.ORCHESTRATOR_DB_PATH ?? path.join(process.cwd(), "data", "orchestrator.sqlite")))
+      : new InMemoryStore();
+    return new OrchestratorService(store, {
       registry,
       toolExecutor: new CompositeToolExecutor()
     });
@@ -68,7 +72,7 @@ export class OrchestratorService {
   }
 
   getCase(caseId: string): CaseRecord {
-    const record = this.store.cases.get(caseId);
+    const record = this.store.getCase(caseId);
     if (!record) {
       throw new Error(`Case ${caseId} not found`);
     }
@@ -76,8 +80,7 @@ export class OrchestratorService {
   }
 
   listApprovals(caseId?: string): Approval[] {
-    const approvals = [...this.store.approvals.values()];
-    return caseId ? approvals.filter((approval) => approval.case_id === caseId) : approvals;
+    return this.store.listApprovals(caseId);
   }
 
   listEvents(caseId: string): CaseEvent[] {
@@ -85,7 +88,7 @@ export class OrchestratorService {
   }
 
   listArtifacts(caseId: string): Artifact[] {
-    return [...this.store.artifacts.values()].filter((artifact) => artifact.case_id === caseId);
+    return this.store.listArtifacts(caseId);
   }
 
   async advanceCase(caseId: string): Promise<AdvanceResult> {
@@ -165,7 +168,7 @@ export class OrchestratorService {
 
   applyApprovalDecision(approvalId: string, input: unknown): Approval {
     const decision = approvalDecisionInputSchema.parse(input);
-    const approval = this.store.approvals.get(approvalId);
+    const approval = this.store.getApproval(approvalId);
     if (!approval) {
       throw new Error(`Approval ${approvalId} not found`);
     }

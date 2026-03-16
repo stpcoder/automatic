@@ -45,7 +45,7 @@ The repository now includes an executable MVP skeleton:
 - shared contracts with Zod schemas
 - YAML workflow registry loader
 - legacy OpenAI-compatible LLM adapter
-- in-memory orchestrator service
+- SQLite-backed persistent orchestrator store
 - approval-gated commit flow
 - email wait/resume event handling
 - browser bridge coordinator for normal Chrome bookmarklets
@@ -68,6 +68,12 @@ Run the demo HTTP API:
 
 ```bash
 npm run dev
+```
+
+Enable persistent storage:
+
+```bash
+ORCHESTRATOR_STORE=sqlite ORCHESTRATOR_DB_PATH=./data/orchestrator.sqlite npm run dev
 ```
 
 Use the normal Chrome bookmarklet bridge:
@@ -104,6 +110,7 @@ API endpoints:
 
 - case creation
 - workflow loading from YAML
+- SQLite persistence across process restarts
 - immediate auto-advance through non-blocking steps
 - draft creation before commit
 - human approval requirement before commit
@@ -119,11 +126,11 @@ API endpoints:
 
 ## Next Build Steps
 
-1. Add persistent database-backed storage
-2. Add real approval UI
-3. Add planner integration through the internal LLM endpoint
-4. Validate site-specific field mappings on the real internal websites
-5. Add sample-intake workflow execution
+1. Add real approval UI
+2. Add planner integration through the internal LLM endpoint
+3. Validate site-specific field mappings on the real internal websites
+4. Add sample-intake workflow execution
+5. Add Cube inbound reply polling
 
 ## Recommended Product Direction
 

@@ -1,7 +1,14 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { mkdtempSync } from "node:fs";
+import { rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import { OrchestratorService } from "./orchestrator.js";
+import { SqliteStore } from "./sqlite-store.js";
+import { WorkflowRegistry } from "../../../packages/workflow-registry/src/index.js";
+import { CompositeToolExecutor } from "./tool-executors.js";
 
 test("shipment workflow pauses for approval and resumes on email reply", async () => {
   const orchestrator = await OrchestratorService.createDefault();
@@ -153,4 +160,42 @@ test("security portal step also requires approval before submit", async () => {
   const approveSecurity = await orchestrator.advanceCase(record.case_id);
   assert.equal(approveSecurity.caseRecord.state, "APPROVAL_REQUIRED");
   assert.equal(approveSecurity.approval?.action_type, "submit_web_form");
+});
+
+test("sqlite store persists cases across orchestrator instances", async () => {
+  const tempDir = mkdtempSync(path.join(os.tmpdir(), "skh-agent-sqlite-"));
+  const dbPath = path.join(tempDir, "orchestrator.sqlite");
+  const registry = await WorkflowRegistry.fromExampleDirectory(path.resolve(process.cwd(), "examples"));
+
+  const first = new OrchestratorService(new SqliteStore(dbPath), {
+    registry,
+    toolExecutor: new CompositeToolExecutor()
+  });
+
+  const created = first.createCase({
+    workflow_id: "overseas_equipment_shipment",
+    facts: {
+      case_id: "CASE-SQLITE-001",
+      traveler_name: "Kim",
+      destination_country: "Germany",
+      equipment_list: [{ serial_number: "SN123", asset_tag: "AT-001" }],
+      vendor_email: "vendor@example.com",
+      due_date: "2026-03-20",
+      receiver_address: "Berlin Office"
+    }
+  });
+
+  await first.advanceCase(created.case_id);
+
+  const second = new OrchestratorService(new SqliteStore(dbPath), {
+    registry,
+    toolExecutor: new CompositeToolExecutor()
+  });
+
+  const loaded = second.getCase(created.case_id);
+  assert.equal(loaded.case_id, created.case_id);
+  assert.equal(loaded.current_step_id, "request_customs_number");
+  assert.equal(loaded.state, "DRAFT_READY");
+
+  rmSync(tempDir, { recursive: true, force: true });
 });

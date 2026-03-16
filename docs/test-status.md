@@ -15,7 +15,7 @@ npm run demo
 - TypeScript check: `PASS`
 - Automated test suite: `PASS`
 - Demo flow: `PASS`
-- Automated test count: `23/23 PASS`
+- Automated test count: `24/24 PASS`
 
 ## Current Test Inventory
 
@@ -74,6 +74,7 @@ npm run demo
   - approval rejection path
   - unmatched email ignore path
   - security portal approval progression
+  - sqlite persistence across orchestrator instances
   - status: `PASS`
 
 ### HTTP Integration
@@ -100,6 +101,7 @@ Current implementation success means:
 - normal Chrome bookmarklet path is exposed through the HTTP app
 - live Chrome adapter mapping and selection logic work
 - Outlook reply poller logic works
+- SQLite persistence works
 
 Current implementation success does not yet mean:
 

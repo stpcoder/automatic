@@ -35,6 +35,8 @@ npm test
 $env:WEB_WORKER_ADAPTER="bookmarklet_bridge"
 $env:OUTLOOK_WORKER_ADAPTER="outlook_com"
 $env:CUBE_WORKER_ADAPTER="bookmarklet_bridge"
+$env:ORCHESTRATOR_STORE="sqlite"
+$env:ORCHESTRATOR_DB_PATH="$PWD\\data\\orchestrator.sqlite"
 npm run dev
 ```
 
