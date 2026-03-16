@@ -119,6 +119,7 @@ npm run win:debug:overview
 npm run win:debug:web:open -- -SystemId security_portal
 npm run win:debug:web:fill -- -SystemId security_portal -FieldsJson '{"traveler_name":"Kim"}'
 npm run win:debug:mail:draft -- -To vendor@example.com -TemplateId request_customs_number -VariablesJson '{"traveler_name":"Kim"}'
+npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -ContextJson '{"template_id":"request_customs_number","to":["vendor@example.com"],"variables":{"traveler_name":"Kim"}}'
 ```
 
 See `docs/individual-agent-testing.md` for step-by-step bookmarklet and Outlook setup.

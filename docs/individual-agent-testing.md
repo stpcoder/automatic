@@ -144,3 +144,25 @@ npm run win:debug:mail:poll-once
 8. `npm run win:debug:mail:send`
 9. `npm run win:debug:mail:watch`
 10. `npm run win:debug:mail:poll-once`
+
+## 8. Natural Language Agent Test
+
+If you want to test `instruction -> tool selection -> execution`, use:
+
+```powershell
+npm run win:debug:agent:run -- -Instruction "보안 사이트 열어줘" -ContextJson '{"system_id":"security_portal"}'
+```
+
+Web fill example:
+
+```powershell
+npm run win:debug:agent:run -- -Instruction "보안 사이트에 값 입력해줘" -ContextJson '{"system_id":"security_portal","field_values":{"traveler_name":"Kim","destination_country":"Germany","customs_number":"GB-8839-22"}}'
+```
+
+Mail draft example:
+
+```powershell
+npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -ContextJson '{"template_id":"request_customs_number","to":["vendor@example.com"],"variables":{"traveler_name":"Kim","destination_country":"Germany"}}'
+```
+
+This route uses the local LLM if `LLM_BASE_URL`, `LLM_API_KEY`, and `LLM_MODEL` are configured. Otherwise it falls back to a simple heuristic planner.

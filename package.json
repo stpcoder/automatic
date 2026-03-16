@@ -32,7 +32,8 @@
     "win:debug:mail:draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-draft.ps1",
     "win:debug:mail:send": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-send.ps1",
     "win:debug:mail:watch": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-watch.ps1",
-    "win:debug:mail:poll-once": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-poll-once.ps1"
+    "win:debug:mail:poll-once": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-poll-once.ps1",
+    "win:debug:agent:run": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-agent-run.ps1"
   },
   "dependencies": {
     "fastify": "^5.4.0",

@@ -226,3 +226,29 @@ test("debug web open can read a registered bookmarklet session", async () => {
   process.env.WEB_WORKER_ADAPTER = previousAdapter;
   browserBridgeCoordinator.reset();
 });
+
+test("debug agent can route a natural language mail draft instruction", async () => {
+  const app = await createApp();
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/debug/agent/run",
+    payload: {
+      instruction: "메일 초안을 작성해줘",
+      context: {
+        template_id: "request_customs_number",
+        to: ["vendor@example.com"],
+        variables: {
+          traveler_name: "Kim"
+        }
+      }
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().planner_output.next_action.tool, "draft_outlook_mail");
+  assert.equal(response.json().tool_result.success, true);
+  assert.equal(response.json().tool_result.output.artifact_kind, "mail_draft");
+
+  await app.close();
+});
