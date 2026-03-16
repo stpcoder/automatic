@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>SKH Agent Bridge Options</title>
+    <style>
+      body { font-family: sans-serif; padding: 24px; max-width: 640px; }
+      label { display: block; margin-top: 16px; font-weight: 600; }
+      input { width: 100%; padding: 8px; margin-top: 6px; box-sizing: border-box; }
+      button { margin-top: 20px; padding: 10px 14px; }
+      #status { margin-top: 12px; color: #2c5; }
+    </style>
+  </head>
+  <body>
+    <h1>SKH Agent Bridge</h1>
+    <label>
+      Server origin
+      <input id="serverOrigin" type="text" />
+    </label>
+    <label>
+      Poll interval (ms)
+      <input id="pollMs" type="number" />
+    </label>
+    <label>
+      Observation change timeout (ms)
+      <input id="observationChangeTimeoutMs" type="number" />
+    </label>
+    <label>
+      Enabled
+      <input id="enabled" type="checkbox" />
+    </label>
+    <button id="save">Save</button>
+    <div id="status"></div>
+    <script type="module" src="options.js"></script>
+  </body>
+</html>

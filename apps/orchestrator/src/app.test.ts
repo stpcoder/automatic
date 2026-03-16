@@ -256,6 +256,22 @@ test("debug web open can read a registered bookmarklet session", async () => {
   browserBridgeCoordinator.reset();
 });
 
+test("extension bootstrap endpoint exposes web system definitions", async () => {
+  const app = await createApp();
+
+  const response = await app.inject({
+    method: "GET",
+    url: "/bridge/extension-bootstrap"
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.ok(Array.isArray(response.json().systems));
+  assert.ok(response.json().systems.some((system: { system_id: string }) => system.system_id === "naver_search"));
+  assert.ok(response.json().systems.some((system: { system_id: string }) => system.system_id === "naver_stock"));
+
+  await app.close();
+});
+
 test("debug agent can route a natural language mail draft instruction", async () => {
   const app = await createApp();
 

@@ -13,6 +13,7 @@ export interface WebSystemDefinition {
   pageId: string;
   title: string;
   url: string;
+  urlPatterns?: string[];
   summary: string;
   finalActionButton?: string;
   resultIndicators?: string[];
@@ -26,6 +27,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     pageId: "export_registration",
     title: "Export Registration",
     url: "https://security.internal/export-registration",
+    urlPatterns: ["https://security.internal/*"],
     summary: "Security export registration form is open.",
     finalActionButton: "등록",
     fields: [
@@ -45,6 +47,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     pageId: "create_shipment",
     title: "Create Shipment",
     url: "https://mydhl.express.dhl/create-shipment",
+    urlPatterns: ["https://mydhl.express.dhl/*"],
     summary: "DHL shipment creation page is open.",
     finalActionButton: "Submit",
     fields: [
@@ -62,6 +65,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     pageId: "chat_room",
     title: "Cube Messenger",
     url: "https://cube.internal/chat",
+    urlPatterns: ["https://cube.internal/*"],
     summary: "Cube chat room is open.",
     finalActionButton: "Send",
     fields: [
@@ -74,6 +78,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     pageId: "search_home",
     title: "Naver Search",
     url: "https://www.naver.com",
+    urlPatterns: ["https://www.naver.com/*", "https://search.naver.com/*"],
     summary: "Naver search page is open.",
     finalActionButton: "search",
     resultIndicators: ["sk hynix", "stock", "price"],
@@ -87,6 +92,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     pageId: "stock_page",
     title: "Naver Finance - SK hynix",
     url: "https://finance.naver.com/item/main.naver?code=000660",
+    urlPatterns: ["https://finance.naver.com/*"],
     summary: "Naver Finance SK hynix stock page is open.",
     resultIndicators: ["sk hynix", "krw"],
     fields: [],
@@ -113,6 +119,21 @@ export function getWebSystemDefinition(systemId: string, pageId?: string): WebSy
     fields: [],
     buttons: [{ key: "submit", label: "Submit" }]
   };
+}
+
+export function listWebSystemDefinitions(): WebSystemDefinition[] {
+  return Object.values(WEB_SYSTEMS);
+}
+
+export function matchWebSystemByUrl(url: string): WebSystemDefinition | undefined {
+  return Object.values(WEB_SYSTEMS).find((definition) =>
+    (definition.urlPatterns ?? []).some((pattern) => matchesUrlPattern(url, pattern))
+  );
+}
+
+function matchesUrlPattern(url: string, pattern: string): boolean {
+  const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, "\\$&").replace(/\*/g, ".*");
+  return new RegExp(`^${escaped}$`).test(url);
 }
 
 export function buildHarnessPage(systemId: string, pageId?: string): HarnessPageDefinition {

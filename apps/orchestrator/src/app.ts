@@ -6,7 +6,7 @@ import { OutlookWorker } from "../../../workers/outlook-worker/src/index.js";
 import { OutlookComAdapter } from "../../../workers/outlook-worker/src/outlook-com-adapter.js";
 import { HttpOutlookReplyEventSink, OutlookReplyPoller } from "../../../workers/outlook-worker/src/reply-poller.js";
 import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bookmarklet-script.js";
-import { getWebSystemDefinition } from "../../../workers/web-worker/src/system-definitions.js";
+import { getWebSystemDefinition, listWebSystemDefinitions } from "../../../workers/web-worker/src/system-definitions.js";
 import { WebWorker } from "../../../workers/web-worker/src/index.js";
 import { buildDebugLoopPlannerRequest, buildDebugPlannerRequest, createDebugPlanner } from "./debug-agent.js";
 import { resolveLlmConfig } from "./llm-config.js";
@@ -83,6 +83,22 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
     reply.header("content-type", "application/javascript; charset=utf-8");
     return script;
+  });
+
+  app.get("/bridge/extension-bootstrap", async (request) => {
+    const host = request.headers.host ?? defaultHost;
+    return {
+      server_origin: `http://${host}`,
+      systems: listWebSystemDefinitions().map((definition) => ({
+        system_id: definition.systemId,
+        title: definition.title,
+        url_patterns: definition.urlPatterns ?? [],
+        final_action_button: definition.finalActionButton ?? "Submit",
+        fields: definition.fields,
+        buttons: definition.buttons,
+        result_indicators: definition.resultIndicators ?? []
+      }))
+    };
   });
 
   app.get("/debug/overview", async () => ({
