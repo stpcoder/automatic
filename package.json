@@ -10,9 +10,9 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "check": "tsc -p tsconfig.json --noEmit",
-    "dev": "node --import tsx apps/orchestrator/src/server.ts",
-    "demo": "node --import tsx apps/orchestrator/src/demo.ts",
-    "outlook:poller": "node --import tsx workers/outlook-worker/src/poller.ts",
+    "dev": "tsx apps/orchestrator/src/server.ts",
+    "demo": "tsx apps/orchestrator/src/demo.ts",
+    "outlook:poller": "tsx workers/outlook-worker/src/poller.ts",
     "test": "node scripts/run-tests.mjs",
     "win:setup": "powershell -ExecutionPolicy Bypass -File scripts/windows/setup.ps1",
     "win:start": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-orchestrator.ps1",
