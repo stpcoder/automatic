@@ -12,17 +12,6 @@
     return;
   }
 
-  const bootstrapResponse = await fetch(`${config.serverOrigin}/bridge/extension-bootstrap`).catch(() => null);
-  if (!bootstrapResponse || !bootstrapResponse.ok) {
-    return;
-  }
-
-  const bootstrap = await bootstrapResponse.json();
-  const system = matchSystem(location.href, bootstrap.systems ?? []);
-  if (!system) {
-    return;
-  }
-
   window.__SKH_AGENT_EXTENSION_ACTIVE__ = true;
   const sessionId = `ext-tab-${config.tabId}`;
   const parentSessionId = config.openerTabId ? `ext-tab-${config.openerTabId}` : undefined;
@@ -32,6 +21,9 @@
   const pointerClickDurationMs = Number(config.pointerClickDurationMs || 260);
   const showPointerOverlay = Boolean(config.showPointerOverlay);
   const overlayState = createPointerOverlay();
+  let system = null;
+  let bootstrapWaitLogged = false;
+  let systemWaitLogged = false;
 
   function normalize(value) {
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -69,7 +61,7 @@
       element.textContent
     ].map(normalize);
 
-    for (const field of system.fields || []) {
+    for (const field of system?.fields || []) {
       const aliases = [field.key, field.label].concat(field.aliases || []).map(normalize);
       if (aliases.some((alias) => candidates.includes(alias))) {
         return field.key;
@@ -116,13 +108,13 @@
       payload: {
         sessionId,
         parentSessionId,
-        systemId: system.system_id,
+        systemId: system?.system_id ?? "unknown",
         pageId: "live_page",
         url: location.href,
         title: document.title,
         pageText,
         interactiveElements: controls,
-        finalActionButton: system.final_action_button
+        finalActionButton: system?.final_action_button ?? "Submit"
       }
     };
   }
@@ -182,7 +174,7 @@
 
   function resolveButtonCandidates(targetKey) {
     const normalizedTarget = normalize(targetKey);
-    const matched = (system.buttons || []).find((button) =>
+    const matched = (system?.buttons || []).find((button) =>
       [button.key, button.label].concat(button.aliases || []).map(normalize).includes(normalizedTarget)
     );
     return matched ? [matched.label].concat(matched.aliases || []).map(normalize) : [normalizedTarget];
@@ -230,7 +222,7 @@
     if (command.type === "click" || command.type === "submit") {
       const targetKey =
         command.type === "submit"
-          ? String(command.payload.expected_button || system.final_action_button || "submit")
+          ? String(command.payload.expected_button || system?.final_action_button || "submit")
           : String(command.payload.target_key || "");
       const previousSignature = observationSignature();
       await completeCommand(command.command_id, true, {
@@ -379,8 +371,48 @@
     label.style.opacity = "0";
   }
 
+  async function fetchBootstrap() {
+    const response = await fetch(`${config.serverOrigin}/bridge/extension-bootstrap`, {
+      cache: "no-store"
+    }).catch(() => null);
+    if (!response || !response.ok) {
+      return null;
+    }
+
+    return response.json();
+  }
+
+  async function ensureActiveSystem() {
+    while (true) {
+      const bootstrap = await fetchBootstrap();
+      if (!bootstrap) {
+        if (!bootstrapWaitLogged) {
+          bootstrapWaitLogged = true;
+          console.info("[skh-agent-extension] waiting for local agent server", config.serverOrigin);
+        }
+        await sleep(Math.max(pollMs, 1500));
+        continue;
+      }
+
+      bootstrapWaitLogged = false;
+      const matchedSystem = matchSystem(location.href, bootstrap.systems ?? []);
+      if (!matchedSystem) {
+        if (!systemWaitLogged) {
+          systemWaitLogged = true;
+          console.info("[skh-agent-extension] waiting for supported page", location.href);
+        }
+        await sleep(Math.max(pollMs, 1500));
+        continue;
+      }
+
+      systemWaitLogged = false;
+      return matchedSystem;
+    }
+  }
+
   while (true) {
     try {
+      system = await ensureActiveSystem();
       await registerSession();
       await pushObservation();
       const commands = await pullCommands();

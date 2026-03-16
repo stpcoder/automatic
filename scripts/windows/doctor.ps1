@@ -70,6 +70,20 @@ try {
 Write-Host "Chrome Extension Bridge: expected"
 
 try {
+  $sessions = Invoke-AgentApi -Method "GET" -Uri (Get-AgentUrl "/bridge/sessions")
+  $sessionCount = @($sessions).Count
+  Write-Host "Extension sessions: $sessionCount"
+  if ($sessionCount -gt 0) {
+    $sessions | Select-Object session_id, system_id, title, url, updated_at | Format-Table -AutoSize
+  } else {
+    Write-Host "Extension sessions: none detected. Open a supported page in Chrome and wait a few seconds."
+  }
+} catch {
+  Write-Host "Extension sessions: failed"
+  Write-Host $_
+}
+
+try {
   $portState = netstat -ano | Select-String ":$($env:ORCHESTRATOR_PORT)\s"
   if ($portState) {
     Write-Host "Port $($env:ORCHESTRATOR_PORT): in use"
