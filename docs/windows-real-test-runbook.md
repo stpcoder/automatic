@@ -4,9 +4,9 @@
 
 Validate the real execution paths:
 
-- `live_chrome` for Chrome DevTools/CDP
+- `extension_bridge` for Chrome extension-based web control
 - `outlook_com` for Classic Outlook
-- `cube` through the shared bridge path when needed
+- `cube` through the shared extension bridge path when needed
 
 ## 2. Prerequisites
 
@@ -15,7 +15,8 @@ Validate the real execution paths:
 - Git
 - Classic Outlook installed and logged in
 - Normal Chrome installed
-- Chrome or Edge launchable with remote debugging
+- Chrome installed
+- unpacked extension loading allowed
 - Access to the target internal websites
 
 ## 3. Pull And Install
@@ -29,12 +30,6 @@ npm run win:setup
 ```
 
 ## 4. Start The Orchestrator
-
-First start Chrome in DevTools mode:
-
-```powershell
-npm run win:chrome:start
-```
 
 ```powershell
 npm run win:start
@@ -58,7 +53,7 @@ Or start both:
 npm run win:start-all
 ```
 
-## 5. Verify DevTools Connection
+## 5. Verify Extension Configuration
 
 ```powershell
 npm run win:doctor
@@ -66,23 +61,31 @@ npm run win:doctor
 
 Expected:
 
-- `WEB_WORKER_ADAPTER: live_chrome`
-- `Chrome DevTools: ok`
+- `WEB_WORKER_ADAPTER: extension_bridge`
+- `Chrome Extension Bridge: expected`
 
-## 6. Open Real Browser Pages
+## 6. Install And Enable Extension
+
+1. Open `chrome://extensions`
+2. Enable `Developer mode`
+3. Click `Load unpacked`
+4. Select `extensions/chrome-bridge`
+5. In the extension options, keep server origin as `http://127.0.0.1:43117`
+
+## 7. Open Real Browser Pages
 
 For each target system:
 
 1. open the real page in normal Chrome
 2. log in normally
-3. keep the page open in the DevTools browser profile
-4. verify sessions if using bridge-based pages:
+3. keep the page open in the normal Chrome profile with the extension enabled
+4. verify sessions:
 
 ```powershell
 npm run win:sessions
 ```
 
-## 7. Outlook COM Smoke Test
+## 8. Outlook COM Smoke Test
 
 ```powershell
 $case = npm run win:create-shipment-case
@@ -97,7 +100,7 @@ npm run win:approve-latest
 npm run win:advance-case -- -CaseId CASE_ID_HERE
 ```
 
-## 8. Resume After Real Reply
+## 9. Resume After Real Reply
 
 Current watch files are written to:
 
@@ -122,21 +125,20 @@ Invoke-RestMethod `
   } | ConvertTo-Json -Depth 10)
 ```
 
-## 9. Real Web Smoke Test
+## 10. Real Web Smoke Test
 
 ```powershell
 Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:43117/cases/$($case.case_id)/advance"
 Invoke-RestMethod "http://127.0.0.1:43117/cases/$($case.case_id)"
 ```
 
-Expected behavior with `live_chrome`:
+Expected behavior with `extension_bridge`:
 
-- the DevTools-connected Chrome page receives fill/click commands
+- the extension-connected Chrome page receives fill/click/follow commands
 - the connected browser page is updated
 - final submit still waits for approval
 
-## 10. Remaining Gap
+## 11. Remaining Gap
 
 - Cube inbound reply polling is not yet auto-posting into the orchestrator
 - site-specific field mapping still needs validation on the real internal pages
-- Chrome extension bridge is available for page-navigation-heavy cases when CDP is not suitable

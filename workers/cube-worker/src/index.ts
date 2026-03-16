@@ -73,7 +73,7 @@ export class CubeWorker implements ToolExecutor {
       };
     }
 
-    if (process.env.CUBE_WORKER_ADAPTER === "bookmarklet_bridge") {
+    if (process.env.CUBE_WORKER_ADAPTER === "extension_bridge") {
       const fillCommand = browserBridgeCoordinator.enqueueCommand("cube", "fill", {
         field_values: {
           message_body: draft.body

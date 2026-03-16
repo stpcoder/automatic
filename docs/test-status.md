@@ -60,7 +60,7 @@ npm run demo
 
 - `workers/cube-worker/src/index.test.ts`
   - draft/send path
-  - bookmarklet bridge send path
+  - extension bridge send path
   - status: `PASS`
 
 - `workers/scheduler-worker/src/index.test.ts`
@@ -84,7 +84,7 @@ npm run demo
   - advance through approval gate
   - approve through API
   - email event resume through API
-  - bookmarklet bridge endpoint exposure
+  - extension bridge endpoint exposure
   - approval UI rendering
   - status: `PASS`
 
@@ -98,9 +98,8 @@ Current implementation success means:
 - worker boundaries work
 - HTTP surface works
 - page-agent-style DOM harness works
-- bookmarklet bridge coordinator works
-- normal Chrome bookmarklet path is exposed through the HTTP app
-- live Chrome adapter mapping and selection logic work
+- extension bridge coordinator works
+- normal Chrome extension path is exposed through the HTTP app
 - Outlook reply poller logic works
 - SQLite persistence works
 - approval UI rendering works
@@ -110,4 +109,3 @@ Current implementation success does not yet mean:
 - Windows Outlook COM was executed on a real Windows machine during this verification run
 - internal web automation has been validated against the real internal websites
 - Cube web automation has been validated against the real Cube UI
-- a live Chrome CDP session was available during this verification run

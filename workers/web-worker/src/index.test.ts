@@ -15,8 +15,8 @@ function getOutput(result: { output: unknown }) {
   };
 }
 
-class StubLiveChromeAdapter implements WebAdapter {
-  readonly harnessName = "live_chrome";
+class StubExtensionBridgeAdapter implements WebAdapter {
+  readonly harnessName = "extension_bridge";
 
   async openSystem(systemId: string): Promise<PageObservation> {
     return {
@@ -144,9 +144,9 @@ test("web worker fills, previews, and submits a form", async () => {
   assert.equal(submitOutput.harness, "page_agent_dom");
 });
 
-test("web worker reports live_chrome harness when live adapter is injected", async () => {
+test("web worker reports extension_bridge harness when extension adapter is injected", async () => {
   const worker = new WebWorker({
-    adapter: new StubLiveChromeAdapter()
+    adapter: new StubExtensionBridgeAdapter()
   });
 
   const open = await worker.execute({
@@ -162,7 +162,7 @@ test("web worker reports live_chrome harness when live adapter is injected", asy
 
   assert.equal(open.success, true);
   const openOutput = getOutput(open);
-  assert.equal(openOutput.harness, "live_chrome");
+  assert.equal(openOutput.harness, "extension_bridge");
   assert.equal(openOutput.observation.title, "Live Page");
 });
 
@@ -228,7 +228,7 @@ test("web worker can extract result text after a naver search submission", async
 
 test("web worker can follow navigation and preserve session metadata", async () => {
   const worker = new WebWorker({
-    adapter: new StubLiveChromeAdapter()
+    adapter: new StubExtensionBridgeAdapter()
   });
 
   const follow = await worker.execute({
@@ -245,6 +245,6 @@ test("web worker can follow navigation and preserve session metadata", async () 
 
   assert.equal(follow.success, true);
   const output = getOutput(follow);
-  assert.equal(output.harness, "live_chrome");
+  assert.equal(output.harness, "extension_bridge");
   assert.equal(output.observation.sessionId, "live-session-1");
 });

@@ -47,8 +47,8 @@ test("cube worker drafts and sends messages", async () => {
   assert.ok(send.output.message_id);
 });
 
-test("cube worker can send through bookmarklet bridge", async () => {
-  process.env.CUBE_WORKER_ADAPTER = "bookmarklet_bridge";
+test("cube worker can send through extension bridge", async () => {
+  process.env.CUBE_WORKER_ADAPTER = "extension_bridge";
   browserBridgeCoordinator.registerSession({
     session_id: "cube-session",
     system_id: "cube",

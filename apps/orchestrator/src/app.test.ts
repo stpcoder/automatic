@@ -81,22 +81,8 @@ test("http api creates, advances, approves, and resumes a shipment case", async 
   await app.close();
 });
 
-test("http api exposes bookmarklet bridge endpoints", async () => {
+test("http api exposes extension bridge endpoints", async () => {
   const app = await createApp();
-
-  const bookmarkletResponse = await app.inject({
-    method: "GET",
-    url: "/bridge/bookmarklet?systemId=security_portal"
-  });
-  assert.equal(bookmarkletResponse.statusCode, 200);
-  assert.equal(bookmarkletResponse.json().system_id, "security_portal");
-
-  const scriptResponse = await app.inject({
-    method: "GET",
-    url: "/bridge/bookmarklet.js?systemId=security_portal"
-  });
-  assert.equal(scriptResponse.statusCode, 200);
-  assert.match(scriptResponse.body, /SKH agent bridge/i);
 
   const optionsResponse = await app.inject({
     method: "OPTIONS",
@@ -205,10 +191,10 @@ test("debug overview and mail draft endpoints are available", async () => {
   await app.close();
 });
 
-test("debug web open can read a registered bookmarklet session", async () => {
+test("debug web open can read a registered extension bridge session", async () => {
   browserBridgeCoordinator.reset();
   const previousAdapter = process.env.WEB_WORKER_ADAPTER;
-  process.env.WEB_WORKER_ADAPTER = "bookmarklet_bridge";
+  process.env.WEB_WORKER_ADAPTER = "extension_bridge";
   const app = await createApp();
 
   await app.inject({
@@ -249,7 +235,7 @@ test("debug web open can read a registered bookmarklet session", async () => {
 
   assert.equal(openResponse.statusCode, 200);
   assert.equal(openResponse.json().success, true);
-  assert.equal(openResponse.json().output.harness, "bookmarklet_bridge");
+  assert.equal(openResponse.json().output.harness, "extension_bridge");
 
   await app.close();
   process.env.WEB_WORKER_ADAPTER = previousAdapter;

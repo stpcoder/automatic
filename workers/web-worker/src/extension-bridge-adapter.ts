@@ -3,8 +3,8 @@ import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/i
 import { getWebSystemDefinition } from "./system-definitions.js";
 import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
-export class BookmarkletBridgeAdapter implements WebAdapter {
-  readonly harnessName = "bookmarklet_bridge";
+export class ExtensionBridgeAdapter implements WebAdapter {
+  readonly harnessName = "extension_bridge";
 
   async openSystem(systemId: string, _pageId?: string, sessionId?: string): Promise<PageObservation> {
     const observation = await browserBridgeCoordinator.waitForObservation(systemId, undefined, sessionId);
@@ -17,12 +17,17 @@ export class BookmarkletBridgeAdapter implements WebAdapter {
   }
 
   async fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult> {
-    const command = browserBridgeCoordinator.enqueueCommand(systemId, "fill", {
-      field_values: values
-    }, sessionId);
+    const command = browserBridgeCoordinator.enqueueCommand(
+      systemId,
+      "fill",
+      {
+        field_values: values
+      },
+      sessionId
+    );
     const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id, undefined, sessionId);
     if (result.status === "failed") {
-      throw new Error(result.error ?? `Bookmarklet bridge fill failed for ${systemId}`);
+      throw new Error(result.error ?? `Extension bridge fill failed for ${systemId}`);
     }
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
@@ -32,18 +37,36 @@ export class BookmarkletBridgeAdapter implements WebAdapter {
   }
 
   async clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult> {
-    const command = browserBridgeCoordinator.enqueueCommand(systemId, "click", {
-      target_key: targetKey
-    }, sessionId);
+    const command = browserBridgeCoordinator.enqueueCommand(
+      systemId,
+      "click",
+      {
+        target_key: targetKey
+      },
+      sessionId
+    );
     const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id, undefined, sessionId);
     if (result.status === "failed") {
-      throw new Error(result.error ?? `Bookmarklet bridge click failed for ${systemId}`);
+      throw new Error(result.error ?? `Extension bridge click failed for ${systemId}`);
     }
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
       observation: await this.observe(systemId, sessionId)
     };
+  }
+
+  async followNavigation(systemId: string, sessionId?: string): Promise<PageObservation> {
+    if (!sessionId) {
+      throw new Error("followNavigation requires session_id for extension-backed sessions");
+    }
+    const followed = await browserBridgeCoordinator.waitForNavigation(sessionId);
+    return this.toPageObservation(
+      typeof followed.observation.payload.systemId === "string" ? String(followed.observation.payload.systemId) : systemId,
+      followed.observation,
+      followed.session.session_id,
+      followed.session.parent_session_id
+    );
   }
 
   async previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult> {
@@ -54,30 +77,22 @@ export class BookmarkletBridgeAdapter implements WebAdapter {
   }
 
   async submit(systemId: string, expectedButton: string, sessionId?: string): Promise<SubmitResult> {
-    const command = browserBridgeCoordinator.enqueueCommand(systemId, "submit", {
-      expected_button: expectedButton
-    }, sessionId);
+    const command = browserBridgeCoordinator.enqueueCommand(
+      systemId,
+      "submit",
+      {
+        expected_button: expectedButton
+      },
+      sessionId
+    );
     const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id, undefined, sessionId);
     if (result.status === "failed") {
-      throw new Error(result.error ?? `Bookmarklet bridge submit failed for ${systemId}`);
+      throw new Error(result.error ?? `Extension bridge submit failed for ${systemId}`);
     }
     return {
       recordId: `REC-${crypto.randomUUID()}`,
       observation: await this.observe(systemId, sessionId)
     };
-  }
-
-  async followNavigation(systemId: string, sessionId?: string): Promise<PageObservation> {
-    if (!sessionId) {
-      throw new Error("followNavigation requires session_id for bridge-backed sessions");
-    }
-    const followed = await browserBridgeCoordinator.waitForNavigation(sessionId);
-    return this.toPageObservation(
-      typeof followed.observation.payload.systemId === "string" ? String(followed.observation.payload.systemId) : systemId,
-      followed.observation,
-      followed.session.session_id,
-      followed.session.parent_session_id
-    );
   }
 
   private toPageObservation(

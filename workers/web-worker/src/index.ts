@@ -1,14 +1,12 @@
 import { type ToolExecutor, type ToolRequest, type ToolResult } from "../../../packages/contracts/src/index.js";
-import { BookmarkletBridgeAdapter } from "./bookmarklet-bridge-adapter.js";
-import { LiveChromeDomAdapter } from "./live-chrome-dom-adapter.js";
+import { ExtensionBridgeAdapter } from "./extension-bridge-adapter.js";
 import { PageAgentDomAdapter } from "./page-agent-dom-adapter.js";
 import { getWebSystemDefinition } from "./system-definitions.js";
 import type { WebAdapter } from "./types.js";
 
 export interface WebWorkerOptions {
   adapter?: WebAdapter;
-  adapterKind?: "page_agent_dom" | "live_chrome" | "bookmarklet_bridge" | "extension_bridge";
-  cdpUrl?: string;
+  adapterKind?: "page_agent_dom" | "extension_bridge";
 }
 
 export class WebWorker implements ToolExecutor {
@@ -17,13 +15,8 @@ export class WebWorker implements ToolExecutor {
   constructor(options: WebWorkerOptions = {}) {
     this.adapter =
       options.adapter ??
-      (options.adapterKind === "live_chrome" || process.env.WEB_WORKER_ADAPTER === "live_chrome"
-        ? new LiveChromeDomAdapter({ cdpUrl: options.cdpUrl })
-        : options.adapterKind === "bookmarklet_bridge" ||
-            options.adapterKind === "extension_bridge" ||
-            process.env.WEB_WORKER_ADAPTER === "bookmarklet_bridge" ||
-            process.env.WEB_WORKER_ADAPTER === "extension_bridge"
-          ? new BookmarkletBridgeAdapter()
+      (options.adapterKind === "extension_bridge" || process.env.WEB_WORKER_ADAPTER === "extension_bridge"
+        ? new ExtensionBridgeAdapter()
         : new PageAgentDomAdapter());
   }
 

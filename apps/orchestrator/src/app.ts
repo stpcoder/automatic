@@ -5,7 +5,6 @@ import { approvalDecisionInputSchema, createCaseInputSchema, incomingEmailPayloa
 import { OutlookWorker } from "../../../workers/outlook-worker/src/index.js";
 import { OutlookComAdapter } from "../../../workers/outlook-worker/src/outlook-com-adapter.js";
 import { HttpOutlookReplyEventSink, OutlookReplyPoller } from "../../../workers/outlook-worker/src/reply-poller.js";
-import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bookmarklet-script.js";
 import { getWebSystemDefinition, listWebSystemDefinitions } from "../../../workers/web-worker/src/system-definitions.js";
 import { WebWorker } from "../../../workers/web-worker/src/index.js";
 import { buildDebugLoopPlannerRequest, buildDebugPlannerRequest, createDebugPlanner } from "./debug-agent.js";
@@ -63,27 +62,6 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.get("/bridge/sessions", async () => browserBridgeCoordinator.listSessions());
-
-  app.get("/bridge/bookmarklet", async (request) => {
-    const query = request.query as { systemId?: string };
-    const systemId = query.systemId ?? "security_portal";
-    const host = request.headers.host ?? defaultHost;
-    const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
-    return {
-      system_id: systemId,
-      bookmarklet: `javascript:${encodeURIComponent(script)}`,
-      install_instructions: "Create a normal Chrome bookmark and paste the bookmarklet value into the URL field."
-    };
-  });
-
-  app.get("/bridge/bookmarklet.js", async (request, reply) => {
-    const query = request.query as { systemId?: string };
-    const systemId = query.systemId ?? "security_portal";
-    const host = request.headers.host ?? defaultHost;
-    const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
-    reply.header("content-type", "application/javascript; charset=utf-8");
-    return script;
-  });
 
   app.get("/bridge/extension-bootstrap", async (request) => {
     const host = request.headers.host ?? defaultHost;

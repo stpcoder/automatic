@@ -9,11 +9,10 @@ systems:
     type: web
     base_url: https://security.internal
     login_method: sso
-    harness: bookmarklet_bridge
+    harness: extension_bridge
     supported_harnesses:
-      - bookmarklet_bridge
+      - extension_bridge
       - page_agent_dom
-      - live_chrome
     pages:
       - page_id: export_registration
         success_markers:
@@ -36,11 +35,10 @@ systems:
     type: web
     base_url: https://mydhl.express.dhl
     login_method: password
-    harness: bookmarklet_bridge
+    harness: extension_bridge
     supported_harnesses:
-      - bookmarklet_bridge
+      - extension_bridge
       - page_agent_dom
-      - live_chrome
     pages:
       - page_id: create_shipment
         success_markers:
@@ -60,6 +58,6 @@ systems:
 
   - system_id: cube
     type: web_or_windows_app
-    adapter: bookmarklet_bridge
+    adapter: extension_bridge
     login_method: existing_session
-    notes: Prefer Cube web through bookmarklet bridge. If only desktop is available, add a Windows UIA adapter.
+    notes: Prefer Cube web through extension bridge. If only desktop is available, add a Windows UIA adapter.

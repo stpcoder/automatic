@@ -49,7 +49,7 @@ The repository now includes an executable MVP skeleton:
 - approval-gated commit flow
 - email wait/resume event handling
 - browser bridge coordinator with session-aware same-tab/new-tab follow support
-- Page-Agent-style web worker with `live_chrome`, `page_agent_dom`, and bridge-based adapters
+- Page-Agent-style web worker with `extension_bridge` and `page_agent_dom`
 - Windows Outlook COM path for real draft/send/watch registration
 - Outlook reply poller that posts matched replies back into the orchestrator
 - Cube web path through the shared bridge path
@@ -76,18 +76,13 @@ Enable persistent storage:
 ORCHESTRATOR_STORE=sqlite ORCHESTRATOR_DB_PATH=./data/orchestrator.sqlite npm run dev
 ```
 
-Use the live Chrome DevTools path:
+Use the Chrome extension bridge path:
 
 ```bash
-npm run win:chrome:start
-WEB_WORKER_ADAPTER=live_chrome npm run dev
+WEB_WORKER_ADAPTER=extension_bridge npm run dev
 ```
 
-Chrome DevTools/CDP defaults to:
-
-- `http://127.0.0.1:9222`
-
-Legacy bridge sessions are still available, but they are no longer the recommended default.
+The extension bridge is the default web path.
 
 Use the Windows Outlook COM path:
 
@@ -100,7 +95,6 @@ Windows helper commands:
 
 ```bash
 npm run win:setup
-npm run win:chrome:start
 npm run win:start
 npm run win:poller
 npm run win:start-all
@@ -122,7 +116,7 @@ npm run win:debug:mail:draft -- -To vendor@example.com -TemplateId request_custo
 npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -ContextJson '{"template_id":"request_customs_number","to":["vendor@example.com"],"variables":{"traveler_name":"Kim"}}'
 ```
 
-See `docs/windows-real-test-runbook.md` for the current Windows DevTools setup.
+See `docs/windows-real-test-runbook.md` for the current Windows extension setup.
 
 The natural-language debug agent uses `@ai-sdk/openai-compatible` when `opencode.ai/config.json` contains a valid API key.
 It supports both a simple `llm` block and an OpenCode-style `provider/options/models` block.
@@ -157,7 +151,6 @@ Operator UI:
 - resume on matched email with extracted fields
 - move to the next draft step after reply
 - web worker adapter selection
-- live Chrome DOM observation mapping over CDP
 - Chrome extension bridge with page-navigation-safe sessions and visual pointer/scroll feedback
 
 ## Next Build Steps
