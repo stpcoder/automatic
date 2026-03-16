@@ -116,6 +116,7 @@ export class OutlookWorker implements ToolExecutor {
   private async watchReply(request: ToolRequest): Promise<ToolResult> {
     if (this.useRealAdapter) {
       const output = await new OutlookComAdapter().watchReply({
+        case_id: typeof request.input.case_id === "string" ? request.input.case_id : undefined,
         conversation_id: String(request.input.conversation_id ?? ""),
         expected_from: Array.isArray(request.input.expected_from) ? (request.input.expected_from as string[]) : [],
         required_fields: Array.isArray(request.input.required_fields) ? (request.input.required_fields as string[]) : []

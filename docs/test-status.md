@@ -15,7 +15,7 @@ npm run demo
 - TypeScript check: `PASS`
 - Automated test suite: `PASS`
 - Demo flow: `PASS`
-- Automated test count: `21/21 PASS`
+- Automated test count: `23/23 PASS`
 
 ## Current Test Inventory
 
@@ -42,6 +42,11 @@ npm run demo
 
 - `workers/outlook-worker/src/index.test.ts`
   - draft/send/watch path
+  - status: `PASS`
+
+- `workers/outlook-worker/src/reply-poller.test.ts`
+  - matched reply delivery
+  - empty poll pass-through
   - status: `PASS`
 
 - `workers/web-worker/src/index.test.ts`
@@ -94,6 +99,7 @@ Current implementation success means:
 - bookmarklet bridge coordinator works
 - normal Chrome bookmarklet path is exposed through the HTTP app
 - live Chrome adapter mapping and selection logic work
+- Outlook reply poller logic works
 
 Current implementation success does not yet mean:
 

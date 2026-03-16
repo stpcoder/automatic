@@ -44,6 +44,13 @@ Health check:
 Invoke-RestMethod http://127.0.0.1:3000/health
 ```
 
+Start the Outlook reply poller in a second terminal:
+
+```powershell
+$env:ORCHESTRATOR_BASE_URL="http://127.0.0.1:3000"
+npm run outlook:poller
+```
+
 ## 5. Install Bookmarklets
 
 Open:
@@ -120,7 +127,9 @@ Current watch files are written to:
 
 - `%APPDATA%\\skh-agent\\outlook-watches`
 
-When the reply arrives, post it into the orchestrator:
+With `npm run outlook:poller` running, a matching reply should be auto-posted into the orchestrator.
+
+Manual fallback:
 
 ```powershell
 Invoke-RestMethod `
@@ -152,6 +161,5 @@ Expected behavior:
 
 ## 10. Remaining Gap
 
-- Outlook reply polling is not yet auto-posting into the orchestrator
 - Cube inbound reply polling is not yet auto-posting into the orchestrator
 - site-specific field mapping still needs validation on the real internal pages

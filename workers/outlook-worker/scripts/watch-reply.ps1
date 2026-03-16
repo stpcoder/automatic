@@ -12,9 +12,12 @@ $watchId = "watch-" + [guid]::NewGuid().ToString()
 $watchFile = Join-Path $watchDir "$watchId.json"
 
 @{
+  case_id = [string]$payload.case_id
   conversation_id = [string]$payload.conversation_id
   expected_from = @($payload.expected_from)
   required_fields = @($payload.required_fields)
+  processed_entry_ids = @()
+  completed = $false
   created_at = (Get-Date).ToString("o")
 } | ConvertTo-Json -Depth 10 | Set-Content -Path $watchFile -Encoding UTF8
 

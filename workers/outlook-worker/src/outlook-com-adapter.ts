@@ -33,10 +33,32 @@ export class OutlookComAdapter {
   }
 
   async watchReply(input: {
+    case_id?: string;
     conversation_id: string;
     expected_from: string[];
     required_fields: string[];
   }): Promise<Record<string, unknown>> {
     return runScript("watch-reply.ps1", input);
+  }
+
+  async pollReplies(input: { watch_directory?: string }): Promise<{ matches: Array<{
+    case_id: string;
+    sender: string;
+    subject: string;
+    conversation_id?: string;
+    body?: string;
+    extracted_fields: Record<string, unknown>;
+  }> }> {
+    const output = await runScript("poll-replies.ps1", input);
+    return {
+      matches: Array.isArray(output.matches) ? (output.matches as Array<{
+        case_id: string;
+        sender: string;
+        subject: string;
+        conversation_id?: string;
+        body?: string;
+        extracted_fields: Record<string, unknown>;
+      }>) : []
+    };
   }
 }

@@ -51,6 +51,7 @@ The repository now includes an executable MVP skeleton:
 - browser bridge coordinator for normal Chrome bookmarklets
 - Page-Agent-style web worker with `bookmarklet_bridge`, `page_agent_dom`, and `live_chrome` adapters
 - Windows Outlook COM path for real draft/send/watch registration
+- Outlook reply poller that posts matched replies back into the orchestrator
 - Cube web path through the bookmarklet bridge
 - shipment workflow demo through the customs-number request path
 
@@ -87,6 +88,7 @@ Use the Windows Outlook COM path:
 
 ```bash
 OUTLOOK_WORKER_ADAPTER=outlook_com npm run dev
+npm run outlook:poller
 ```
 
 API endpoints:
@@ -106,6 +108,7 @@ API endpoints:
 - draft creation before commit
 - human approval requirement before commit
 - Outlook COM execution path
+- Outlook reply poller service
 - Cube bookmarklet bridge execution path
 - waiting on incoming email
 - resume on matched email with extracted fields
@@ -116,10 +119,10 @@ API endpoints:
 
 ## Next Build Steps
 
-1. Add an Outlook reply poller service that converts new mail into `/cases/:id/events/email`
-2. Add persistent database-backed storage
-3. Add real approval UI
-4. Add planner integration through the internal LLM endpoint
+1. Add persistent database-backed storage
+2. Add real approval UI
+3. Add planner integration through the internal LLM endpoint
+4. Validate site-specific field mappings on the real internal websites
 5. Add sample-intake workflow execution
 
 ## Recommended Product Direction
