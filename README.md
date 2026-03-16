@@ -84,9 +84,9 @@ WEB_WORKER_ADAPTER=bookmarklet_bridge npm run dev
 
 Then open:
 
-- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=security_portal`
-- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=dhl`
-- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=cube`
+- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=security_portal`
+- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=dhl`
+- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=cube`
 
 Copy the returned `bookmarklet` value into a normal Chrome bookmark URL field and click it on the target page.
 

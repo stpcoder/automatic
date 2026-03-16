@@ -36,7 +36,7 @@ npm run win:start
 Health check:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:3000/health
+Invoke-RestMethod http://127.0.0.1:43117/health
 ```
 
 Start the Outlook reply poller in a second terminal:
@@ -55,9 +55,9 @@ npm run win:start-all
 
 Open:
 
-- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=security_portal`
-- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=dhl`
-- `http://127.0.0.1:3000/bridge/bookmarklet?systemId=cube`
+- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=security_portal`
+- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=dhl`
+- `http://127.0.0.1:43117/bridge/bookmarklet?systemId=cube`
 
 For each response:
 
@@ -107,7 +107,7 @@ Manual fallback:
 ```powershell
 Invoke-RestMethod `
   -Method Post `
-  -Uri "http://127.0.0.1:3000/cases/$($case.case_id)/events/email" `
+  -Uri "http://127.0.0.1:43117/cases/$($case.case_id)/events/email" `
   -ContentType "application/json" `
   -Body (@{
     sender = "vendor@example.com"
@@ -122,8 +122,8 @@ Invoke-RestMethod `
 ## 9. Real Web Smoke Test
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:3000/cases/$($case.case_id)/advance"
-Invoke-RestMethod "http://127.0.0.1:3000/cases/$($case.case_id)"
+Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:43117/cases/$($case.case_id)/advance"
+Invoke-RestMethod "http://127.0.0.1:43117/cases/$($case.case_id)"
 ```
 
 Expected behavior:

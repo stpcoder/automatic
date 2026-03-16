@@ -1,4 +1,5 @@
 import { createApp } from "./app.js";
 
 const app = await createApp();
-await app.listen({ host: "0.0.0.0", port: 3000 });
+const port = Number(process.env.ORCHESTRATOR_PORT ?? process.env.PORT ?? "43117");
+await app.listen({ host: "0.0.0.0", port });

@@ -10,6 +10,8 @@ import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
 export async function createApp(orchestrator?: OrchestratorService): Promise<FastifyInstance> {
   const resolvedOrchestrator = orchestrator ?? (await OrchestratorService.createDefault());
   const app = Fastify({ logger: false });
+  const defaultPort = process.env.ORCHESTRATOR_PORT ?? process.env.PORT ?? "43117";
+  const defaultHost = `127.0.0.1:${defaultPort}`;
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -38,7 +40,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   app.get("/bridge/bookmarklet", async (request) => {
     const query = request.query as { systemId?: string };
     const systemId = query.systemId ?? "security_portal";
-    const host = request.headers.host ?? "127.0.0.1:3000";
+    const host = request.headers.host ?? defaultHost;
     const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
     return {
       system_id: systemId,
@@ -50,7 +52,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   app.get("/bridge/bookmarklet.js", async (request, reply) => {
     const query = request.query as { systemId?: string };
     const systemId = query.systemId ?? "security_portal";
-    const host = request.headers.host ?? "127.0.0.1:3000";
+    const host = request.headers.host ?? defaultHost;
     const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
     reply.header("content-type", "application/javascript; charset=utf-8");
     return script;
