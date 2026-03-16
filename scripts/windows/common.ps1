@@ -136,9 +136,9 @@ function Assert-AgentSessionForSystem {
   )
 
   $sessions = Get-AgentSessions
-  $matched = @($sessions | Where-Object { $_.system_id -eq $SystemId })
+  $matched = @($sessions | Where-Object { $_.system_id -eq $SystemId -and $_.has_observation -eq $true -and $_.is_stale -ne $true })
   if ($matched.Count -eq 0) {
-    throw "No active extension session found for system '$SystemId'. Open the target page in Chrome with the extension enabled, wait a few seconds, then run 'npm run win:doctor'."
+    throw "No active fresh extension session found for system '$SystemId'. Open the target page in Chrome with the extension enabled, wait a few seconds, then run 'npm run win:doctor'."
   }
 
   return $matched

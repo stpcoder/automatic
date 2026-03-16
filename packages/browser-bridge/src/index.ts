@@ -36,6 +36,7 @@ export class BrowserBridgeCoordinator {
   private readonly sessions = new Map<string, BridgeSessionState>();
   private readonly observationTimeoutMs = Number(process.env.BRIDGE_OBSERVATION_TIMEOUT_MS ?? "30000");
   private readonly commandTimeoutMs = Number(process.env.BRIDGE_COMMAND_TIMEOUT_MS ?? "30000");
+  private readonly sessionFreshnessMs = Number(process.env.BRIDGE_SESSION_FRESHNESS_MS ?? "10000");
 
   reset(): void {
     this.sessions.clear();
@@ -81,19 +82,24 @@ export class BrowserBridgeCoordinator {
     return parsed;
   }
 
-  listSessions(): Array<BridgeSession & { has_observation: boolean }> {
+  listSessions(): Array<BridgeSession & { has_observation: boolean; is_stale: boolean }> {
     return [...this.sessions.values()].map(({ session, latestObservation }) => ({
       ...session,
-      has_observation: Boolean(latestObservation)
+      has_observation: Boolean(latestObservation),
+      is_stale: this.isStale(session)
     }));
   }
 
   getLatestObservation(systemId: string, preferredSessionId?: string): z.infer<typeof observationSchema> | undefined {
     if (preferredSessionId) {
-      return this.sessions.get(preferredSessionId)?.latestObservation;
+      const preferred = this.sessions.get(preferredSessionId);
+      if (preferred && !this.isStale(preferred.session)) {
+        return preferred.latestObservation;
+      }
+      return undefined;
     }
     const candidates = [...this.sessions.values()]
-      .filter((session) => session.session.system_id === systemId && session.latestObservation)
+      .filter((session) => session.session.system_id === systemId && session.latestObservation && !this.isStale(session.session))
       .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at));
     return candidates[0]?.latestObservation;
   }
@@ -142,7 +148,9 @@ export class BrowserBridgeCoordinator {
   }
 
   getCommand(systemId: string, commandId: string, preferredSessionId?: string): BridgeCommand | undefined {
-    const state = preferredSessionId ? this.sessions.get(preferredSessionId) : this.findLatestSessionState(systemId, false);
+    const state = preferredSessionId
+      ? this.getFreshSessionState(preferredSessionId)
+      : this.findLatestSessionState(systemId, false);
     return state?.commands.find((command) => command.command_id === commandId);
   }
 
@@ -227,14 +235,30 @@ export class BrowserBridgeCoordinator {
     return state;
   }
 
+  private getFreshSessionState(sessionId: string): BridgeSessionState | undefined {
+    const state = this.sessions.get(sessionId);
+    if (!state) {
+      return undefined;
+    }
+    return this.isStale(state.session) ? undefined : state;
+  }
+
   private findLatestSessionState(systemId: string, required = true): BridgeSessionState | undefined {
     const latest = [...this.sessions.values()]
-      .filter((session) => session.session.system_id === systemId)
+      .filter((session) => session.session.system_id === systemId && !this.isStale(session.session))
       .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at))[0];
     if (!latest && required) {
-      throw new Error(`No bridge session registered for system ${systemId}`);
+      throw new Error(`No fresh bridge session registered for system ${systemId}`);
     }
     return latest;
+  }
+
+  private isStale(session: BridgeSession): boolean {
+    const updatedAtMs = Date.parse(session.updated_at);
+    if (Number.isNaN(updatedAtMs)) {
+      return true;
+    }
+    return Date.now() - updatedAtMs > this.sessionFreshnessMs;
   }
 }
 

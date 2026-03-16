@@ -74,7 +74,7 @@ try {
   $sessionCount = @($sessions).Count
   Write-Host "Extension sessions: $sessionCount"
   if ($sessionCount -gt 0) {
-    $sessions | Select-Object session_id, system_id, title, url, updated_at | Format-Table -AutoSize
+    $sessions | Select-Object session_id, system_id, has_observation, is_stale, title, url, updated_at | Format-Table -AutoSize
   } else {
     Write-Host "Extension sessions: none detected. Open a supported page in Chrome and wait a few seconds."
   }
