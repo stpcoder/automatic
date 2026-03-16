@@ -190,6 +190,18 @@ test("debug overview and mail draft endpoints are available", async () => {
   assert.equal(draftResponse.json().success, true);
   assert.equal(draftResponse.json().output.artifact_kind, "mail_draft");
 
+  const searchResponse = await app.inject({
+    method: "POST",
+    url: "/debug/mail/search",
+    payload: {
+      keyword: "ae school",
+      max_results: 10
+    }
+  });
+  assert.equal(searchResponse.statusCode, 200);
+  assert.equal(searchResponse.json().success, true);
+  assert.equal(searchResponse.json().output.artifact_kind, "mail_search");
+
   await app.close();
 });
 

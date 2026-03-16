@@ -26,6 +26,8 @@ export class OutlookWorker implements ToolExecutor {
         return this.sendMail(request);
       case "watch_email_reply":
         return this.watchReply(request);
+      case "search_outlook_mail":
+        return this.searchMail(request);
       default:
         return this.fail(request, `Unsupported Outlook tool: ${request.tool_name}`);
     }
@@ -142,6 +144,52 @@ export class OutlookWorker implements ToolExecutor {
         watcher: "email",
         expectation_registered: true,
         conversation_id: conversationId
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async searchMail(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().searchMail({
+        keyword: String(request.input.keyword ?? ""),
+        max_results: Number(request.input.max_results ?? 10)
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const keyword = String(request.input.keyword ?? "").toLowerCase();
+    const sampleMessages = [
+      {
+        entry_id: "MSG-1",
+        subject: "AE School 안내",
+        sender: "taeho.je@sk.com",
+        received_time: new Date().toISOString(),
+        conversation_id: "CONV-AE-SCHOOL"
+      }
+    ];
+    const matches = sampleMessages.filter(
+      (message) =>
+        keyword.length === 0 ||
+        message.subject.toLowerCase().includes(keyword) ||
+        message.sender.toLowerCase().includes(keyword)
+    );
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "mail_search",
+        keyword,
+        count: matches.length,
+        messages: matches
       },
       memory_patch: {},
       emitted_events: []

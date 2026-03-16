@@ -50,4 +50,21 @@ test("outlook worker drafts, sends, and watches replies", async () => {
 
   assert.equal(watch.success, true);
   assert.equal(watch.output.expectation_registered, true);
+
+  const search = await worker.execute({
+    request_id: "TR-4",
+    case_id: "CASE-1",
+    step_id: "search_mail",
+    tool_name: "search_outlook_mail",
+    mode: "preview",
+    input: {
+      keyword: "ae school",
+      max_results: 10
+    }
+  });
+
+  assert.equal(search.success, true);
+  assert.equal(search.output.artifact_kind, "mail_search");
+  assert.equal(search.output.keyword, "ae school");
+  assert.ok(Array.isArray(search.output.messages));
 });

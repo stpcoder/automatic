@@ -114,6 +114,13 @@ class HeuristicDebugPlanner implements PlannerClient {
       });
     }
 
+    if (includesAny(instruction, ["search mail", "mail search", "메일 검색", "메일 조회", "mail lookup", "조회"])) {
+      return buildOutput("Search Outlook mail", "search_outlook_mail", {
+        keyword: typeof context.keyword === "string" ? context.keyword : parsed.instruction,
+        max_results: typeof context.max_results === "number" ? context.max_results : 10
+      });
+    }
+
     if (typeof context.system_id === "string" || includesAny(instruction, ["security", "보안", "dhl", "cube", "메신저", "chat"])) {
       return buildOutput("Open target system by default", "open_system", {
         system_id: systemId

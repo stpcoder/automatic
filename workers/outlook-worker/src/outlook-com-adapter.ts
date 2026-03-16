@@ -41,6 +41,13 @@ export class OutlookComAdapter {
     return runScript("watch-reply.ps1", input);
   }
 
+  async searchMail(input: {
+    keyword: string;
+    max_results?: number;
+  }): Promise<Record<string, unknown>> {
+    return runScript("search-mail.ps1", input);
+  }
+
   async pollReplies(input: { watch_directory?: string }): Promise<{ matches: Array<{
     case_id: string;
     sender: string;

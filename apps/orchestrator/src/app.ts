@@ -169,6 +169,14 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     }));
   });
 
+  app.post("/debug/mail/search", async (request) => {
+    const body = request.body as { keyword?: string; max_results?: number };
+    return outlookWorker.execute(buildDebugToolRequest("search_outlook_mail", "preview", {
+      keyword: body.keyword ?? "",
+      max_results: body.max_results ?? 10
+    }));
+  });
+
   app.post("/debug/mail/poll-once", async (request) => {
     const body = request.body as { watch_directory?: string };
     const poller = new OutlookReplyPoller(new OutlookComAdapter(), new HttpOutlookReplyEventSink(), {
@@ -229,6 +237,14 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
               conversation_id: { type: "string" },
               expected_from: { type: "array" },
               required_fields: { type: "array" }
+            }
+          },
+          {
+            name: "search_outlook_mail",
+            description: "Search Outlook mail by keyword.",
+            input_schema: {
+              keyword: { type: "string" },
+              max_results: { type: "number" }
             }
           }
         ])
