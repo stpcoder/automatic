@@ -4,15 +4,11 @@ param()
 Set-AgentEnvironment | Out-Null
 
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
-  instruction = "Open Naver search and search for SK hynix stock price"
+  instruction = "Read SK hynix stock result from the current Naver stock page"
   context = @{
-    system_id = "naver_search"
-    field_values = @{
-      query = "SK hynix stock price"
-    }
-    target_key = "search"
+    system_id = "naver_stock"
   }
-  max_steps = 6
+  max_steps = 4
 }
 
 Format-AgentRunResult -Result $result
