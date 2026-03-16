@@ -181,60 +181,77 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const body = request.body as { instruction?: string; context?: Record<string, unknown> };
     const instruction = typeof body.instruction === "string" ? body.instruction : "";
     const context = typeof body.context === "object" && body.context !== null ? body.context : {};
-    const plannerOutput = await debugPlanner.plan(
-      buildDebugPlannerRequest(instruction, context, [
-        {
-          name: "open_system",
-          description: "Open a known web system and observe it.",
-          input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
-        },
-        {
-          name: "fill_web_form",
-          description: "Fill known fields on the active web system.",
-          input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
-        },
-        {
-          name: "preview_web_submission",
-          description: "Preview the current web submission state.",
-          input_schema: { system_id: { type: "string" } }
-        },
-        {
-          name: "submit_web_form",
-          description: "Click the final submit button on the active web system.",
-          input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
-        },
-        {
-          name: "draft_outlook_mail",
-          description: "Create an Outlook mail draft.",
-          input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
-        },
-        {
-          name: "send_outlook_mail",
-          description: "Send a drafted Outlook mail.",
-          input_schema: { draft_id: { type: "string" } }
-        },
-        {
-          name: "watch_email_reply",
-          description: "Watch for a matching reply in Outlook.",
-          input_schema: {
-            case_id: { type: "string" },
-            conversation_id: { type: "string" },
-            expected_from: { type: "array" },
-            required_fields: { type: "array" }
+    try {
+      const plannerOutput = await debugPlanner.plan(
+        buildDebugPlannerRequest(instruction, context, [
+          {
+            name: "open_system",
+            description: "Open a known web system and observe it.",
+            input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
+          },
+          {
+            name: "fill_web_form",
+            description: "Fill known fields on the active web system.",
+            input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
+          },
+          {
+            name: "preview_web_submission",
+            description: "Preview the current web submission state.",
+            input_schema: { system_id: { type: "string" } }
+          },
+          {
+            name: "submit_web_form",
+            description: "Click the final submit button on the active web system.",
+            input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
+          },
+          {
+            name: "draft_outlook_mail",
+            description: "Create an Outlook mail draft.",
+            input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
+          },
+          {
+            name: "send_outlook_mail",
+            description: "Send a drafted Outlook mail.",
+            input_schema: { draft_id: { type: "string" } }
+          },
+          {
+            name: "watch_email_reply",
+            description: "Watch for a matching reply in Outlook.",
+            input_schema: {
+              case_id: { type: "string" },
+              conversation_id: { type: "string" },
+              expected_from: { type: "array" },
+              required_fields: { type: "array" }
+            }
           }
+        ])
+      );
+
+      const toolResult =
+        plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
+          ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", plannerOutput.next_action.input))
+          : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", plannerOutput.next_action.input));
+
+      return {
+        ok: true,
+        planner_output: plannerOutput,
+        tool_result: toolResult
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        error_stage: "debug_agent_run",
+        error_message: error instanceof Error ? error.message : String(error),
+        llm: {
+          enabled: Boolean(llmConfig.baseUrl && llmConfig.apiKey && llmConfig.model),
+          source: llmConfig.source,
+          base_url: llmConfig.baseUrl,
+          model: llmConfig.model,
+          config_path: llmConfig.configPath,
+          config_error: llmConfig.error
         }
-      ])
-    );
-
-    const toolResult =
-      plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
-        ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", plannerOutput.next_action.input))
-        : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", plannerOutput.next_action.input));
-
-    return {
-      planner_output: plannerOutput,
-      tool_result: toolResult
-    };
+      };
+    }
   });
 
   app.post("/bridge/sessions/register", async (request) => {

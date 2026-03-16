@@ -102,6 +102,10 @@ function Invoke-AgentApi {
       return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json" -Body ($Body | ConvertTo-Json -Depth 20)
     }
     catch {
+      $detail = $_.ErrorDetails.Message
+      if ($detail) {
+        throw "Agent API request failed at $Uri. HTTP/API error details: $detail"
+      }
       throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=${env:ORCHESTRATOR_BASE_URL}. Original error: $($_.Exception.Message)"
     }
   }
@@ -110,6 +114,10 @@ function Invoke-AgentApi {
     return Invoke-RestMethod -Method $Method -Uri $Uri
   }
   catch {
+    $detail = $_.ErrorDetails.Message
+    if ($detail) {
+      throw "Agent API request failed at $Uri. HTTP/API error details: $detail"
+    }
     throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=${env:ORCHESTRATOR_BASE_URL}. Original error: $($_.Exception.Message)"
   }
 }
