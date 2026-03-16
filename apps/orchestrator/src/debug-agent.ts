@@ -14,17 +14,29 @@ export interface DebugAgentToolSpec {
 
 export function createDebugPlanner(): PlannerClient {
   const config = resolveLlmConfig();
+  const heuristicPlanner = createHeuristicDebugPlanner();
 
   if (config.baseUrl && config.apiKey && config.model) {
-    return new AISDKOpenAICompatiblePlannerClient({
-      baseUrl: config.baseUrl,
-      apiKey: config.apiKey,
-      model: config.model,
-      timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? "20000")
-    });
+    return createFallbackDebugPlanner(
+      new AISDKOpenAICompatiblePlannerClient({
+        baseUrl: config.baseUrl,
+        apiKey: config.apiKey,
+        model: config.model,
+        timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? "20000")
+      }),
+      heuristicPlanner
+    );
   }
 
+  return heuristicPlanner;
+}
+
+export function createHeuristicDebugPlanner(): PlannerClient {
   return new HeuristicDebugPlanner();
+}
+
+export function createFallbackDebugPlanner(primary: PlannerClient, fallback: PlannerClient): PlannerClient {
+  return new FallbackDebugPlanner(primary, fallback);
 }
 
 export function buildDebugPlannerRequest(instruction: string, context: Record<string, unknown>, tools: DebugAgentToolSpec[]): PlannerRequest {
@@ -102,9 +114,31 @@ class HeuristicDebugPlanner implements PlannerClient {
       });
     }
 
-    return buildOutput("Open target system by default", "open_system", {
-      system_id: systemId
-    });
+    if (typeof context.system_id === "string" || includesAny(instruction, ["security", "보안", "dhl", "cube", "메신저", "chat"])) {
+      return buildOutput("Open target system by default", "open_system", {
+        system_id: systemId
+      });
+    }
+
+    throw new Error("No actionable tool inferred from instruction");
+  }
+}
+
+class FallbackDebugPlanner implements PlannerClient {
+  constructor(
+    private readonly primary: PlannerClient,
+    private readonly fallback: PlannerClient
+  ) {}
+
+  async plan(request: PlannerRequest): Promise<PlannerOutput> {
+    try {
+      return await this.primary.plan(request);
+    } catch (error) {
+      if (!shouldFallbackToHeuristic(error)) {
+        throw error;
+      }
+      return this.fallback.plan(request);
+    }
   }
 }
 
@@ -176,4 +210,17 @@ function inferExpectedButton(systemId: string): string {
     return "Send";
   }
   return "Submit";
+}
+
+function shouldFallbackToHeuristic(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : String(error).toLowerCase();
+  return (
+    message.includes("unable to parse json") ||
+    message.includes("returned no tool call") ||
+    message.includes("returned empty content") ||
+    message.includes("timed out") ||
+    message.includes("status 4") ||
+    message.includes("status 5") ||
+    message.includes("unauthorized")
+  );
 }
