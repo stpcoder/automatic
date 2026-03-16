@@ -9,6 +9,7 @@ export interface LegacyChatCompletionConfig {
   apiKey: string;
   model: string;
   path?: string;
+  timeoutMs?: number;
 }
 
 interface LegacyChatCompletionResponse {
@@ -29,8 +30,10 @@ export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
   constructor(private readonly config: LegacyChatCompletionConfig) {}
 
   async plan(request: PlannerRequest): Promise<PlannerOutput> {
+    const signal = AbortSignal.timeout(this.config.timeoutMs ?? 20_000);
     const response = await fetch(`${this.config.baseUrl}${this.config.path ?? "/chat/completions"}`, {
       method: "POST",
+      signal,
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${this.config.apiKey}`
@@ -98,21 +101,25 @@ export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
     const system = request.messages.find((message) => message.role === "system")?.content;
     const prompt = [...request.messages].reverse().find((message) => message.role === "user")?.content ?? "";
 
-    const result = await generateText({
-      model: provider.chatModel(request.model ?? this.config.model),
-      system,
-      prompt,
-      toolChoice: "auto",
-      tools: Object.fromEntries(
-        request.tools.map((toolDefinition) => [
-          toolDefinition.name,
-          tool({
-            description: toolDefinition.description,
-            inputSchema: z.object({}).passthrough()
-          })
-        ])
-      )
-    });
+    const result = await withTimeout(
+      generateText({
+        model: provider.chatModel(request.model ?? this.config.model),
+        system,
+        prompt,
+        toolChoice: "auto",
+        tools: Object.fromEntries(
+          request.tools.map((toolDefinition) => [
+            toolDefinition.name,
+            tool({
+              description: toolDefinition.description,
+              inputSchema: z.object({}).passthrough()
+            })
+          ])
+        )
+      }),
+      this.config.timeoutMs ?? 20_000,
+      `AI SDK planner timed out after ${this.config.timeoutMs ?? 20_000}ms`
+    );
 
     const toolCall = result.toolCalls[0];
     if (toolCall?.toolName) {
@@ -154,5 +161,22 @@ function parseJsonSafely(raw: string): unknown {
       return JSON.parse(raw.slice(firstBrace, lastBrace + 1));
     }
     throw new Error("Unable to parse JSON from legacy LLM response");
+  }
+}
+
+async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
+  let timeoutHandle: NodeJS.Timeout | undefined;
+
+  try {
+    return await Promise.race([
+      promise,
+      new Promise<T>((_, reject) => {
+        timeoutHandle = setTimeout(() => reject(new Error(errorMessage)), timeoutMs);
+      })
+    ]);
+  } finally {
+    if (timeoutHandle) {
+      clearTimeout(timeoutHandle);
+    }
   }
 }

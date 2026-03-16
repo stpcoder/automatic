@@ -19,7 +19,8 @@ export function createDebugPlanner(): PlannerClient {
     return new AISDKOpenAICompatiblePlannerClient({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
-      model: config.model
+      model: config.model,
+      timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? "20000")
     });
   }
 

@@ -181,7 +181,14 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const body = request.body as { instruction?: string; context?: Record<string, unknown> };
     const instruction = typeof body.instruction === "string" ? body.instruction : "";
     const context = typeof body.context === "object" && body.context !== null ? body.context : {};
+    const startedAt = Date.now();
+    const timing = {
+      total_ms: 0,
+      planner_ms: 0,
+      tool_ms: 0
+    };
     try {
+      const plannerStartedAt = Date.now();
       const plannerOutput = await debugPlanner.plan(
         buildDebugPlannerRequest(instruction, context, [
           {
@@ -226,22 +233,29 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
           }
         ])
       );
+      timing.planner_ms = Date.now() - plannerStartedAt;
 
+      const toolStartedAt = Date.now();
       const toolResult =
         plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
           ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", plannerOutput.next_action.input))
           : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", plannerOutput.next_action.input));
+      timing.tool_ms = Date.now() - toolStartedAt;
+      timing.total_ms = Date.now() - startedAt;
 
       return {
         ok: true,
         planner_output: plannerOutput,
-        tool_result: toolResult
+        tool_result: toolResult,
+        timing
       };
     } catch (error) {
+      timing.total_ms = Date.now() - startedAt;
       return {
         ok: false,
         error_stage: "debug_agent_run",
         error_message: error instanceof Error ? error.message : String(error),
+        timing,
         llm: {
           enabled: Boolean(llmConfig.baseUrl && llmConfig.apiKey && llmConfig.model),
           source: llmConfig.source,
