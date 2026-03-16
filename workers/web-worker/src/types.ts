@@ -8,6 +8,8 @@ export interface InteractiveElement {
 }
 
 export interface PageObservation {
+  sessionId?: string;
+  parentSessionId?: string;
   systemId: string;
   pageId: string;
   url: string;
@@ -61,10 +63,11 @@ export interface ExtractResult {
 
 export interface WebAdapter {
   readonly harnessName: string;
-  openSystem(systemId: string, pageId?: string): Promise<PageObservation>;
-  observe(systemId: string): Promise<PageObservation>;
-  fillForm(systemId: string, values: Record<string, unknown>): Promise<FillResult>;
-  clickElement(systemId: string, targetKey: string): Promise<ClickResult>;
-  previewSubmission(systemId: string): Promise<PreviewResult>;
-  submit(systemId: string, expectedButton: string): Promise<SubmitResult>;
+  openSystem(systemId: string, pageId?: string, sessionId?: string): Promise<PageObservation>;
+  observe(systemId: string, sessionId?: string): Promise<PageObservation>;
+  fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
+  clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult>;
+  previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult>;
+  submit(systemId: string, expectedButton: string, sessionId?: string): Promise<SubmitResult>;
+  followNavigation?(systemId: string, sessionId?: string): Promise<PageObservation>;
 }

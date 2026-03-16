@@ -325,7 +325,7 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
   assert.ok(Array.isArray(response.json().steps));
   assert.deepEqual(
     response.json().steps.map((step: { tool: string }) => step.tool),
-    ["open_system", "fill_web_form", "click_web_element", "extract_web_result"]
+    ["open_system", "fill_web_form", "click_web_element", "follow_web_navigation", "extract_web_result"]
   );
   assert.match(String(response.json().final_response), /SK hynix/i);
 

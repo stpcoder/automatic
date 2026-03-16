@@ -27,6 +27,8 @@
 
 - 북마클릿 수동 클릭 불필요
 - 페이지 이동 후 자동 재연결
+- 같은 탭 이동과 child tab follow에 유리한 session 구조
+- 클릭/입력 전에 포인터와 smooth scroll 시각화
 - 같은 브리지 API 재사용
 
 ## 한계

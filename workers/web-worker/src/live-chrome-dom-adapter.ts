@@ -1,10 +1,11 @@
 import { chromium, type Browser, type BrowserContext, type Page } from "playwright-core";
 
 import { mapLiveDomElements, type LiveDomElementSnapshot, normalizeDomText } from "./dom-mapping.js";
-import { getWebSystemDefinition, type WebSystemDefinition } from "./system-definitions.js";
+import { getWebSystemDefinition, matchWebSystemByUrl, type WebSystemDefinition } from "./system-definitions.js";
 import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
 interface LiveChromeSession {
+  sessionId: string;
   systemId: string;
   definition: WebSystemDefinition;
   page: Page;
@@ -33,7 +34,12 @@ export class LiveChromeDomAdapter implements WebAdapter {
     await page.goto(definition.url, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(250);
 
-    this.sessions.set(systemId, { systemId, definition, page });
+    this.sessions.set(systemId, {
+      sessionId: `live-${crypto.randomUUID()}`,
+      systemId,
+      definition,
+      page
+    });
     return this.observe(systemId);
   }
 
@@ -212,6 +218,41 @@ export class LiveChromeDomAdapter implements WebAdapter {
     };
   }
 
+  async followNavigation(systemId: string): Promise<PageObservation> {
+    const session = await this.getOrCreateSession(systemId);
+    const context = await this.getContext();
+    const previousPage = session.page;
+    const previousUrl = previousPage.url();
+    const previousTitle = await previousPage.title();
+    const followTimeoutMs = Number(process.env.BRIDGE_OBSERVATION_TIMEOUT_MS ?? "30000");
+    const newPagePromise = context.waitForEvent("page", {
+      timeout: followTimeoutMs
+    }).catch(() => undefined);
+
+    const navigationDeadline = Date.now() + followTimeoutMs;
+    while (Date.now() < navigationDeadline) {
+      const newPage = await Promise.race([newPagePromise, previousPage.waitForTimeout(50).then(() => undefined)]);
+      if (newPage) {
+        await newPage.waitForLoadState("domcontentloaded").catch(() => undefined);
+        session.page = newPage;
+        await this.refreshSessionDefinition(session);
+        return this.buildObservation(session);
+      }
+
+      const currentUrl = previousPage.url();
+      const currentTitle = await previousPage.title();
+      if (currentUrl !== previousUrl || currentTitle !== previousTitle) {
+        session.page = previousPage;
+        await this.refreshSessionDefinition(session);
+        return this.buildObservation(session);
+      }
+
+      await previousPage.waitForTimeout(250);
+    }
+
+    throw new Error(`Timed out waiting for navigation follow on system ${systemId}`);
+  }
+
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
       this.browserPromise = this.connectBrowser();
@@ -278,9 +319,23 @@ export class LiveChromeDomAdapter implements WebAdapter {
       await page.goto(definition.url, { waitUntil: "domcontentloaded" });
       await page.waitForTimeout(250);
     }
-    const session = { systemId, definition, page };
+    const session = {
+      sessionId: `live-${crypto.randomUUID()}`,
+      systemId,
+      definition,
+      page
+    };
     this.sessions.set(systemId, session);
     return session;
+  }
+
+  private async refreshSessionDefinition(session: LiveChromeSession): Promise<void> {
+    const url = session.page.url();
+    const matched = matchWebSystemByUrl(url);
+    if (matched) {
+      session.systemId = matched.systemId;
+      session.definition = matched;
+    }
   }
 
   private async buildObservation(session: LiveChromeSession): Promise<PageObservation> {
@@ -344,7 +399,8 @@ export class LiveChromeDomAdapter implements WebAdapter {
     ).length;
 
     return {
-      systemId: session.systemId,
+      sessionId: session.sessionId,
+      systemId: session.definition.systemId,
       pageId: session.definition.pageId,
       url,
       title: title || session.definition.title,

@@ -126,40 +126,53 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/debug/web/fill", async (request) => {
-    const body = request.body as { system_id?: string; field_values?: Record<string, unknown> };
+    const body = request.body as { system_id?: string; session_id?: string; field_values?: Record<string, unknown> };
     return webWorker.execute(buildDebugToolRequest("fill_web_form", "draft", {
       system_id: body.system_id ?? "security_portal",
+      session_id: body.session_id,
       field_values: body.field_values ?? {}
     }));
   });
 
   app.post("/debug/web/click", async (request) => {
-    const body = request.body as { system_id?: string; target_key?: string };
+    const body = request.body as { system_id?: string; session_id?: string; target_key?: string };
     return webWorker.execute(buildDebugToolRequest("click_web_element", "preview", {
       system_id: body.system_id ?? "security_portal",
+      session_id: body.session_id,
       target_key: body.target_key ?? "submit"
     }));
   });
 
+  app.post("/debug/web/follow", async (request) => {
+    const body = request.body as { system_id?: string; session_id?: string };
+    return webWorker.execute(buildDebugToolRequest("follow_web_navigation", "preview", {
+      system_id: body.system_id ?? "security_portal",
+      session_id: body.session_id
+    }));
+  });
+
   app.post("/debug/web/preview", async (request) => {
-    const body = request.body as { system_id?: string };
+    const body = request.body as { system_id?: string; session_id?: string };
     return webWorker.execute(buildDebugToolRequest("preview_web_submission", "preview", {
-      system_id: body.system_id ?? "security_portal"
+      system_id: body.system_id ?? "security_portal",
+      session_id: body.session_id
     }));
   });
 
   app.post("/debug/web/submit", async (request) => {
-    const body = request.body as { system_id?: string; expected_button?: string };
+    const body = request.body as { system_id?: string; session_id?: string; expected_button?: string };
     return webWorker.execute(buildDebugToolRequest("submit_web_form", "commit", {
       system_id: body.system_id ?? "security_portal",
+      session_id: body.session_id,
       expected_button: body.expected_button ?? "Submit"
     }));
   });
 
   app.post("/debug/web/extract", async (request) => {
-    const body = request.body as { system_id?: string; goal?: string; query?: string };
+    const body = request.body as { system_id?: string; session_id?: string; goal?: string; query?: string };
     return webWorker.execute(buildDebugToolRequest("extract_web_result", "preview", {
       system_id: body.system_id ?? "security_portal",
+      session_id: body.session_id,
       goal: body.goal ?? "",
       query: body.query ?? ""
     }));
@@ -236,7 +249,12 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       {
         name: "click_web_element",
         description: "Click a specific button or clickable control on the active web system.",
-        input_schema: { system_id: { type: "string" }, target_key: { type: "string" } }
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" } }
+      },
+      {
+        name: "follow_web_navigation",
+        description: "Follow same-tab or new-tab navigation after a click and observe the resulting page.",
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
       },
       {
         name: "preview_web_submission",
@@ -467,7 +485,13 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/bridge/sessions/register", async (request) => {
-    const body = request.body as { session_id: string; system_id: string; title?: string; url?: string };
+    const body = request.body as {
+      session_id: string;
+      parent_session_id?: string;
+      system_id: string;
+      title?: string;
+      url?: string;
+    };
     return browserBridgeCoordinator.registerSession(body);
   });
 
@@ -554,7 +578,12 @@ function buildDebugToolSpecs() {
     {
       name: "click_web_element",
       description: "Click a specific button or clickable control on the active web system.",
-      input_schema: { system_id: { type: "string" }, target_key: { type: "string" } }
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" } }
+    },
+    {
+      name: "follow_web_navigation",
+      description: "Follow same-tab or new-tab navigation after a click and observe the resulting page.",
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
     },
     {
       name: "preview_web_submission",
@@ -628,6 +657,9 @@ function normalizeDebugToolInput(
   const normalized = { ...input };
 
   if (toolName === "open_system" || toolName.includes("web")) {
+    if (typeof normalized.session_id !== "string" || normalized.session_id.trim().length === 0) {
+      normalized.session_id = inferSessionIdFromContext(context);
+    }
     if (typeof normalized.system_id !== "string" || normalized.system_id.trim().length === 0) {
       normalized.system_id = inferSystemIdFromContext(context, instruction);
     }
@@ -668,6 +700,27 @@ function normalizeDebugToolInput(
   }
 
   return normalized;
+}
+
+function inferSessionIdFromContext(context: Record<string, unknown>): string | undefined {
+  if (typeof context.session_id === "string" && context.session_id.trim().length > 0) {
+    return context.session_id;
+  }
+  const currentObservation =
+    typeof context.current_observation === "object" && context.current_observation !== null
+      ? (context.current_observation as Record<string, unknown>)
+      : undefined;
+  if (typeof currentObservation?.sessionId === "string" && currentObservation.sessionId.trim().length > 0) {
+    return currentObservation.sessionId;
+  }
+  const lastToolResult =
+    typeof context.last_tool_result === "object" && context.last_tool_result !== null
+      ? (context.last_tool_result as Record<string, unknown>)
+      : undefined;
+  if (typeof lastToolResult?.session_id === "string" && lastToolResult.session_id.trim().length > 0) {
+    return lastToolResult.session_id;
+  }
+  return undefined;
 }
 
 function inferSystemIdFromContext(context: Record<string, unknown>, instruction: string): string {

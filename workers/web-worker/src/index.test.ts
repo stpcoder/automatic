@@ -20,6 +20,7 @@ class StubLiveChromeAdapter implements WebAdapter {
 
   async openSystem(systemId: string): Promise<PageObservation> {
     return {
+      sessionId: "live-session-1",
       systemId,
       pageId: "live_page",
       url: "https://example.test/live",
@@ -62,6 +63,10 @@ class StubLiveChromeAdapter implements WebAdapter {
       recordId: "REC-live",
       observation: await this.openSystem(systemId)
     };
+  }
+
+  async followNavigation(systemId: string): Promise<PageObservation> {
+    return this.openSystem(systemId);
   }
 }
 
@@ -219,4 +224,27 @@ test("web worker can extract result text after a naver search submission", async
   assert.equal(extractOutput.goal_satisfied, true);
   assert.match(String(extractOutput.summary), /SK hynix/i);
   assert.match(String(extractOutput.observation.pageText), /210,000 KRW/i);
+});
+
+test("web worker can follow navigation and preserve session metadata", async () => {
+  const worker = new WebWorker({
+    adapter: new StubLiveChromeAdapter()
+  });
+
+  const follow = await worker.execute({
+    request_id: "TR-live-follow",
+    case_id: "CASE-3",
+    step_id: "follow",
+    tool_name: "follow_web_navigation",
+    mode: "preview",
+    input: {
+      system_id: "naver_search",
+      session_id: "live-session-1"
+    }
+  });
+
+  assert.equal(follow.success, true);
+  const output = getOutput(follow);
+  assert.equal(output.harness, "live_chrome");
+  assert.equal(output.observation.sessionId, "live-session-1");
 });

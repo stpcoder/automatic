@@ -17,6 +17,7 @@ export type BridgeCommand = z.infer<typeof bridgeCommandSchema>;
 
 export const bridgeSessionSchema = z.object({
   session_id: z.string(),
+  parent_session_id: z.string().optional(),
   system_id: z.string(),
   title: z.string().optional(),
   url: z.string().optional(),
@@ -40,11 +41,18 @@ export class BrowserBridgeCoordinator {
     this.sessions.clear();
   }
 
-  registerSession(input: { session_id: string; system_id: string; title?: string; url?: string }): BridgeSession {
+  registerSession(input: {
+    session_id: string;
+    parent_session_id?: string;
+    system_id: string;
+    title?: string;
+    url?: string;
+  }): BridgeSession {
     const now = new Date().toISOString();
     const existing = this.sessions.get(input.session_id);
     const session = bridgeSessionSchema.parse({
       session_id: input.session_id,
+      parent_session_id: input.parent_session_id,
       system_id: input.system_id,
       title: input.title,
       url: input.url,
@@ -80,15 +88,23 @@ export class BrowserBridgeCoordinator {
     }));
   }
 
-  getLatestObservation(systemId: string): z.infer<typeof observationSchema> | undefined {
+  getLatestObservation(systemId: string, preferredSessionId?: string): z.infer<typeof observationSchema> | undefined {
+    if (preferredSessionId) {
+      return this.sessions.get(preferredSessionId)?.latestObservation;
+    }
     const candidates = [...this.sessions.values()]
       .filter((session) => session.session.system_id === systemId && session.latestObservation)
       .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at));
     return candidates[0]?.latestObservation;
   }
 
-  enqueueCommand(systemId: string, type: BridgeCommand["type"], payload: Record<string, unknown>): BridgeCommand {
-    const state = this.findLatestSessionState(systemId)!;
+  enqueueCommand(
+    systemId: string,
+    type: BridgeCommand["type"],
+    payload: Record<string, unknown>,
+    preferredSessionId?: string
+  ): BridgeCommand {
+    const state = preferredSessionId ? this.requireSession(preferredSessionId) : this.findLatestSessionState(systemId)!;
     const command = bridgeCommandSchema.parse({
       command_id: `BC-${crypto.randomUUID()}`,
       system_id: systemId,
@@ -125,15 +141,19 @@ export class BrowserBridgeCoordinator {
     return updated;
   }
 
-  getCommand(systemId: string, commandId: string): BridgeCommand | undefined {
-    const state = this.findLatestSessionState(systemId, false);
+  getCommand(systemId: string, commandId: string, preferredSessionId?: string): BridgeCommand | undefined {
+    const state = preferredSessionId ? this.sessions.get(preferredSessionId) : this.findLatestSessionState(systemId, false);
     return state?.commands.find((command) => command.command_id === commandId);
   }
 
-  async waitForObservation(systemId: string, timeoutMs = this.observationTimeoutMs): Promise<z.infer<typeof observationSchema>> {
+  async waitForObservation(
+    systemId: string,
+    timeoutMs = this.observationTimeoutMs,
+    preferredSessionId?: string
+  ): Promise<z.infer<typeof observationSchema>> {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
-      const observation = this.getLatestObservation(systemId);
+      const observation = this.getLatestObservation(systemId, preferredSessionId);
       if (observation) {
         return observation;
       }
@@ -142,16 +162,61 @@ export class BrowserBridgeCoordinator {
     throw new Error(`Timed out waiting for bridge observation for system ${systemId}`);
   }
 
-  async waitForCommandResult(systemId: string, commandId: string, timeoutMs = this.commandTimeoutMs): Promise<BridgeCommand> {
+  async waitForCommandResult(
+    systemId: string,
+    commandId: string,
+    timeoutMs = this.commandTimeoutMs,
+    preferredSessionId?: string
+  ): Promise<BridgeCommand> {
     const started = Date.now();
     while (Date.now() - started < timeoutMs) {
-      const command = this.getCommand(systemId, commandId);
+      const command = this.getCommand(systemId, commandId, preferredSessionId);
       if (command && command.status !== "pending") {
         return command;
       }
       await sleep(150);
     }
     throw new Error(`Timed out waiting for command result ${commandId} on system ${systemId}`);
+  }
+
+  async waitForNavigation(
+    sessionId: string,
+    timeoutMs = this.observationTimeoutMs
+  ): Promise<{ session: BridgeSession; observation: z.infer<typeof observationSchema> }> {
+    const baseline = this.requireSession(sessionId);
+    const baselineUpdatedAt = baseline.session.updated_at;
+    const baselineUrl = baseline.session.url ?? "";
+    const baselineSystemId = baseline.session.system_id;
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const current = this.sessions.get(sessionId);
+      if (current?.latestObservation) {
+        const navigationChanged =
+          current.session.updated_at > baselineUpdatedAt &&
+          (current.session.url !== baselineUrl || current.session.system_id !== baselineSystemId);
+        if (navigationChanged) {
+          return {
+            session: current.session,
+            observation: current.latestObservation
+          };
+        }
+      }
+
+      const child = [...this.sessions.values()]
+        .filter((candidate) => candidate.session.parent_session_id === sessionId && candidate.latestObservation)
+        .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at))[0];
+      if (child && child.session.updated_at > baselineUpdatedAt) {
+        return {
+          session: child.session,
+          observation: child.latestObservation!
+        };
+      }
+
+      await sleep(150);
+    }
+
+    throw new Error(`Timed out waiting for navigation follow from session ${sessionId}`);
   }
 
   private requireSession(sessionId: string): BridgeSessionState {

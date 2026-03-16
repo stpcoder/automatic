@@ -2,7 +2,10 @@ const DEFAULT_CONFIG = {
   enabled: true,
   serverOrigin: "http://127.0.0.1:43117",
   pollMs: 1000,
-  observationChangeTimeoutMs: 4000
+  observationChangeTimeoutMs: 4000,
+  showPointerOverlay: true,
+  pointerMoveDurationMs: 450,
+  pointerClickDurationMs: 260
 };
 
 chrome.runtime.onInstalled.addListener(async () => {
@@ -20,7 +23,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       sendResponse({
         ...DEFAULT_CONFIG,
         ...config,
-        tabId: sender.tab?.id ?? null
+        tabId: sender.tab?.id ?? null,
+        openerTabId: sender.tab?.openerTabId ?? null
       });
     });
     return true;

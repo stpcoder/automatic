@@ -48,7 +48,7 @@ The repository now includes an executable MVP skeleton:
 - SQLite-backed persistent orchestrator store
 - approval-gated commit flow
 - email wait/resume event handling
-- browser bridge coordinator for extension and legacy bridge sessions
+- browser bridge coordinator with session-aware same-tab/new-tab follow support
 - Page-Agent-style web worker with `live_chrome`, `page_agent_dom`, and bridge-based adapters
 - Windows Outlook COM path for real draft/send/watch registration
 - Outlook reply poller that posts matched replies back into the orchestrator
@@ -158,7 +158,7 @@ Operator UI:
 - move to the next draft step after reply
 - web worker adapter selection
 - live Chrome DOM observation mapping over CDP
-- Chrome extension bridge scaffold for page-navigation-safe sessions
+- Chrome extension bridge with page-navigation-safe sessions and visual pointer/scroll feedback
 
 ## Next Build Steps
 

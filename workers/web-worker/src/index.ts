@@ -7,7 +7,7 @@ import type { WebAdapter } from "./types.js";
 
 export interface WebWorkerOptions {
   adapter?: WebAdapter;
-  adapterKind?: "page_agent_dom" | "live_chrome" | "bookmarklet_bridge";
+  adapterKind?: "page_agent_dom" | "live_chrome" | "bookmarklet_bridge" | "extension_bridge";
   cdpUrl?: string;
 }
 
@@ -19,7 +19,10 @@ export class WebWorker implements ToolExecutor {
       options.adapter ??
       (options.adapterKind === "live_chrome" || process.env.WEB_WORKER_ADAPTER === "live_chrome"
         ? new LiveChromeDomAdapter({ cdpUrl: options.cdpUrl })
-        : options.adapterKind === "bookmarklet_bridge" || process.env.WEB_WORKER_ADAPTER === "bookmarklet_bridge"
+        : options.adapterKind === "bookmarklet_bridge" ||
+            options.adapterKind === "extension_bridge" ||
+            process.env.WEB_WORKER_ADAPTER === "bookmarklet_bridge" ||
+            process.env.WEB_WORKER_ADAPTER === "extension_bridge"
           ? new BookmarkletBridgeAdapter()
         : new PageAgentDomAdapter());
   }
@@ -32,6 +35,8 @@ export class WebWorker implements ToolExecutor {
         return this.fillWebForm(request);
       case "click_web_element":
         return this.clickWebElement(request);
+      case "follow_web_navigation":
+        return this.followWebNavigation(request);
       case "preview_web_submission":
         return this.previewSubmission(request);
       case "submit_web_form":
@@ -46,13 +51,15 @@ export class WebWorker implements ToolExecutor {
   private async openSystem(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
     const pageId = typeof request.input.page_id === "string" ? request.input.page_id : undefined;
-    const observation = await this.adapter.openSystem(systemId, pageId);
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
+    const observation = await this.adapter.openSystem(systemId, pageId, sessionId);
     return {
       request_id: request.request_id,
       success: true,
       output: {
         opened: true,
         system_id: systemId,
+        session_id: observation.sessionId,
         harness: this.adapter.harnessName,
         observation
       },
@@ -63,11 +70,12 @@ export class WebWorker implements ToolExecutor {
 
   private async fillWebForm(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
     const fields =
       typeof request.input.field_values === "object" && request.input.field_values !== null
         ? (request.input.field_values as Record<string, unknown>)
         : {};
-    const result = await this.adapter.fillForm(systemId, fields);
+    const result = await this.adapter.fillForm(systemId, fields, sessionId);
 
     return {
       request_id: request.request_id,
@@ -76,6 +84,7 @@ export class WebWorker implements ToolExecutor {
         artifact_kind: "web_draft",
         draft_id: result.draftId,
         system_id: systemId,
+        session_id: result.observation.sessionId,
         harness: this.adapter.harnessName,
         filled_fields: result.filledFields,
         observation: result.observation
@@ -87,8 +96,9 @@ export class WebWorker implements ToolExecutor {
 
   private async clickWebElement(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
     const targetKey = String(request.input.target_key ?? request.input.expected_button ?? "").trim();
-    const result = await this.adapter.clickElement(systemId, targetKey);
+    const result = await this.adapter.clickElement(systemId, targetKey, sessionId);
 
     return {
       request_id: request.request_id,
@@ -97,6 +107,7 @@ export class WebWorker implements ToolExecutor {
         artifact_kind: "web_click",
         click_id: result.clickId,
         system_id: systemId,
+        session_id: result.observation.sessionId,
         target_key: targetKey,
         harness: this.adapter.harnessName,
         observation: result.observation
@@ -106,9 +117,33 @@ export class WebWorker implements ToolExecutor {
     };
   }
 
+  private async followWebNavigation(request: ToolRequest): Promise<ToolResult> {
+    const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
+    if (!this.adapter.followNavigation) {
+      throw new Error(`${this.adapter.harnessName} does not support follow_web_navigation`);
+    }
+    const observation = await this.adapter.followNavigation(systemId, sessionId);
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "web_follow",
+        follow_id: `FOLLOW-${crypto.randomUUID()}`,
+        system_id: observation.systemId,
+        session_id: observation.sessionId,
+        harness: this.adapter.harnessName,
+        observation
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
   private async previewSubmission(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
-    const result = await this.adapter.previewSubmission(systemId);
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
+    const result = await this.adapter.previewSubmission(systemId, sessionId);
     return {
       request_id: request.request_id,
       success: true,
@@ -116,6 +151,7 @@ export class WebWorker implements ToolExecutor {
         artifact_kind: "web_preview",
         preview_id: result.previewId,
         system_id: systemId,
+        session_id: result.observation.sessionId,
         harness: this.adapter.harnessName,
         observation: result.observation
       },
@@ -126,8 +162,9 @@ export class WebWorker implements ToolExecutor {
 
   private async submitForm(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
     const expectedButton = String(request.input.expected_button ?? "Submit");
-    const result = await this.adapter.submit(systemId, expectedButton);
+    const result = await this.adapter.submit(systemId, expectedButton, sessionId);
     return {
       request_id: request.request_id,
       success: true,
@@ -135,6 +172,7 @@ export class WebWorker implements ToolExecutor {
         artifact_kind: "web_submission",
         record_id: result.recordId,
         system_id: systemId,
+        session_id: result.observation.sessionId,
         expected_button: expectedButton,
         harness: this.adapter.harnessName,
         observation: result.observation
@@ -146,9 +184,10 @@ export class WebWorker implements ToolExecutor {
 
   private async extractWebResult(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
     const goal = String(request.input.goal ?? request.input.instruction ?? "").trim();
     const query = String(request.input.query ?? "").trim();
-    const observation = await this.adapter.observe(systemId);
+    const observation = await this.adapter.observe(systemId, sessionId);
     const pageText = [observation.title, observation.summary, observation.pageText ?? ""].join("\n").trim();
     const matchTerms = buildMatchTerms(goal, query);
     const matchedSnippets = collectMatchedSnippets(pageText, matchTerms);

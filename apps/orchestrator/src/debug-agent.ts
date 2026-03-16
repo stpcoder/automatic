@@ -49,7 +49,7 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
       {
         role: "system",
         content:
-          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, click_web_element, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
+          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, click_web_element, follow_web_navigation, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
       },
       {
         role: "user",
@@ -70,7 +70,7 @@ export function buildDebugLoopPlannerRequest(
       {
         role: "system",
         content:
-          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, click_web_element, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. After a meaningful page transition, read the updated page state and use extract_web_result before deciding the task is done. Prefer click_web_element for ordinary page interactions like search buttons, tabs, and links. Reserve submit_web_form for actual final commits. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation, last_tool_result, and step_history."
+          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, click_web_element, follow_web_navigation, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. After a meaningful page transition or new tab opening, call follow_web_navigation before extracting results. Prefer click_web_element for ordinary page interactions like search buttons, tabs, and links. Reserve submit_web_form for actual final commits. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation, last_tool_result, and step_history."
       },
       {
         role: "user",
@@ -379,9 +379,31 @@ function planLoopContinuation(
     });
   }
 
-  if ((selectedTools.includes("submit_web_form") || selectedTools.includes("click_web_element")) && !selectedTools.includes("extract_web_result")) {
+  if (selectedTools.includes("click_web_element") && !selectedTools.includes("follow_web_navigation")) {
+    return buildOutput("Follow the navigation caused by the click", "follow_web_navigation", {
+      system_id: systemId,
+      session_id:
+        typeof currentObservation.sessionId === "string"
+          ? currentObservation.sessionId
+          : typeof lastToolResult.session_id === "string"
+            ? lastToolResult.session_id
+            : typeof context.session_id === "string"
+              ? context.session_id
+              : undefined
+    });
+  }
+
+  if ((selectedTools.includes("submit_web_form") || selectedTools.includes("follow_web_navigation")) && !selectedTools.includes("extract_web_result")) {
     return buildOutput("Read result from the updated page", "extract_web_result", {
       system_id: systemId,
+      session_id:
+        typeof currentObservation.sessionId === "string"
+          ? currentObservation.sessionId
+          : typeof lastToolResult.session_id === "string"
+            ? lastToolResult.session_id
+            : typeof context.session_id === "string"
+              ? context.session_id
+              : undefined,
       goal: instruction,
       query: typeof fieldValues.query === "string" ? fieldValues.query : ""
     });

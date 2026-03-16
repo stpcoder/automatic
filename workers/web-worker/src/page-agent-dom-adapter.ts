@@ -2,6 +2,8 @@ import { buildHarnessPage } from "./system-definitions.js";
 import type { ClickResult, FillResult, HarnessPageDefinition, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
 
 interface SessionState {
+  sessionId: string;
+  parentSessionId?: string;
   systemId: string;
   page: HarnessPageDefinition;
 }
@@ -12,7 +14,7 @@ export class PageAgentDomAdapter implements WebAdapter {
 
   async openSystem(systemId: string, pageId?: string): Promise<PageObservation> {
     const page = this.buildDefaultPage(systemId, pageId);
-    this.sessions.set(systemId, { systemId, page });
+    this.sessions.set(systemId, { sessionId: `page-agent-${crypto.randomUUID()}`, systemId, page });
     return this.observe(systemId);
   }
 
@@ -116,8 +118,13 @@ export class PageAgentDomAdapter implements WebAdapter {
 
     return {
       recordId: `REC-${crypto.randomUUID()}`,
-      observation: this.toObservation(session.page, systemId)
+      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
+  }
+
+  async followNavigation(systemId: string): Promise<PageObservation> {
+    const session = this.getOrCreateSession(systemId);
+    return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
   }
 
   private getSession(systemId: string): SessionState {
@@ -134,12 +141,17 @@ export class PageAgentDomAdapter implements WebAdapter {
       return existing;
     }
     const page = this.buildDefaultPage(systemId);
-    const created = { systemId, page };
+    const created = { sessionId: `page-agent-${crypto.randomUUID()}`, systemId, page };
     this.sessions.set(systemId, created);
     return created;
   }
 
-  private toObservation(page: HarnessPageDefinition, systemId: string): PageObservation {
+  private toObservation(
+    page: HarnessPageDefinition,
+    systemId: string,
+    sessionId?: string,
+    parentSessionId?: string
+  ): PageObservation {
     const pageText =
       systemId === "naver_search" || systemId === "naver_stock"
         ? this.buildNaverPageText(page)
@@ -147,6 +159,8 @@ export class PageAgentDomAdapter implements WebAdapter {
             .map((element) => `${element.label}${element.value ? `: ${element.value}` : ""}`)
             .join(" | ");
     return {
+      sessionId,
+      parentSessionId,
       systemId,
       pageId: page.pageId,
       url: page.url,
