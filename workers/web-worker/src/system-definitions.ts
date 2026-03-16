@@ -97,6 +97,17 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     resultIndicators: ["sk hynix", "krw"],
     fields: [],
     buttons: []
+  },
+  web_generic: {
+    systemId: "web_generic",
+    pageId: "generic_page",
+    title: "Generic Web Page",
+    url: "https://example.com",
+    urlPatterns: ["https://*/*", "http://*/*"],
+    summary: "Generic web page is open.",
+    finalActionButton: "Submit",
+    fields: [],
+    buttons: []
   }
 };
 
@@ -122,12 +133,28 @@ export function getWebSystemDefinition(systemId: string, pageId?: string): WebSy
 }
 
 export function listWebSystemDefinitions(): WebSystemDefinition[] {
-  return Object.values(WEB_SYSTEMS);
+  return Object.values(WEB_SYSTEMS).sort(compareDefinitionPriority);
 }
 
 export function matchWebSystemByUrl(url: string): WebSystemDefinition | undefined {
-  return Object.values(WEB_SYSTEMS).find((definition) =>
+  return listWebSystemDefinitions().find((definition) =>
     (definition.urlPatterns ?? []).some((pattern) => matchesUrlPattern(url, pattern))
+  );
+}
+
+function compareDefinitionPriority(left: WebSystemDefinition, right: WebSystemDefinition): number {
+  const leftSpecificity = definitionSpecificity(left);
+  const rightSpecificity = definitionSpecificity(right);
+  return rightSpecificity - leftSpecificity;
+}
+
+function definitionSpecificity(definition: WebSystemDefinition): number {
+  const patterns = definition.urlPatterns ?? [];
+  if (patterns.length === 0) {
+    return 0;
+  }
+  return Math.max(
+    ...patterns.map((pattern) => pattern.replace(/\*/g, "").length)
   );
 }
 

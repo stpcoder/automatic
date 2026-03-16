@@ -831,21 +831,23 @@ function inferSystemIdFromContext(context: Record<string, unknown>, instruction:
   if (typeof context.system_id === "string" && context.system_id.trim().length > 0) {
     return context.system_id;
   }
+  const currentObservation =
+    typeof context.current_observation === "object" && context.current_observation !== null
+      ? (context.current_observation as Record<string, unknown>)
+      : undefined;
+  if (typeof currentObservation?.systemId === "string" && currentObservation.systemId.trim().length > 0) {
+    return currentObservation.systemId;
+  }
 
-  const normalized = instruction.toLowerCase();
-  if (normalized.includes("naver") || normalized.includes("네이버") || normalized.includes("stock") || normalized.includes("주가")) {
-    return "naver_search";
+  const lastToolResult =
+    typeof context.last_tool_result === "object" && context.last_tool_result !== null
+      ? (context.last_tool_result as Record<string, unknown>)
+      : undefined;
+  if (typeof lastToolResult?.system_id === "string" && lastToolResult.system_id.trim().length > 0) {
+    return lastToolResult.system_id;
   }
-  if (normalized.includes("security") || normalized.includes("보안")) {
-    return "security_portal";
-  }
-  if (normalized.includes("dhl")) {
-    return "dhl";
-  }
-  if (normalized.includes("cube") || normalized.includes("메신저") || normalized.includes("chat")) {
-    return "cube";
-  }
-  return "security_portal";
+
+  return "web_generic";
 }
 
 function inferExpectedButtonFromSystem(systemId: string): string {
