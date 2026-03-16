@@ -140,6 +140,10 @@ export class SqliteStore implements CaseStore {
     return rows.map((row) => caseEventSchema.parse(JSON.parse(row.payload)));
   }
 
+  close(): void {
+    this.db.close();
+  }
+
   private upsert(
     table: string,
     idColumn: string,

@@ -166,8 +166,9 @@ test("sqlite store persists cases across orchestrator instances", async () => {
   const tempDir = mkdtempSync(path.join(os.tmpdir(), "skh-agent-sqlite-"));
   const dbPath = path.join(tempDir, "orchestrator.sqlite");
   const registry = await WorkflowRegistry.fromExampleDirectory(path.resolve(process.cwd(), "examples"));
+  const firstStore = new SqliteStore(dbPath);
 
-  const first = new OrchestratorService(new SqliteStore(dbPath), {
+  const first = new OrchestratorService(firstStore, {
     registry,
     toolExecutor: new CompositeToolExecutor()
   });
@@ -187,7 +188,8 @@ test("sqlite store persists cases across orchestrator instances", async () => {
 
   await first.advanceCase(created.case_id);
 
-  const second = new OrchestratorService(new SqliteStore(dbPath), {
+  const secondStore = new SqliteStore(dbPath);
+  const second = new OrchestratorService(secondStore, {
     registry,
     toolExecutor: new CompositeToolExecutor()
   });
@@ -197,5 +199,7 @@ test("sqlite store persists cases across orchestrator instances", async () => {
   assert.equal(loaded.current_step_id, "request_customs_number");
   assert.equal(loaded.state, "DRAFT_READY");
 
+  firstStore.close();
+  secondStore.close();
   rmSync(tempDir, { recursive: true, force: true });
 });

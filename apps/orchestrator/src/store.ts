@@ -1,6 +1,8 @@
 import type { Approval, Artifact, CaseEvent, CaseRecord, Expectation } from "../../../packages/contracts/src/index.js";
 
 export interface CaseStore {
+  close?(): void;
+
   saveCase(record: CaseRecord): void;
   getCase(caseId: string): CaseRecord | undefined;
 
@@ -82,4 +84,6 @@ export class InMemoryStore implements CaseStore {
   listEventsForCase(caseId: string): CaseEvent[] {
     return this.events.get(caseId) ?? [];
   }
+
+  close(): void {}
 }
