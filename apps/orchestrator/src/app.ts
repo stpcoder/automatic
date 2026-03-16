@@ -23,6 +23,23 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   const debugPlanner = createDebugPlanner();
   const llmConfig = resolveLlmConfig();
 
+  app.addHook("onRequest", async (request, reply) => {
+    const origin = request.headers.origin;
+    if (typeof origin === "string" && origin.length > 0) {
+      reply.header("access-control-allow-origin", origin);
+      reply.header("vary", "origin");
+    } else {
+      reply.header("access-control-allow-origin", "*");
+    }
+    reply.header("access-control-allow-methods", "GET,POST,OPTIONS");
+    reply.header("access-control-allow-headers", "content-type");
+    reply.header("access-control-allow-private-network", "true");
+
+    if (request.method === "OPTIONS") {
+      reply.code(204).send();
+    }
+  });
+
   app.get("/health", async () => ({ ok: true }));
 
   app.get("/ui", async (_request, reply) => {

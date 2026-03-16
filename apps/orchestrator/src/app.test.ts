@@ -98,6 +98,19 @@ test("http api exposes bookmarklet bridge endpoints", async () => {
   assert.equal(scriptResponse.statusCode, 200);
   assert.match(scriptResponse.body, /SKH agent bridge/i);
 
+  const optionsResponse = await app.inject({
+    method: "OPTIONS",
+    url: "/bridge/sessions/register",
+    headers: {
+      origin: "https://internal.example.com",
+      "access-control-request-method": "POST",
+      "access-control-request-private-network": "true"
+    }
+  });
+  assert.equal(optionsResponse.statusCode, 204);
+  assert.equal(optionsResponse.headers["access-control-allow-origin"], "https://internal.example.com");
+  assert.equal(optionsResponse.headers["access-control-allow-private-network"], "true");
+
   await app.close();
 });
 
