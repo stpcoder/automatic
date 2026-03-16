@@ -8,7 +8,7 @@ import { HttpOutlookReplyEventSink, OutlookReplyPoller } from "../../../workers/
 import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bookmarklet-script.js";
 import { getWebSystemDefinition } from "../../../workers/web-worker/src/system-definitions.js";
 import { WebWorker } from "../../../workers/web-worker/src/index.js";
-import { buildDebugPlannerRequest, createDebugPlanner } from "./debug-agent.js";
+import { buildDebugLoopPlannerRequest, buildDebugPlannerRequest, createDebugPlanner } from "./debug-agent.js";
 import { resolveLlmConfig } from "./llm-config.js";
 import { OrchestratorService } from "./orchestrator.js";
 import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
@@ -302,6 +302,126 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     }
   });
 
+  app.post("/debug/agent/run-loop", async (request) => {
+    const body = request.body as { instruction?: string; context?: Record<string, unknown>; max_steps?: number };
+    const instruction = typeof body.instruction === "string" ? body.instruction : "";
+    const context = typeof body.context === "object" && body.context !== null ? body.context : {};
+    const maxSteps = typeof body.max_steps === "number" && body.max_steps > 0 ? Math.min(body.max_steps, 12) : 6;
+    const tools = buildDebugToolSpecs();
+    let currentObservation: Record<string, unknown> | undefined;
+    let lastToolResult: Record<string, unknown> | undefined;
+    const steps: Array<Record<string, unknown>> = [];
+    const startedAt = Date.now();
+
+    for (let stepIndex = 1; stepIndex <= maxSteps; stepIndex += 1) {
+      const loopContext = {
+        ...context,
+        current_observation: currentObservation ?? null,
+        last_tool_result: lastToolResult ?? null,
+        step_history: steps.map((step) => ({
+          step: step.step,
+          tool: step.tool,
+          success: step.success
+        }))
+      };
+      const plannerRequest = buildDebugLoopPlannerRequest(instruction, loopContext, tools);
+      const stepTiming = {
+        planner_ms: 0,
+        tool_ms: 0
+      };
+
+      try {
+        const plannerStartedAt = Date.now();
+        const plannerOutput = await debugPlanner.plan(plannerRequest);
+        stepTiming.planner_ms = Date.now() - plannerStartedAt;
+        const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
+
+        if (plannerOutput.next_action.tool === "finish_task") {
+          const response = {
+            ok: true,
+            completed: true,
+            final_response: typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
+            steps,
+            timing: {
+              total_ms: Date.now() - startedAt
+            },
+            debug_trace: {
+              planner_request: plannerRequest,
+              planner_trace: debugPlanner.getTrace(),
+              planner_output: plannerOutput,
+              normalized_input: normalizedInput
+            }
+          };
+          return response;
+        }
+
+        const toolStartedAt = Date.now();
+        const toolResult =
+          plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
+            ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput))
+            : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput));
+        stepTiming.tool_ms = Date.now() - toolStartedAt;
+
+        const observationCandidate =
+          typeof toolResult.output.observation === "object" && toolResult.output.observation !== null
+            ? (toolResult.output.observation as Record<string, unknown>)
+            : undefined;
+        currentObservation = observationCandidate ?? currentObservation;
+        lastToolResult = toolResult.output;
+
+        steps.push({
+          step: stepIndex,
+          tool: plannerOutput.next_action.tool,
+          planner_request: plannerRequest,
+          planner_trace: debugPlanner.getTrace(),
+          planner_output: plannerOutput,
+          normalized_input: normalizedInput,
+          tool_result: toolResult,
+          success: toolResult.success,
+          timing: stepTiming
+        });
+
+        if (!toolResult.success) {
+          return {
+            ok: false,
+            completed: false,
+            error_stage: "tool_execution",
+            error_message: String(toolResult.output.error ?? "Tool execution failed"),
+            steps,
+            timing: {
+              total_ms: Date.now() - startedAt
+            }
+          };
+        }
+      } catch (error) {
+        return {
+          ok: false,
+          completed: false,
+          error_stage: "debug_agent_run_loop",
+          error_message: error instanceof Error ? error.message : String(error),
+          steps,
+          timing: {
+            total_ms: Date.now() - startedAt
+          },
+          debug_trace: {
+            planner_trace: debugPlanner.getTrace()
+          }
+        };
+      }
+    }
+
+    return {
+      ok: false,
+      completed: false,
+      error_stage: "max_steps_exceeded",
+      error_message: `Agent loop exceeded ${maxSteps} steps`,
+      steps,
+      timing: {
+        total_ms: Date.now() - startedAt
+      }
+    };
+  });
+
   app.post("/bridge/sessions/register", async (request) => {
     const body = request.body as { session_id: string; system_id: string; title?: string; url?: string };
     return browserBridgeCoordinator.registerSession(body);
@@ -373,6 +493,76 @@ function buildDebugToolRequest(toolName: string, mode: "draft" | "preview" | "co
     mode,
     input
   };
+}
+
+function buildDebugToolSpecs() {
+  return [
+    {
+      name: "open_system",
+      description: "Open a known web system and observe it.",
+      input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
+    },
+    {
+      name: "fill_web_form",
+      description: "Fill known fields on the active web system.",
+      input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
+    },
+    {
+      name: "preview_web_submission",
+      description: "Preview the current web submission state.",
+      input_schema: { system_id: { type: "string" } }
+    },
+    {
+      name: "submit_web_form",
+      description: "Click the final submit button on the active web system.",
+      input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
+    },
+    {
+      name: "draft_outlook_mail",
+      description: "Create an Outlook mail draft.",
+      input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
+    },
+    {
+      name: "send_outlook_mail",
+      description: "Send a drafted Outlook mail.",
+      input_schema: { draft_id: { type: "string" } }
+    },
+    {
+      name: "watch_email_reply",
+      description: "Watch for a matching reply in Outlook.",
+      input_schema: {
+        case_id: { type: "string" },
+        conversation_id: { type: "string" },
+        expected_from: { type: "array" },
+        required_fields: { type: "array" }
+      }
+    },
+    {
+      name: "search_outlook_mail",
+      description: "Search Outlook mail by keyword.",
+      input_schema: {
+        keyword: { type: "string" },
+        max_results: { type: "number" }
+      }
+    },
+    {
+      name: "finish_task",
+      description: "Finish the current task and return a short summary.",
+      input_schema: {
+        summary: { type: "string" }
+      }
+    }
+  ];
+}
+
+function selectDebugToolMode(toolName: string): "draft" | "preview" | "commit" {
+  if (toolName === "submit_web_form" || toolName === "send_outlook_mail") {
+    return "commit";
+  }
+  if (toolName === "fill_web_form" || toolName === "draft_outlook_mail") {
+    return "draft";
+  }
+  return "preview";
 }
 
 function normalizeDebugToolInput(

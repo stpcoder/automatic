@@ -60,6 +60,27 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
   };
 }
 
+export function buildDebugLoopPlannerRequest(
+  instruction: string,
+  context: Record<string, unknown>,
+  tools: DebugAgentToolSpec[]
+): PlannerRequest {
+  return {
+    messages: [
+      {
+        role: "system",
+        content:
+          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, preview_web_submission, submit_web_form, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation and step_history."
+      },
+      {
+        role: "user",
+        content: JSON.stringify({ instruction, context })
+      }
+    ],
+    tools
+  };
+}
+
 class HeuristicDebugPlanner implements DebugPlannerClient {
   private lastTrace: Record<string, unknown> | undefined;
 
@@ -69,6 +90,19 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
     const instruction = normalize(parsed.instruction);
     const context = parsed.context ?? {};
     const systemId = inferSystemId(instruction, context);
+    const stepHistory = Array.isArray(context.step_history) ? context.step_history.map(asRecord) : [];
+    const currentObservation = asRecord(context.current_observation);
+    const selectedTools = stepHistory
+      .map((step) => (typeof step.tool === "string" ? step.tool : ""))
+      .filter((value) => value.length > 0);
+
+    if (selectedTools.length > 0) {
+      const loopOutput = planLoopContinuation(instruction, context, systemId, currentObservation, selectedTools);
+      if (loopOutput) {
+        this.lastTrace = buildHeuristicTrace(request, loopOutput);
+        return loopOutput;
+      }
+    }
 
     if (includesAny(instruction, ["open", "열어", "접속"])) {
       const output = buildOutput("Open target system", "open_system", {
@@ -222,6 +256,21 @@ function buildOutput(objective: string, tool: string, input: Record<string, unkn
   };
 }
 
+function buildFinishOutput(summary: string): PlannerOutput {
+  return {
+    objective: "Complete the current task",
+    rationale: "Task goal appears satisfied",
+    next_action: {
+      tool: "finish_task",
+      input: {
+        summary
+      }
+    },
+    requires_approval: false,
+    expected_transition: "COMPLETED"
+  };
+}
+
 function normalize(value: unknown): string {
   return String(value ?? "").trim().toLowerCase();
 }
@@ -236,6 +285,66 @@ function asRecord(value: unknown): Record<string, unknown> {
 
 function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((entry) => String(entry)) : [];
+}
+
+function planLoopContinuation(
+  instruction: string,
+  context: Record<string, unknown>,
+  systemId: string,
+  currentObservation: Record<string, unknown>,
+  selectedTools: string[]
+): PlannerOutput | null {
+  const normalizedInstruction = normalize(instruction);
+  const fieldValues = asRecord(context.field_values);
+  const interactiveElements = Array.isArray(currentObservation.interactiveElements)
+    ? currentObservation.interactiveElements.map(asRecord)
+    : [];
+
+  if (selectedTools.includes("search_outlook_mail")) {
+    return buildFinishOutput(`Mail search completed for keyword ${String(context.keyword ?? "").trim() || "query"}.`);
+  }
+
+  if (selectedTools.includes("draft_outlook_mail") && !includesAny(normalizedInstruction, ["send", "발송", "보내"])) {
+    return buildFinishOutput("Mail draft completed.");
+  }
+
+  if (selectedTools.includes("send_outlook_mail")) {
+    return buildFinishOutput("Mail send completed.");
+  }
+
+  if ((typeof context.system_id === "string" || systemId === "naver_search") && !selectedTools.includes("open_system")) {
+    return buildOutput("Open target system", "open_system", {
+      system_id: systemId
+    });
+  }
+
+  if (interactiveElements.length > 0 && Object.keys(fieldValues).length > 0 && !selectedTools.includes("fill_web_form")) {
+    return buildOutput("Fill target form", "fill_web_form", {
+      system_id: systemId,
+      field_values: fieldValues
+    });
+  }
+
+  if (
+    selectedTools.includes("fill_web_form") &&
+    !selectedTools.includes("submit_web_form") &&
+    (includesAny(normalizedInstruction, ["submit", "search", "조회", "주가", "register", "등록"]) || systemId === "naver_search")
+  ) {
+    return buildOutput("Submit target form", "submit_web_form", {
+      system_id: systemId,
+      expected_button: typeof context.expected_button === "string" ? context.expected_button : inferExpectedButton(systemId)
+    });
+  }
+
+  if (selectedTools.includes("submit_web_form")) {
+    return buildFinishOutput("Web interaction completed.");
+  }
+
+  if (selectedTools.includes("open_system") && interactiveElements.length > 0 && Object.keys(fieldValues).length === 0) {
+    return buildFinishOutput("System opened and observation captured.");
+  }
+
+  return null;
 }
 
 function inferSystemId(instruction: string, context: Record<string, unknown>): string {

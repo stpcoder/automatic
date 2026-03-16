@@ -282,6 +282,40 @@ test("debug agent can route a natural language mail draft instruction", async ()
   await app.close();
 });
 
+test("debug agent loop can complete a multi-step web interaction", async () => {
+  const previousAdapter = process.env.WEB_WORKER_ADAPTER;
+  delete process.env.WEB_WORKER_ADAPTER;
+  const app = await createApp();
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/debug/agent/run-loop",
+    payload: {
+      instruction: "Open Naver search and search for SK hynix stock price",
+      context: {
+        system_id: "naver_search",
+        field_values: {
+          query: "SK hynix stock price"
+        },
+        expected_button: "search"
+      },
+      max_steps: 6
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().ok, true);
+  assert.equal(response.json().completed, true);
+  assert.ok(Array.isArray(response.json().steps));
+  assert.deepEqual(
+    response.json().steps.map((step: { tool: string }) => step.tool),
+    ["open_system", "fill_web_form", "submit_web_form"]
+  );
+
+  await app.close();
+  process.env.WEB_WORKER_ADAPTER = previousAdapter;
+});
+
 test("llm config resolves from opencode.ai config file", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-"));
   const configDir = path.join(tempDir, "opencode.ai");

@@ -3,7 +3,7 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run") -Body @{
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
   instruction = "Open Naver search and search for SK hynix stock price"
   context = @{
     system_id = "naver_search"
@@ -12,4 +12,5 @@ Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run") -Body @{
     }
     expected_button = "search"
   }
-} | ConvertTo-Json -Depth 20
+  max_steps = 6
+} | ConvertTo-Json -Depth 30
