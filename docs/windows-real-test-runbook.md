@@ -63,6 +63,7 @@ Expected:
 
 - `WEB_WORKER_ADAPTER: extension_bridge`
 - `Chrome Extension Bridge: expected`
+- `Extension sessions: N`
 
 ## 6. Install And Enable Extension
 
@@ -83,7 +84,10 @@ For each target system:
 
 ```powershell
 npm run win:sessions
+npm run win:doctor
 ```
+
+If `Extension sessions: 0` continues, wait a few seconds on the target page and refresh the page once. The extension now retries bootstrap when the local server starts late.
 
 ## 8. Outlook COM Smoke Test
 

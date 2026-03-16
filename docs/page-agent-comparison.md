@@ -6,7 +6,7 @@
 
 ### 1. DOM 기반 관찰
 - 브라우저 스크린샷이 아니라 DOM 기반 관찰을 사용한다.
-- 북마클릿 브리지는 현재 페이지의:
+- extension bridge는 현재 페이지의:
   - `interactiveElements`
   - `title`
   - `url`
@@ -19,6 +19,7 @@
   - `open_system`
   - `fill_web_form`
   - `click_web_element`
+  - `follow_web_navigation`
   - `submit_web_form`
   - `extract_web_result`
   - `finish_task`
@@ -53,7 +54,7 @@ Page Agent 계열과 비교해 아직 부족한 것:
 - keyboard shortcut
 - drag and drop
 - file upload
-- tab switch / multi-tab planning
+- tab switch / multi-tab planning 강화
 
 ### 2. 웹 전용 planner의 깊이
 현재 루프:
@@ -88,17 +89,18 @@ Page Agent 계열과 비교해 아직 부족한 것:
 ### 더 안정적인 테스트 경로
 - `naver_search`
   - 검색 홈에서 검색어 입력 후 클릭하는 흐름
-  - 북마클릿 모드에서는 페이지 이동이 있으면 취약할 수 있다
+  - extension bridge 기준으로 same-tab / child-tab follow가 가능하다
 - `naver_stock`
   - SK hynix 종목 결과 페이지에 직접 붙는 흐름
-  - 북마클릿 실환경 테스트는 이 경로를 권장한다
+  - 결과 읽기 안정성은 이 경로가 더 높다
 
 ### 현재 명령 흐름
 1. `open_system`
 2. `fill_web_form`
 3. `click_web_element`
-4. `extract_web_result`
-5. `finish_task`
+4. `follow_web_navigation`
+5. `extract_web_result`
+6. `finish_task`
 
 ## 다음 우선순위
 
@@ -107,7 +109,7 @@ Page Agent 계열과 비교해 아직 부족한 것:
 
 ### 2. session selection 강화
 현재는 같은 `system_id`의 최신 세션을 우선 사용한다.
-멀티탭 환경에서는 `session_id` 지정이 필요하다.
+멀티탭 환경에서는 `session_id` 선택과 우선순위 규칙이 더 필요하다.
 
 ### 3. extraction 고도화
 `pageText` 기반에서:
@@ -115,7 +117,7 @@ Page Agent 계열과 비교해 아직 부족한 것:
 - label/value 추출
 - ranking
  
-### 4. 확장 기반 페이지 이동 대응
-- 확장 브리지는 같은 탭 이동과 child tab follow에 유리하다
-- 검색 홈에서 결과 페이지로 이동하는 흐름을 session 기준으로 이어갈 수 있다
+### 4. extension 기반 운영 고도화
+- extension bridge는 같은 탭 이동과 child tab follow에 유리하다
+- 서버가 늦게 떠도 retry로 다시 붙는다
 - 운영형 웹 자동화는 extension adapter를 중심으로 가는 것이 맞다

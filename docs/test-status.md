@@ -7,15 +7,13 @@ Verification commands executed:
 ```bash
 npm run check
 npm test
-npm run demo
 ```
 
 ## Result Summary
 
 - TypeScript check: `PASS`
 - Automated test suite: `PASS`
-- Demo flow: `PASS`
-- Automated test count: `25/25 PASS`
+- Automated test count: `40/40 PASS`
 
 ## Current Test Inventory
 
@@ -100,6 +98,8 @@ Current implementation success means:
 - page-agent-style DOM harness works
 - extension bridge coordinator works
 - normal Chrome extension path is exposed through the HTTP app
+- extension bootstrap retry works
+- same-tab and child-tab follow work through the bridge
 - Outlook reply poller logic works
 - SQLite persistence works
 - approval UI rendering works

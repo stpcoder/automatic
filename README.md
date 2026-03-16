@@ -10,6 +10,7 @@ This repository contains a concrete draft for an enterprise workflow agent syste
 
 ## Contents
 
+- [Current Status](docs/current-status.md)
 - [Architecture](docs/architecture.md)
 - [Runtime Spec](docs/runtime-spec.md)
 - [Workflow Library](docs/workflows.md)
@@ -49,7 +50,7 @@ The repository now includes an executable MVP skeleton:
 - approval-gated commit flow
 - email wait/resume event handling
 - browser bridge coordinator with session-aware same-tab/new-tab follow support
-- Page-Agent-style web worker with `extension_bridge` and `page_agent_dom`
+- extension-first Page-Agent-style web worker with `extension_bridge` and `page_agent_dom`
 - Windows Outlook COM path for real draft/send/watch registration
 - Outlook reply poller that posts matched replies back into the orchestrator
 - Cube web path through the shared bridge path
@@ -76,7 +77,7 @@ Enable persistent storage:
 ORCHESTRATOR_STORE=sqlite ORCHESTRATOR_DB_PATH=./data/orchestrator.sqlite npm run dev
 ```
 
-Use the Chrome extension bridge path:
+The Chrome extension bridge path is the default web path:
 
 ```bash
 WEB_WORKER_ADAPTER=extension_bridge npm run dev
@@ -99,6 +100,7 @@ npm run win:start
 npm run win:poller
 npm run win:start-all
 npm run win:health
+npm run win:doctor
 npm run win:sessions
 npm run win:create-shipment-case
 npm run win:advance-case -- -CaseId CASE_ID
@@ -152,14 +154,16 @@ Operator UI:
 - move to the next draft step after reply
 - web worker adapter selection
 - Chrome extension bridge with page-navigation-safe sessions and visual pointer/scroll feedback
+- extension bootstrap retry when the local server starts late
 
 ## Next Build Steps
 
-1. Add real approval UI
-2. Add planner integration through the internal LLM endpoint
-3. Validate site-specific field mappings on the real internal websites
+1. Validate site-specific field mappings on the real internal websites
+2. Add search-result list extraction and candidate selection
+3. Add stronger session selection for multiple same-system tabs
 4. Add sample-intake workflow execution
 5. Add Cube inbound reply polling
+6. Strengthen approval and audit UI
 
 ## Recommended Product Direction
 
