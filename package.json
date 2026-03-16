@@ -23,7 +23,16 @@
     "win:sessions": "powershell -ExecutionPolicy Bypass -File scripts/windows/list-sessions.ps1",
     "win:create-shipment-case": "powershell -ExecutionPolicy Bypass -File scripts/windows/create-shipment-case.ps1",
     "win:advance-case": "powershell -ExecutionPolicy Bypass -File scripts/windows/advance-case.ps1",
-    "win:approve-latest": "powershell -ExecutionPolicy Bypass -File scripts/windows/approve-latest.ps1"
+    "win:approve-latest": "powershell -ExecutionPolicy Bypass -File scripts/windows/approve-latest.ps1",
+    "win:debug:overview": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-overview.ps1",
+    "win:debug:web:open": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-open.ps1",
+    "win:debug:web:fill": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-fill.ps1",
+    "win:debug:web:preview": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-preview.ps1",
+    "win:debug:web:submit": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-submit.ps1",
+    "win:debug:mail:draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-draft.ps1",
+    "win:debug:mail:send": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-send.ps1",
+    "win:debug:mail:watch": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-watch.ps1",
+    "win:debug:mail:poll-once": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-poll-once.ps1"
   },
   "dependencies": {
     "fastify": "^5.4.0",

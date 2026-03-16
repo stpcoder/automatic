@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
+import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 import { createApp } from "./app.js";
 
 test("http api creates, advances, approves, and resumes a shipment case", async () => {
@@ -145,4 +146,83 @@ test("approval ui renders pending approvals and case detail", async () => {
   assert.match(casePage.body, /vendor@example.com/);
 
   await app.close();
+});
+
+test("debug overview and mail draft endpoints are available", async () => {
+  const app = await createApp();
+
+  const overviewResponse = await app.inject({
+    method: "GET",
+    url: "/debug/overview"
+  });
+  assert.equal(overviewResponse.statusCode, 200);
+  assert.ok(Array.isArray(overviewResponse.json().bridge_sessions));
+
+  const draftResponse = await app.inject({
+    method: "POST",
+    url: "/debug/mail/draft",
+    payload: {
+      template_id: "request_customs_number",
+      to: ["vendor@example.com"],
+      variables: {
+        traveler_name: "Kim"
+      }
+    }
+  });
+  assert.equal(draftResponse.statusCode, 200);
+  assert.equal(draftResponse.json().success, true);
+  assert.equal(draftResponse.json().output.artifact_kind, "mail_draft");
+
+  await app.close();
+});
+
+test("debug web open can read a registered bookmarklet session", async () => {
+  browserBridgeCoordinator.reset();
+  const previousAdapter = process.env.WEB_WORKER_ADAPTER;
+  process.env.WEB_WORKER_ADAPTER = "bookmarklet_bridge";
+  const app = await createApp();
+
+  await app.inject({
+    method: "POST",
+    url: "/bridge/sessions/register",
+    payload: {
+      session_id: "debug-session-1",
+      system_id: "security_portal",
+      title: "Export Registration",
+      url: "https://security.internal/export-registration"
+    }
+  });
+
+  await app.inject({
+    method: "POST",
+    url: "/bridge/sessions/debug-session-1/snapshot",
+    payload: {
+      channel: "web",
+      summary: "Security export registration form is open.",
+      payload: {
+        systemId: "security_portal",
+        pageId: "export_registration",
+        url: "https://security.internal/export-registration",
+        title: "Export Registration",
+        finalActionButton: "등록",
+        interactiveElements: []
+      }
+    }
+  });
+
+  const openResponse = await app.inject({
+    method: "POST",
+    url: "/debug/web/open",
+    payload: {
+      system_id: "security_portal"
+    }
+  });
+
+  assert.equal(openResponse.statusCode, 200);
+  assert.equal(openResponse.json().success, true);
+  assert.equal(openResponse.json().output.harness, "bookmarklet_bridge");
+
+  await app.close();
+  process.env.WEB_WORKER_ADAPTER = previousAdapter;
+  browserBridgeCoordinator.reset();
 });

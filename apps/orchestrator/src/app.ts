@@ -2,8 +2,12 @@ import Fastify, { type FastifyInstance } from "fastify";
 
 import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 import { approvalDecisionInputSchema, createCaseInputSchema, incomingEmailPayloadSchema } from "../../../packages/contracts/src/index.js";
+import { OutlookWorker } from "../../../workers/outlook-worker/src/index.js";
+import { OutlookComAdapter } from "../../../workers/outlook-worker/src/outlook-com-adapter.js";
+import { HttpOutlookReplyEventSink, OutlookReplyPoller } from "../../../workers/outlook-worker/src/reply-poller.js";
 import { buildBookmarkletBridgeScript } from "../../../workers/web-worker/src/bookmarklet-script.js";
 import { getWebSystemDefinition } from "../../../workers/web-worker/src/system-definitions.js";
+import { WebWorker } from "../../../workers/web-worker/src/index.js";
 import { OrchestratorService } from "./orchestrator.js";
 import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
 
@@ -12,6 +16,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   const app = Fastify({ logger: false });
   const defaultPort = process.env.ORCHESTRATOR_PORT ?? "43117";
   const defaultHost = `127.0.0.1:${defaultPort}`;
+  const webWorker = new WebWorker();
+  const outlookWorker = new OutlookWorker();
 
   app.get("/health", async () => ({ ok: true }));
 
@@ -56,6 +62,90 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const script = buildBookmarkletBridgeScript(`http://${host}`, getWebSystemDefinition(systemId));
     reply.header("content-type", "application/javascript; charset=utf-8");
     return script;
+  });
+
+  app.get("/debug/overview", async () => ({
+    web_adapter: process.env.WEB_WORKER_ADAPTER ?? "page_agent_dom",
+    outlook_adapter: process.env.OUTLOOK_WORKER_ADAPTER ?? "fake",
+    cube_adapter: process.env.CUBE_WORKER_ADAPTER ?? "fake",
+    orchestrator_base_url: process.env.ORCHESTRATOR_BASE_URL ?? `http://${defaultHost}`,
+    bridge_sessions: browserBridgeCoordinator.listSessions()
+  }));
+
+  app.post("/debug/web/open", async (request) => {
+    const body = request.body as { system_id?: string; page_id?: string };
+    return webWorker.execute(buildDebugToolRequest("open_system", "preview", {
+      system_id: body.system_id ?? "security_portal",
+      page_id: body.page_id
+    }));
+  });
+
+  app.post("/debug/web/fill", async (request) => {
+    const body = request.body as { system_id?: string; field_values?: Record<string, unknown> };
+    return webWorker.execute(buildDebugToolRequest("fill_web_form", "draft", {
+      system_id: body.system_id ?? "security_portal",
+      field_values: body.field_values ?? {}
+    }));
+  });
+
+  app.post("/debug/web/preview", async (request) => {
+    const body = request.body as { system_id?: string };
+    return webWorker.execute(buildDebugToolRequest("preview_web_submission", "preview", {
+      system_id: body.system_id ?? "security_portal"
+    }));
+  });
+
+  app.post("/debug/web/submit", async (request) => {
+    const body = request.body as { system_id?: string; expected_button?: string };
+    return webWorker.execute(buildDebugToolRequest("submit_web_form", "commit", {
+      system_id: body.system_id ?? "security_portal",
+      expected_button: body.expected_button ?? "Submit"
+    }));
+  });
+
+  app.post("/debug/mail/draft", async (request) => {
+    const body = request.body as {
+      template_id?: string;
+      to?: string[];
+      cc?: string[];
+      variables?: Record<string, unknown>;
+    };
+    return outlookWorker.execute(buildDebugToolRequest("draft_outlook_mail", "draft", {
+      template_id: body.template_id ?? "debug_template",
+      to: body.to ?? [],
+      cc: body.cc ?? [],
+      variables: body.variables ?? {}
+    }));
+  });
+
+  app.post("/debug/mail/send", async (request) => {
+    const body = request.body as { draft_id?: string };
+    return outlookWorker.execute(buildDebugToolRequest("send_outlook_mail", "commit", {
+      draft_id: body.draft_id ?? ""
+    }));
+  });
+
+  app.post("/debug/mail/watch", async (request) => {
+    const body = request.body as {
+      case_id?: string;
+      conversation_id?: string;
+      expected_from?: string[];
+      required_fields?: string[];
+    };
+    return outlookWorker.execute(buildDebugToolRequest("watch_email_reply", "preview", {
+      case_id: body.case_id ?? "DEBUG-CASE",
+      conversation_id: body.conversation_id ?? "",
+      expected_from: body.expected_from ?? [],
+      required_fields: body.required_fields ?? []
+    }));
+  });
+
+  app.post("/debug/mail/poll-once", async (request) => {
+    const body = request.body as { watch_directory?: string };
+    const poller = new OutlookReplyPoller(new OutlookComAdapter(), new HttpOutlookReplyEventSink(), {
+      watchDirectory: body.watch_directory
+    });
+    return poller.runOnce();
   });
 
   app.post("/bridge/sessions/register", async (request) => {
@@ -118,4 +208,15 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   return app;
+}
+
+function buildDebugToolRequest(toolName: string, mode: "draft" | "preview" | "commit", input: Record<string, unknown>) {
+  return {
+    request_id: `DBG-${crypto.randomUUID()}`,
+    case_id: "DEBUG-CASE",
+    step_id: `debug_${toolName}`,
+    tool_name: toolName,
+    mode,
+    input
+  };
 }

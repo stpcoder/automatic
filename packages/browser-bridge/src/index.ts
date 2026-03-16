@@ -34,6 +34,10 @@ interface BridgeSessionState {
 export class BrowserBridgeCoordinator {
   private readonly sessions = new Map<string, BridgeSessionState>();
 
+  reset(): void {
+    this.sessions.clear();
+  }
+
   registerSession(input: { session_id: string; system_id: string; title?: string; url?: string }): BridgeSession {
     const now = new Date().toISOString();
     const existing = this.sessions.get(input.session_id);

@@ -112,6 +112,17 @@ npm run win:advance-case -- -CaseId CASE_ID
 npm run win:approve-latest
 ```
 
+Standalone agent tests:
+
+```bash
+npm run win:debug:overview
+npm run win:debug:web:open -- -SystemId security_portal
+npm run win:debug:web:fill -- -SystemId security_portal -FieldsJson '{"traveler_name":"Kim"}'
+npm run win:debug:mail:draft -- -To vendor@example.com -TemplateId request_customs_number -VariablesJson '{"traveler_name":"Kim"}'
+```
+
+See `docs/individual-agent-testing.md` for step-by-step bookmarklet and Outlook setup.
+
 API endpoints:
 
 - `POST /cases`
