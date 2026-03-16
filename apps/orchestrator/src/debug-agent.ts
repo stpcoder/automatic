@@ -245,6 +245,9 @@ function inferSystemId(instruction: string, context: Record<string, unknown>): s
   if (includesAny(instruction, ["security", "보안"])) {
     return "security_portal";
   }
+  if (includesAny(instruction, ["naver", "네이버", "stock", "주가"])) {
+    return "naver_search";
+  }
   if (includesAny(instruction, ["dhl"])) {
     return "dhl";
   }

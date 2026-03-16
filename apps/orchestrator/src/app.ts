@@ -249,12 +249,13 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       const plannerStartedAt = Date.now();
       const plannerOutput = await debugPlanner.plan(plannerRequest);
       timing.planner_ms = Date.now() - plannerStartedAt;
+      const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, context, instruction);
 
       const toolStartedAt = Date.now();
       const toolResult =
         plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
-          ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", plannerOutput.next_action.input))
-          : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", plannerOutput.next_action.input));
+          ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", normalizedInput))
+          : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", normalizedInput));
       timing.tool_ms = Date.now() - toolStartedAt;
       timing.total_ms = Date.now() - startedAt;
 
@@ -262,6 +263,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         planner_request: plannerRequest,
         planner_trace: debugPlanner.getTrace(),
         planner_output: plannerOutput,
+        normalized_input: normalizedInput,
         tool_result: toolResult,
         timing
       };
@@ -279,6 +281,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       const debugTrace = {
         planner_request: plannerRequest,
         planner_trace: debugPlanner.getTrace(),
+        normalized_input: normalizeDebugToolInput("unknown", {}, context, instruction),
         error_message: error instanceof Error ? error.message : String(error),
         timing
       };
@@ -372,4 +375,73 @@ function buildDebugToolRequest(toolName: string, mode: "draft" | "preview" | "co
     mode,
     input
   };
+}
+
+function normalizeDebugToolInput(
+  toolName: string,
+  input: Record<string, unknown>,
+  context: Record<string, unknown>,
+  instruction: string
+): Record<string, unknown> {
+  const normalized = { ...input };
+
+  if (toolName === "open_system" || toolName.includes("web")) {
+    if (typeof normalized.system_id !== "string" || normalized.system_id.trim().length === 0) {
+      normalized.system_id = inferSystemIdFromContext(context, instruction);
+    }
+    if (toolName === "submit_web_form" && (typeof normalized.expected_button !== "string" || normalized.expected_button.trim().length === 0)) {
+      normalized.expected_button =
+        typeof context.expected_button === "string" && context.expected_button.trim().length > 0
+          ? context.expected_button
+          : inferExpectedButtonFromSystem(String(normalized.system_id));
+    }
+    if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
+      normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
+    }
+  }
+
+  if (toolName === "search_outlook_mail") {
+    if (typeof normalized.keyword !== "string" || normalized.keyword.trim().length === 0) {
+      normalized.keyword = typeof context.keyword === "string" && context.keyword.trim().length > 0 ? context.keyword : instruction;
+    }
+    if (typeof normalized.max_results !== "number") {
+      normalized.max_results = typeof context.max_results === "number" ? context.max_results : 10;
+    }
+  }
+
+  return normalized;
+}
+
+function inferSystemIdFromContext(context: Record<string, unknown>, instruction: string): string {
+  if (typeof context.system_id === "string" && context.system_id.trim().length > 0) {
+    return context.system_id;
+  }
+
+  const normalized = instruction.toLowerCase();
+  if (normalized.includes("naver") || normalized.includes("네이버") || normalized.includes("stock") || normalized.includes("주가")) {
+    return "naver_search";
+  }
+  if (normalized.includes("security") || normalized.includes("보안")) {
+    return "security_portal";
+  }
+  if (normalized.includes("dhl")) {
+    return "dhl";
+  }
+  if (normalized.includes("cube") || normalized.includes("메신저") || normalized.includes("chat")) {
+    return "cube";
+  }
+  return "security_portal";
+}
+
+function inferExpectedButtonFromSystem(systemId: string): string {
+  if (systemId === "naver_search") {
+    return "search";
+  }
+  if (systemId === "security_portal") {
+    return "등록";
+  }
+  if (systemId === "cube") {
+    return "Send";
+  }
+  return "Submit";
 }
