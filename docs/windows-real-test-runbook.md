@@ -24,20 +24,13 @@ git clone https://github.com/stpcoder/automatic.git
 cd automatic
 git checkout main
 git pull origin main
-npm install
-npm run check
-npm test
+npm run win:setup
 ```
 
 ## 4. Start The Orchestrator
 
 ```powershell
-$env:WEB_WORKER_ADAPTER="bookmarklet_bridge"
-$env:OUTLOOK_WORKER_ADAPTER="outlook_com"
-$env:CUBE_WORKER_ADAPTER="bookmarklet_bridge"
-$env:ORCHESTRATOR_STORE="sqlite"
-$env:ORCHESTRATOR_DB_PATH="$PWD\\data\\orchestrator.sqlite"
-npm run dev
+npm run win:start
 ```
 
 Health check:
@@ -49,8 +42,13 @@ Invoke-RestMethod http://127.0.0.1:3000/health
 Start the Outlook reply poller in a second terminal:
 
 ```powershell
-$env:ORCHESTRATOR_BASE_URL="http://127.0.0.1:3000"
-npm run outlook:poller
+npm run win:poller
+```
+
+Or start both:
+
+```powershell
+npm run win:start-all
 ```
 
 ## 5. Install Bookmarklets
@@ -78,49 +76,22 @@ For each target system:
 4. verify sessions:
 
 ```powershell
-Invoke-RestMethod http://127.0.0.1:3000/bridge/sessions
+npm run win:sessions
 ```
 
 ## 7. Outlook COM Smoke Test
 
 ```powershell
-$case = Invoke-RestMethod `
-  -Method Post `
-  -Uri http://127.0.0.1:3000/cases `
-  -ContentType "application/json" `
-  -Body (@{
-    workflow_id = "overseas_equipment_shipment"
-    facts = @{
-      case_id = "CASE-WIN-001"
-      traveler_name = "Kim"
-      destination_country = "Germany"
-      equipment_list = @(@{ serial_number = "SN123"; asset_tag = "AT-001" })
-      vendor_email = "vendor@example.com"
-      due_date = "2026-03-20"
-      receiver_address = "Berlin Office"
-    }
-  } | ConvertTo-Json -Depth 10)
-
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:3000/cases/$($case.case_id)/advance"
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:3000/cases/$($case.case_id)/advance"
+$case = npm run win:create-shipment-case
+npm run win:advance-case -- -CaseId CASE_ID_HERE
+npm run win:advance-case -- -CaseId CASE_ID_HERE
 ```
 
 Approve the pending mail:
 
 ```powershell
-$approvals = Invoke-RestMethod http://127.0.0.1:3000/approvals
-$approvalId = $approvals[0].approval_id
-
-Invoke-RestMethod `
-  -Method Post `
-  -Uri "http://127.0.0.1:3000/approvals/$approvalId/decision" `
-  -ContentType "application/json" `
-  -Body (@{
-    decision = "approve"
-    actor = "tester@example.com"
-  } | ConvertTo-Json)
-
-Invoke-RestMethod -Method Post -Uri "http://127.0.0.1:3000/cases/$($case.case_id)/advance"
+npm run win:approve-latest
+npm run win:advance-case -- -CaseId CASE_ID_HERE
 ```
 
 ## 8. Resume After Real Reply

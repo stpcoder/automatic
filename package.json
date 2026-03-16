@@ -13,7 +13,17 @@
     "dev": "node --import tsx apps/orchestrator/src/server.ts",
     "demo": "node --import tsx apps/orchestrator/src/demo.ts",
     "outlook:poller": "node --import tsx workers/outlook-worker/src/poller.ts",
-    "test": "node scripts/run-tests.mjs"
+    "test": "node scripts/run-tests.mjs",
+    "win:setup": "powershell -ExecutionPolicy Bypass -File scripts/windows/setup.ps1",
+    "win:start": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-orchestrator.ps1",
+    "win:poller": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-poller.ps1",
+    "win:start-all": "powershell -ExecutionPolicy Bypass -File scripts/windows/start-all.ps1",
+    "win:health": "powershell -ExecutionPolicy Bypass -File scripts/windows/health.ps1",
+    "win:bookmarklets": "powershell -ExecutionPolicy Bypass -File scripts/windows/bookmarklets.ps1",
+    "win:sessions": "powershell -ExecutionPolicy Bypass -File scripts/windows/list-sessions.ps1",
+    "win:create-shipment-case": "powershell -ExecutionPolicy Bypass -File scripts/windows/create-shipment-case.ps1",
+    "win:advance-case": "powershell -ExecutionPolicy Bypass -File scripts/windows/advance-case.ps1",
+    "win:approve-latest": "powershell -ExecutionPolicy Bypass -File scripts/windows/approve-latest.ps1"
   },
   "dependencies": {
     "fastify": "^5.4.0",

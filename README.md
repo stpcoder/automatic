@@ -97,6 +97,21 @@ OUTLOOK_WORKER_ADAPTER=outlook_com npm run dev
 npm run outlook:poller
 ```
 
+Windows helper commands:
+
+```bash
+npm run win:setup
+npm run win:start
+npm run win:poller
+npm run win:start-all
+npm run win:health
+npm run win:bookmarklets
+npm run win:sessions
+npm run win:create-shipment-case
+npm run win:advance-case -- -CaseId CASE_ID
+npm run win:approve-latest
+```
+
 API endpoints:
 
 - `POST /cases`
