@@ -60,8 +60,8 @@ Default values are already set for:
 
 - base URL: `http://common.llm.skhynix.com/v1`
 - provider package: `@ai-sdk/openai-compatible`
-- provider name: `zai-org/GLM4.7`
-- model name: `GLM4.7`
+- provider name: `GLM-4.7`
+- model name: `GLM-4.7`
 
 So you only need to fill `apiKey`.
 

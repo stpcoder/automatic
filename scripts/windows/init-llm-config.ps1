@@ -19,11 +19,11 @@ if (-not (Test-Path $configPath)) {
     @'
 {
   "provider": {
-    "name": "zai-org/GLM4.7",
+    "name": "GLM-4.7",
     "npm": "@ai-sdk/openai-compatible",
     "models": {
-      "GLM4.7": {
-        "name": "GLM4.7"
+      "GLM-4.7": {
+        "name": "GLM-4.7"
       }
     },
     "options": {

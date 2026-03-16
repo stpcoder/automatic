@@ -60,7 +60,7 @@ test("ai sdk llm adapter parses tool call responses", async () => {
         id: "chatcmpl-test",
         object: "chat.completion",
         created: 0,
-        model: "zai-org/GLM-4.7",
+        model: "GLM-4.7",
         choices: [
           {
             index: 0,
@@ -96,7 +96,7 @@ test("ai sdk llm adapter parses tool call responses", async () => {
     const client = new AISDKOpenAICompatiblePlannerClient({
       baseUrl: "https://common.llm.skhynix.com/v1",
       apiKey: "test",
-      model: "zai-org/GLM-4.7"
+      model: "GLM-4.7"
     });
 
     const result = await client.plan({

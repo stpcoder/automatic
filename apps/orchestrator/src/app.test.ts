@@ -280,7 +280,7 @@ test("llm config resolves from opencode.ai config file", () => {
       llm: {
         base_url: "https://common.llm.skhynix.com/v1",
         apiKey: "test-key",
-        model: "zai-org/GLM-4.7"
+        model: "GLM-4.7"
       }
     })
   );
@@ -288,7 +288,7 @@ test("llm config resolves from opencode.ai config file", () => {
   const resolved = resolveLlmConfig(tempDir);
   assert.equal(resolved.source, "file");
   assert.equal(resolved.baseUrl, "https://common.llm.skhynix.com/v1");
-  assert.equal(resolved.model, "zai-org/GLM-4.7");
+  assert.equal(resolved.model, "GLM-4.7");
   assert.equal(resolved.apiKey, "test-key");
 });
 
@@ -300,11 +300,11 @@ test("llm config resolves from opencode provider config file", () => {
     path.join(configDir, "config.json"),
     JSON.stringify({
       provider: {
-        name: "zai-org/GLM4.7",
+        name: "GLM-4.7",
         npm: "@ai-sdk/openai-compatible",
         models: {
-          "GLM4.7": {
-            name: "GLM4.7"
+          "GLM-4.7": {
+            name: "GLM-4.7"
           }
         },
         options: {
@@ -318,7 +318,7 @@ test("llm config resolves from opencode provider config file", () => {
   const resolved = resolveLlmConfig(tempDir);
   assert.equal(resolved.source, "file");
   assert.equal(resolved.baseUrl, "http://common.llm.skhynix.com/v1");
-  assert.equal(resolved.model, "GLM4.7");
+  assert.equal(resolved.model, "GLM-4.7");
   assert.equal(resolved.apiKey, "provider-test-key");
 });
 
