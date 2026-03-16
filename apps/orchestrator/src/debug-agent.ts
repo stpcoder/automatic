@@ -224,6 +224,7 @@ function shouldFallbackToHeuristic(error: unknown): boolean {
   return (
     message.includes("unable to parse json") ||
     message.includes("returned no tool call") ||
+    message.includes("no tool") ||
     message.includes("returned empty content") ||
     message.includes("timed out") ||
     message.includes("status 4") ||

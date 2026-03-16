@@ -16,7 +16,7 @@ export interface WebSystemDefinition {
   summary: string;
   finalActionButton?: string;
   fields: WebFieldDefinition[];
-  buttons: Array<{ key: string; label: string }>;
+  buttons: Array<{ key: string; label: string; aliases?: string[] }>;
 }
 
 const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
@@ -35,8 +35,8 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
       { key: "serial_number", label: "시리얼번호", aliases: ["serial number"], required: false }
     ],
     buttons: [
-      { key: "save_draft", label: "임시저장" },
-      { key: "submit", label: "등록" }
+      { key: "save_draft", label: "임시저장", aliases: ["save draft"] },
+      { key: "submit", label: "등록", aliases: ["submit", "register"] }
     ]
   },
   dhl: {
@@ -66,7 +66,7 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     fields: [
       { key: "message_body", label: "Message", aliases: ["message", "메시지", "chat message"], required: true }
     ],
-    buttons: [{ key: "send", label: "Send" }]
+    buttons: [{ key: "send", label: "Send", aliases: ["submit"] }]
   },
   naver_search: {
     systemId: "naver_search",
@@ -74,11 +74,11 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     title: "Naver Search",
     url: "https://www.naver.com",
     summary: "Naver search page is open.",
-    finalActionButton: "검색",
+    finalActionButton: "search",
     fields: [
       { key: "query", label: "검색어", aliases: ["search", "search query", "query", "검색", "검색창"], required: true }
     ],
-    buttons: [{ key: "search", label: "검색" }]
+    buttons: [{ key: "search", label: "검색", aliases: ["search"] }]
   }
 };
 

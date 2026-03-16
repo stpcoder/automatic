@@ -4,12 +4,12 @@ param()
 Set-AgentEnvironment | Out-Null
 
 Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run") -Body @{
-  instruction = "네이버에서 하이닉스 주가를 조회해줘"
+  instruction = "Open Naver search and search for SK hynix stock price"
   context = @{
     system_id = "naver_search"
     field_values = @{
-      query = "하이닉스 주가"
+      query = "SK hynix stock price"
     }
-    expected_button = "검색"
+    expected_button = "search"
   }
 } | ConvertTo-Json -Depth 20

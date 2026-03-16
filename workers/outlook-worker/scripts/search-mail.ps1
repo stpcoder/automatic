@@ -16,13 +16,19 @@ $items.Sort("[ReceivedTime]", $true)
 
 $matches = @()
 $escapedKeyword = [regex]::Escape($keyword)
+$maxScan = [Math]::Min($items.Count, [Math]::Max($maxResults * 20, 50))
 
-foreach ($item in $items) {
+for ($index = 1; $index -le $maxScan; $index++) {
   if ($matches.Count -ge $maxResults) {
     break
   }
 
   try {
+    $item = $items.Item($index)
+    if ($null -eq $item) {
+      continue
+    }
+
     $subject = [string]$item.Subject
     $body = [string]$item.Body
     $sender = [string]$item.SenderEmailAddress
