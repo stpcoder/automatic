@@ -278,3 +278,15 @@ test("llm config resolves from opencode.ai config file", () => {
   assert.equal(resolved.model, "zai-org/GLM-4.7");
   assert.equal(resolved.apiKey, "test-key");
 });
+
+test("llm config falls back safely on malformed config file", () => {
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-bad-"));
+  const configDir = path.join(tempDir, "opencode.ai");
+  fs.mkdirSync(configDir, { recursive: true });
+  fs.writeFileSync(path.join(configDir, "config.json"), "| not valid json");
+
+  const resolved = resolveLlmConfig(tempDir);
+  assert.equal(resolved.source, "none");
+  assert.equal(resolved.baseUrl, "");
+  assert.match(resolved.error ?? "", /json|unexpected token|not valid json/i);
+});

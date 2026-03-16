@@ -17,6 +17,7 @@ export interface ResolvedLlmConfig {
   model: string;
   source: "env" | "file" | "none";
   configPath?: string;
+  error?: string;
 }
 
 export function resolveLlmConfig(cwd = process.cwd()): ResolvedLlmConfig {
@@ -44,13 +45,24 @@ export function resolveLlmConfig(cwd = process.cwd()): ResolvedLlmConfig {
     };
   }
 
-  const raw = fs.readFileSync(configPath, "utf8");
-  const parsed = llmConfigFileSchema.parse(JSON.parse(raw));
-  return {
-    baseUrl: parsed.llm.base_url,
-    apiKey: parsed.llm.api_key,
-    model: parsed.llm.model,
-    source: "file",
-    configPath
-  };
+  try {
+    const raw = fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, "").trim();
+    const parsed = llmConfigFileSchema.parse(JSON.parse(raw));
+    return {
+      baseUrl: parsed.llm.base_url,
+      apiKey: parsed.llm.api_key,
+      model: parsed.llm.model,
+      source: "file",
+      configPath
+    };
+  } catch (error) {
+    return {
+      baseUrl: "",
+      apiKey: "",
+      model: "",
+      source: "none",
+      configPath,
+      error: error instanceof Error ? error.message : String(error)
+    };
+  }
 }
