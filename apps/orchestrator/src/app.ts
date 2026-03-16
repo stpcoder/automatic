@@ -267,7 +267,6 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         tool_result: toolResult,
         timing
       };
-      console.log("[debug-agent-run]", JSON.stringify(debugTrace, null, 2));
 
       return {
         ok: true,
@@ -285,7 +284,6 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         error_message: error instanceof Error ? error.message : String(error),
         timing
       };
-      console.error("[debug-agent-run]", JSON.stringify(debugTrace, null, 2));
       return {
         ok: false,
         error_stage: "debug_agent_run",
