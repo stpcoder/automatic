@@ -15,12 +15,13 @@ export class PageAgentDomAdapter implements WebAdapter {
   async openSystem(systemId: string, pageId?: string): Promise<PageObservation> {
     const page = this.buildDefaultPage(systemId, pageId);
     this.sessions.set(systemId, { sessionId: `page-agent-${crypto.randomUUID()}`, systemId, page });
-    return this.observe(systemId);
+    const session = this.getSession(systemId);
+    return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
   }
 
   async observe(systemId: string): Promise<PageObservation> {
     const session = this.getOrCreateSession(systemId);
-    return this.toObservation(session.page, systemId);
+    return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
   }
 
   async fillForm(systemId: string, values: Record<string, unknown>): Promise<FillResult> {
@@ -49,7 +50,7 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields: values,
-      observation: this.toObservation(session.page, systemId)
+      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }
 
@@ -74,7 +75,7 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
-      observation: this.toObservation(session.page, systemId)
+      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }
 
@@ -82,7 +83,7 @@ export class PageAgentDomAdapter implements WebAdapter {
     const session = this.getOrCreateSession(systemId);
     return {
       previewId: `PREVIEW-${crypto.randomUUID()}`,
-      observation: this.toObservation(session.page, systemId)
+      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }
 
@@ -167,6 +168,7 @@ export class PageAgentDomAdapter implements WebAdapter {
       title: page.title,
       summary: page.summary,
       pageText,
+      visibleTextBlocks: splitVisibleTextBlocks(pageText),
       interactiveElements: page.interactiveElements,
       finalActionButton: page.finalActionButton
     };
@@ -193,4 +195,12 @@ export class PageAgentDomAdapter implements WebAdapter {
     }
     return `Naver search home. Current query field value: ${query}.`;
   }
+}
+
+function splitVisibleTextBlocks(pageText: string): string[] {
+  return pageText
+    .split(/\s+\|\s+|(?<=[.!?])\s+/)
+    .map((segment) => segment.trim())
+    .filter(Boolean)
+    .slice(0, 20);
 }

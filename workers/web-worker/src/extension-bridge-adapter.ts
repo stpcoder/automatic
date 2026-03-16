@@ -112,6 +112,9 @@ export class ExtensionBridgeAdapter implements WebAdapter {
       title: typeof payload.title === "string" ? payload.title : definition.title,
       summary: observation.summary,
       pageText: typeof payload.pageText === "string" ? payload.pageText : undefined,
+      visibleTextBlocks: Array.isArray(payload.visibleTextBlocks)
+        ? (payload.visibleTextBlocks as string[])
+        : undefined,
       interactiveElements: Array.isArray(payload.interactiveElements)
         ? (payload.interactiveElements as PageObservation["interactiveElements"])
         : [],

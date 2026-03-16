@@ -1,10 +1,11 @@
 export interface InteractiveElement {
   index: number;
-  type: "input" | "button" | "select" | "text";
+  type: "input" | "button" | "select" | "text" | "link";
   key: string;
   label: string;
   value?: string;
   required?: boolean;
+  action?: "type" | "click" | "select";
 }
 
 export interface PageObservation {
@@ -16,6 +17,7 @@ export interface PageObservation {
   title: string;
   summary: string;
   pageText?: string;
+  visibleTextBlocks?: string[];
   interactiveElements: InteractiveElement[];
   finalActionButton?: string;
 }

@@ -70,7 +70,7 @@ export function buildDebugLoopPlannerRequest(
       {
         role: "system",
         content:
-          "You are an agent loop. Choose exactly one next action. Use open_system to access the target page, then use fill_web_form, click_web_element, follow_web_navigation, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply, or search_outlook_mail as needed. After a meaningful page transition or new tab opening, call follow_web_navigation before extracting results. Prefer click_web_element for ordinary page interactions like search buttons, tabs, and links. Reserve submit_web_form for actual final commits. When the goal is completed, call finish_task with a short summary. Prefer deterministic progress based on current_observation, last_tool_result, and step_history."
+          "You are an agent loop. Choose exactly one next action. Use only the current observation, the last tool result, the step history, and the available tools. Do not rely on site-specific fixed sequences. First open the target system when there is no current observation. Then inspect interactive elements and visible text to decide whether to type, click, follow navigation, preview, submit, or extract results. Prefer click_web_element for ordinary page interactions like links, tabs, search buttons, and menu entries. Use follow_web_navigation only after an action that can change the page or open a new tab. Reserve submit_web_form for final commits. When the goal is satisfied, call finish_task with a short summary."
       },
       {
         role: "user",
@@ -322,6 +322,19 @@ function planLoopContinuation(
     ? currentObservation.interactiveElements.map(asRecord)
     : [];
   const lastToolResult = asRecord(context.last_tool_result);
+  const lastSelectedTool = selectedTools[selectedTools.length - 1] ?? "";
+  const currentSessionId =
+    typeof currentObservation.sessionId === "string"
+      ? currentObservation.sessionId
+      : typeof lastToolResult.session_id === "string"
+        ? lastToolResult.session_id
+        : typeof context.session_id === "string"
+          ? context.session_id
+          : undefined;
+  const currentPageText = typeof currentObservation.pageText === "string" ? currentObservation.pageText : "";
+  const currentVisibleTextBlocks = Array.isArray(currentObservation.visibleTextBlocks)
+    ? currentObservation.visibleTextBlocks.map((value) => String(value))
+    : [];
 
   if (selectedTools.includes("search_outlook_mail")) {
     return buildFinishOutput(`Mail search completed for keyword ${String(context.keyword ?? "").trim() || "query"}.`);
@@ -335,77 +348,18 @@ function planLoopContinuation(
     return buildFinishOutput("Mail send completed.");
   }
 
-  if ((typeof context.system_id === "string" || systemId === "naver_search") && !selectedTools.includes("open_system")) {
+  if (typeof context.system_id === "string" && !selectedTools.includes("open_system")) {
     return buildOutput("Open target system", "open_system", {
       system_id: systemId
     });
   }
 
-  if (systemId === "naver_stock" && selectedTools.includes("open_system") && !selectedTools.includes("extract_web_result")) {
-    return buildOutput("Read stock result from current page", "extract_web_result", {
-      system_id: systemId,
-      goal: instruction,
-      query: ""
-    });
-  }
-
-  if (interactiveElements.length > 0 && Object.keys(fieldValues).length > 0 && !selectedTools.includes("fill_web_form")) {
+  const missingFieldValues = collectMissingFieldValues(interactiveElements, fieldValues);
+  if (missingFieldValues && Object.keys(missingFieldValues).length > 0) {
     return buildOutput("Fill target form", "fill_web_form", {
       system_id: systemId,
-      field_values: fieldValues
-    });
-  }
-
-  if (
-    selectedTools.includes("fill_web_form") &&
-    !selectedTools.includes("click_web_element") &&
-    systemId === "naver_search"
-  ) {
-    return buildOutput("Click search button", "click_web_element", {
-      system_id: systemId,
-      target_key: inferClickTarget(systemId, instruction, context)
-    });
-  }
-
-  if (
-    selectedTools.includes("fill_web_form") &&
-    !selectedTools.includes("submit_web_form") &&
-    !selectedTools.includes("click_web_element") &&
-    includesAny(normalizedInstruction, ["submit", "제출", "register", "등록", "save", "저장"])
-  ) {
-    return buildOutput("Submit target form", "submit_web_form", {
-      system_id: systemId,
-      expected_button: typeof context.expected_button === "string" ? context.expected_button : inferExpectedButton(systemId)
-    });
-  }
-
-  if (selectedTools.includes("click_web_element") && !selectedTools.includes("follow_web_navigation")) {
-    return buildOutput("Follow the navigation caused by the click", "follow_web_navigation", {
-      system_id: systemId,
-      session_id:
-        typeof currentObservation.sessionId === "string"
-          ? currentObservation.sessionId
-          : typeof lastToolResult.session_id === "string"
-            ? lastToolResult.session_id
-            : typeof context.session_id === "string"
-              ? context.session_id
-              : undefined
-    });
-  }
-
-  if ((selectedTools.includes("submit_web_form") || selectedTools.includes("follow_web_navigation")) && !selectedTools.includes("extract_web_result")) {
-    return buildOutput("Read result from the updated page", "extract_web_result", {
-      system_id: systemId,
-      session_id:
-        typeof currentObservation.sessionId === "string"
-          ? currentObservation.sessionId
-          : typeof lastToolResult.session_id === "string"
-            ? lastToolResult.session_id
-            : typeof context.session_id === "string"
-              ? context.session_id
-              : undefined,
-      goal: instruction,
-      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+      session_id: currentSessionId,
+      field_values: missingFieldValues
     });
   }
 
@@ -416,6 +370,57 @@ function planLoopContinuation(
         ? lastToolResult.summary
         : "Web result extraction completed.";
     return buildFinishOutput(goalSatisfied ? summary : `${summary} Goal could not be fully confirmed.`);
+  }
+
+  if (lastSelectedTool === "follow_web_navigation") {
+    return buildOutput("Read result from the updated page", "extract_web_result", {
+      system_id: systemId,
+      session_id: currentSessionId,
+      goal: instruction,
+      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+    });
+  }
+
+  const clickableTarget = inferClickableTarget(interactiveElements, instruction, context);
+  if (clickableTarget && lastSelectedTool !== "click_web_element") {
+    return buildOutput("Click target page element", "click_web_element", {
+      system_id: systemId,
+      session_id: currentSessionId,
+      target_key: clickableTarget
+    });
+  }
+
+  if (
+    lastSelectedTool !== "submit_web_form" &&
+    includesAny(normalizedInstruction, ["submit", "제출", "register", "등록", "save", "저장"])
+  ) {
+    return buildOutput("Submit target form", "submit_web_form", {
+      system_id: systemId,
+      expected_button: typeof context.expected_button === "string" ? context.expected_button : inferExpectedButton(systemId)
+    });
+  }
+
+  if (
+    (lastSelectedTool === "click_web_element" || lastSelectedTool === "submit_web_form") &&
+    currentSessionId &&
+    selectedTools[selectedTools.length - 1] !== "follow_web_navigation"
+  ) {
+    return buildOutput("Follow the navigation caused by the click", "follow_web_navigation", {
+      system_id: systemId,
+      session_id: currentSessionId
+    });
+  }
+
+  if (
+    !selectedTools.includes("extract_web_result") &&
+    (currentPageText.length > 0 || currentVisibleTextBlocks.length > 0)
+  ) {
+    return buildOutput("Read result from the updated page", "extract_web_result", {
+      system_id: systemId,
+      session_id: currentSessionId,
+      goal: instruction,
+      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+    });
   }
 
   if (selectedTools.includes("open_system") && interactiveElements.length > 0 && Object.keys(fieldValues).length === 0) {
@@ -461,9 +466,6 @@ function inferClickTarget(systemId: string, instruction: string, context: Record
   if (typeof context.target_key === "string" && context.target_key.trim().length > 0) {
     return context.target_key;
   }
-  if (systemId === "naver_search") {
-    return "search";
-  }
   if (includesAny(instruction, ["send", "전송"])) {
     return "send";
   }
@@ -471,6 +473,92 @@ function inferClickTarget(systemId: string, instruction: string, context: Record
     return "search";
   }
   return "submit";
+}
+
+function collectMissingFieldValues(
+  interactiveElements: Record<string, unknown>[],
+  desiredFieldValues: Record<string, unknown>
+): Record<string, unknown> | null {
+  if (Object.keys(desiredFieldValues).length === 0) {
+    return null;
+  }
+
+  const missing: Record<string, unknown> = {};
+  for (const [key, desiredValue] of Object.entries(desiredFieldValues)) {
+    const matched = interactiveElements.find((element) => {
+      const elementKey = typeof element.key === "string" ? normalize(element.key) : "";
+      const elementLabel = typeof element.label === "string" ? normalize(element.label) : "";
+      const normalizedKey = normalize(key);
+      return elementKey === normalizedKey || elementLabel === normalizedKey;
+    });
+    if (!matched) {
+      continue;
+    }
+
+    const currentValue = typeof matched.value === "string" ? matched.value.trim() : "";
+    if (String(desiredValue).trim() !== currentValue) {
+      missing[key] = desiredValue;
+    }
+  }
+
+  return Object.keys(missing).length > 0 ? missing : null;
+}
+
+function inferClickableTarget(
+  interactiveElements: Record<string, unknown>[],
+  instruction: string,
+  context: Record<string, unknown>
+): string | null {
+  if (typeof context.target_key === "string" && context.target_key.trim().length > 0) {
+    return context.target_key;
+  }
+
+  const clickableElements = interactiveElements.filter((element) => {
+    const type = typeof element.type === "string" ? element.type : "";
+    const action = typeof element.action === "string" ? element.action : "";
+    return type === "button" || type === "link" || action === "click";
+  });
+  if (clickableElements.length === 0) {
+    return null;
+  }
+
+  const normalizedInstruction = normalize(instruction);
+  const preferredTokens = extractInstructionTokens(normalizedInstruction);
+  const scored = clickableElements
+    .map((element) => {
+      const key = typeof element.key === "string" ? element.key : "";
+      const label = typeof element.label === "string" ? element.label : "";
+      const haystack = `${normalize(key)} ${normalize(label)}`.trim();
+      const score = preferredTokens.reduce((total, token) => (haystack.includes(token) ? total + 1 : total), 0);
+      return {
+        key,
+        score,
+        label: normalize(label)
+      };
+    })
+    .sort((left, right) => right.score - left.score);
+
+  if (scored[0]?.score > 0) {
+    return scored[0].key;
+  }
+
+  const sensibleDefault = scored.find((element) =>
+    ["search", "submit", "send", "next", "open", "검색", "조회", "확인", "등록", "저장", "전송"].some((token) =>
+      element.label.includes(token) || normalize(element.key).includes(token)
+    )
+  );
+  return sensibleDefault?.key ?? null;
+}
+
+function extractInstructionTokens(normalizedInstruction: string): string[] {
+  return Array.from(
+    new Set(
+      normalizedInstruction
+        .split(/[\s,./:_-]+/)
+        .map((token) => token.trim())
+        .filter((token) => token.length >= 2)
+    )
+  );
 }
 
 function shouldFallbackToHeuristic(error: unknown): boolean {

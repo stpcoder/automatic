@@ -72,21 +72,48 @@
   }
 
   function getPageText() {
-    const raw = document.body?.innerText ?? "";
-    return raw.replace(/\s+/g, " ").trim().slice(0, 4000);
+    return collectVisibleTextBlocks().join(" ").slice(0, 4000);
+  }
+
+  function isVisibleElement(element) {
+    const style = window.getComputedStyle(element);
+    const rect = element.getBoundingClientRect();
+    return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
+  }
+
+  function collectVisibleTextBlocks() {
+    const candidates = Array.from(
+      document.querySelectorAll("h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,[role='button'],[role='link']")
+    )
+      .filter((element) => isVisibleElement(element))
+      .map((element) => String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim())
+      .filter((text) => text.length >= 2);
+
+    const unique = [];
+    const seen = new Set();
+    for (const text of candidates) {
+      const normalized = normalize(text);
+      if (!normalized || seen.has(normalized)) {
+        continue;
+      }
+      seen.add(normalized);
+      unique.push(text);
+      if (unique.length >= 40) {
+        break;
+      }
+    }
+    return unique;
   }
 
   function buildObservation() {
-    const controls = Array.from(document.querySelectorAll("input, textarea, select, button"))
-      .filter((element) => {
-        const style = window.getComputedStyle(element);
-        const rect = element.getBoundingClientRect();
-        return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
-      })
+    const controls = Array.from(document.querySelectorAll("input, textarea, select, button, a[href], [role='button'], [role='link']"))
+      .filter((element) => isVisibleElement(element))
       .map((element, index) => {
         const tagName = element.tagName.toLowerCase();
         const type =
-          tagName === "button" || element.type === "submit" || element.type === "button"
+          tagName === "a"
+            ? "link"
+            : tagName === "button" || element.type === "submit" || element.type === "button"
             ? "button"
             : tagName === "select"
               ? "select"
@@ -97,14 +124,16 @@
           key: resolveSemanticKey(element),
           label: getLabelText(element) || element.innerText || element.textContent || "Field",
           value: "value" in element ? element.value || "" : "",
-          required: element.hasAttribute("required") || element.getAttribute("aria-required") === "true"
+          required: element.hasAttribute("required") || element.getAttribute("aria-required") === "true",
+          action: type === "input" ? "type" : type === "select" ? "select" : "click"
         };
       });
 
-    const pageText = getPageText();
+    const visibleTextBlocks = collectVisibleTextBlocks();
+    const pageText = visibleTextBlocks.join(" ");
     return {
       channel: "web",
-      summary: `${document.title} observed through chrome extension. ${pageText.slice(0, 200)}`,
+      summary: `${document.title} observed through chrome extension. ${visibleTextBlocks.slice(0, 5).join(" | ").slice(0, 240)}`,
       payload: {
         sessionId,
         parentSessionId,
@@ -113,6 +142,7 @@
         url: location.href,
         title: document.title,
         pageText,
+        visibleTextBlocks,
         interactiveElements: controls,
         finalActionButton: system?.final_action_button ?? "Submit"
       }
