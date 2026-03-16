@@ -214,7 +214,7 @@ export class LiveChromeDomAdapter implements WebAdapter {
 
   private async getBrowser(): Promise<Browser> {
     if (!this.browserPromise) {
-      this.browserPromise = chromium.connectOverCDP(this.cdpUrl);
+      this.browserPromise = this.connectBrowser();
     }
     return this.browserPromise;
   }
@@ -224,6 +224,45 @@ export class LiveChromeDomAdapter implements WebAdapter {
       this.contextPromise = this.getBrowser().then(async (browser) => browser.contexts()[0] ?? browser.newContext());
     }
     return this.contextPromise;
+  }
+
+  private async connectBrowser(): Promise<Browser> {
+    await this.assertCdpEndpoint();
+
+    try {
+      return await chromium.connectOverCDP(this.cdpUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to connect to Chrome DevTools at ${this.cdpUrl}. ${message}`);
+    }
+  }
+
+  private async assertCdpEndpoint(): Promise<void> {
+    const versionUrl = `${this.cdpUrl.replace(/\/$/, "")}/json/version`;
+    let response: Response;
+    try {
+      response = await fetch(versionUrl);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Chrome DevTools endpoint is not reachable at ${versionUrl}. ${message}`);
+    }
+
+    if (!response.ok) {
+      throw new Error(`Chrome DevTools endpoint responded with HTTP ${response.status} at ${versionUrl}.`);
+    }
+
+    let payload: unknown;
+    try {
+      payload = await response.json();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Chrome DevTools endpoint returned invalid JSON at ${versionUrl}. ${message}`);
+    }
+
+    const record = typeof payload === "object" && payload !== null ? (payload as Record<string, unknown>) : {};
+    if (typeof record.webSocketDebuggerUrl !== "string" || record.webSocketDebuggerUrl.length === 0) {
+      throw new Error(`Chrome DevTools endpoint at ${versionUrl} did not expose webSocketDebuggerUrl.`);
+    }
   }
 
   private async getOrCreateSession(systemId: string): Promise<LiveChromeSession> {
