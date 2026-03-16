@@ -18,6 +18,76 @@ function Set-AgentEnvironment {
   return $RepoRoot
 }
 
+function ConvertTo-AgentHashtable {
+  param(
+    [Parameter(Mandatory = $true)]
+    $InputObject
+  )
+
+  if ($null -eq $InputObject) {
+    return $null
+  }
+
+  if ($InputObject -is [System.Collections.IDictionary]) {
+    $result = @{}
+    foreach ($key in $InputObject.Keys) {
+      $result[$key] = ConvertTo-AgentHashtable -InputObject $InputObject[$key]
+    }
+    return $result
+  }
+
+  if ($InputObject -is [System.Collections.IEnumerable] -and $InputObject -isnot [string]) {
+    $result = @()
+    foreach ($item in $InputObject) {
+      $result += ,(ConvertTo-AgentHashtable -InputObject $item)
+    }
+    return $result
+  }
+
+  if ($InputObject.PSObject -and $InputObject.PSObject.Properties.Count -gt 0 -and $InputObject -isnot [string]) {
+    $result = @{}
+    foreach ($property in $InputObject.PSObject.Properties) {
+      $result[$property.Name] = ConvertTo-AgentHashtable -InputObject $property.Value
+    }
+    return $result
+  }
+
+  return $InputObject
+}
+
+function ConvertFrom-AgentJson {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Json
+  )
+
+  $parsed = $Json | ConvertFrom-Json
+  return ConvertTo-AgentHashtable -InputObject $parsed
+}
+
+function Get-AgentUrl {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Path
+  )
+
+  $base = $env:ORCHESTRATOR_BASE_URL.TrimEnd("/")
+  if ($Path.StartsWith("/")) {
+    return "${base}${Path}"
+  }
+  return "${base}/${Path}"
+}
+
+function Invoke-AgentNpm {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string[]]$Arguments
+  )
+
+  $npmCommand = if (Get-Command npm.cmd -ErrorAction SilentlyContinue) { "npm.cmd" } else { "npm" }
+  & $npmCommand @Arguments
+}
+
 function Invoke-AgentApi {
   param(
     [Parameter(Mandatory = $true)]
@@ -32,7 +102,7 @@ function Invoke-AgentApi {
       return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json" -Body ($Body | ConvertTo-Json -Depth 20)
     }
     catch {
-      throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=$env:ORCHESTRATOR_BASE_URL. Original error: $($_.Exception.Message)"
+      throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=${env:ORCHESTRATOR_BASE_URL}. Original error: $($_.Exception.Message)"
     }
   }
 
@@ -40,6 +110,6 @@ function Invoke-AgentApi {
     return Invoke-RestMethod -Method $Method -Uri $Uri
   }
   catch {
-    throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=$env:ORCHESTRATOR_BASE_URL. Original error: $($_.Exception.Message)"
+    throw "Cannot connect to agent server at $Uri. Start the server with 'npm run win:start-all' or verify ORCHESTRATOR_BASE_URL=${env:ORCHESTRATOR_BASE_URL}. Original error: $($_.Exception.Message)"
   }
 }

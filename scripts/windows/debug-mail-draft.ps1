@@ -8,9 +8,9 @@ param(
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-$variables = $VariablesJson | ConvertFrom-Json -AsHashtable
+$variables = ConvertFrom-AgentJson -Json $VariablesJson
 
-Invoke-AgentApi -Method "POST" -Uri "$env:ORCHESTRATOR_BASE_URL/debug/mail/draft" -Body @{
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/draft") -Body @{
   template_id = $TemplateId
   to = @($To)
   cc = @($Cc)

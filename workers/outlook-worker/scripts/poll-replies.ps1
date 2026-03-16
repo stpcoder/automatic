@@ -3,7 +3,8 @@ param(
   [string]$PayloadJson
 )
 
-$payload = $PayloadJson | ConvertFrom-Json -AsHashtable
+. (Join-Path $PSScriptRoot "..\..\..\scripts\windows\common.ps1")
+$payload = ConvertFrom-AgentJson -Json $PayloadJson
 $watchDir = if ($payload.watch_directory) { [string]$payload.watch_directory } else { Join-Path (Join-Path $env:APPDATA "skh-agent") "outlook-watches" }
 New-Item -ItemType Directory -Path $watchDir -Force | Out-Null
 
@@ -30,7 +31,7 @@ function Get-FieldValue {
 }
 
 Get-ChildItem -Path $watchDir -Filter "*.json" | ForEach-Object {
-  $watch = Get-Content $_.FullName -Raw | ConvertFrom-Json -AsHashtable
+  $watch = ConvertFrom-AgentJson -Json (Get-Content $_.FullName -Raw)
   if ($watch.completed -eq $true) {
     return
   }

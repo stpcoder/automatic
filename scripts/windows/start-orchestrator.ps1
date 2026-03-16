@@ -4,4 +4,4 @@ param()
 $repoRoot = Set-AgentEnvironment
 
 Set-Location $repoRoot
-npm run dev
+Invoke-AgentNpm -Arguments @("run", "dev")

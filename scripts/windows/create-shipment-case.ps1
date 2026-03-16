@@ -25,4 +25,4 @@ $body = @{
   }
 }
 
-Invoke-AgentApi -Method "POST" -Uri "$env:ORCHESTRATOR_BASE_URL/cases" -Body $body | ConvertTo-Json -Depth 20
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/cases") -Body $body | ConvertTo-Json -Depth 20

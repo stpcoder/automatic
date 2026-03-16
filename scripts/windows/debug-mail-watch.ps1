@@ -9,7 +9,7 @@ param(
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-Invoke-AgentApi -Method "POST" -Uri "$env:ORCHESTRATOR_BASE_URL/debug/mail/watch" -Body @{
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/watch") -Body @{
   case_id = $CaseId
   conversation_id = $ConversationId
   expected_from = @($ExpectedFrom)

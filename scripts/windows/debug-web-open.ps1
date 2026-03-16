@@ -14,4 +14,4 @@ if ($PageId) {
   $body.page_id = $PageId
 }
 
-Invoke-AgentApi -Method "POST" -Uri "$env:ORCHESTRATOR_BASE_URL/debug/web/open" -Body $body | ConvertTo-Json -Depth 20
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/open") -Body $body | ConvertTo-Json -Depth 20

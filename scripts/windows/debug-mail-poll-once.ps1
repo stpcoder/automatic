@@ -10,4 +10,4 @@ if ($WatchDirectory) {
   $body.watch_directory = $WatchDirectory
 }
 
-Invoke-AgentApi -Method "POST" -Uri "$env:ORCHESTRATOR_BASE_URL/debug/mail/poll-once" -Body $body | ConvertTo-Json -Depth 20
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/poll-once") -Body $body | ConvertTo-Json -Depth 20

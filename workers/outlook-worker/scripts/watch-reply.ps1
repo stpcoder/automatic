@@ -3,7 +3,8 @@ param(
   [string]$PayloadJson
 )
 
-$payload = $PayloadJson | ConvertFrom-Json -AsHashtable
+. (Join-Path $PSScriptRoot "..\..\..\scripts\windows\common.ps1")
+$payload = ConvertFrom-AgentJson -Json $PayloadJson
 $baseDir = Join-Path $env:APPDATA "skh-agent"
 $watchDir = Join-Path $baseDir "outlook-watches"
 New-Item -ItemType Directory -Path $watchDir -Force | Out-Null

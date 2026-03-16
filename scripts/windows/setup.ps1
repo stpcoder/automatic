@@ -4,6 +4,6 @@ param()
 $repoRoot = Set-AgentEnvironment
 
 Set-Location $repoRoot
-npm install
-npm run check
-npm test
+Invoke-AgentNpm -Arguments @("install")
+Invoke-AgentNpm -Arguments @("run", "check")
+Invoke-AgentNpm -Arguments @("test")

@@ -11,4 +11,4 @@ Start-Sleep -Seconds 2
 Start-Process powershell -ArgumentList "-NoExit", "-ExecutionPolicy", "Bypass", "-File", $pollerScript
 
 Write-Host "Started orchestrator and poller in separate PowerShell windows."
-Write-Host "Approval UI: $env:ORCHESTRATOR_BASE_URL/ui/approvals"
+Write-Host "Approval UI: $(Get-AgentUrl '/ui/approvals')"

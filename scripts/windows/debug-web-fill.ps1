@@ -9,13 +9,13 @@ Set-AgentEnvironment | Out-Null
 
 $fieldValues = @{}
 if ($FieldsFile) {
-  $fieldValues = Get-Content -Path $FieldsFile -Raw | ConvertFrom-Json -AsHashtable
+  $fieldValues = ConvertFrom-AgentJson -Json (Get-Content -Path $FieldsFile -Raw)
 }
 elseif ($FieldsJson) {
-  $fieldValues = $FieldsJson | ConvertFrom-Json -AsHashtable
+  $fieldValues = ConvertFrom-AgentJson -Json $FieldsJson
 }
 
-Invoke-AgentApi -Method "POST" -Uri "$env:ORCHESTRATOR_BASE_URL/debug/web/fill" -Body @{
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/fill") -Body @{
   system_id = $SystemId
   field_values = $fieldValues
 } | ConvertTo-Json -Depth 20

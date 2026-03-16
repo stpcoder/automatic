@@ -3,7 +3,8 @@ param(
   [string]$PayloadJson
 )
 
-$payload = $PayloadJson | ConvertFrom-Json -AsHashtable
+. (Join-Path $PSScriptRoot "..\..\..\scripts\windows\common.ps1")
+$payload = ConvertFrom-AgentJson -Json $PayloadJson
 $outlook = New-Object -ComObject Outlook.Application
 $mail = $outlook.CreateItem(0)
 
