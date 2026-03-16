@@ -10,12 +10,22 @@ function powershellBinary(): string {
 
 async function runScript(scriptName: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
   const scriptPath = path.resolve(process.cwd(), "workers", "outlook-worker", "scripts", scriptName);
-  const { stdout } = await execFileAsync(
-    powershellBinary(),
-    ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-PayloadJson", JSON.stringify(payload)],
-    { maxBuffer: 1024 * 1024 }
-  );
-  return JSON.parse(stdout.trim() || "{}") as Record<string, unknown>;
+  try {
+    const { stdout } = await execFileAsync(
+      powershellBinary(),
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-File", scriptPath, "-PayloadJson", JSON.stringify(payload)],
+      { maxBuffer: 1024 * 1024 }
+    );
+    return JSON.parse(stdout.trim() || "{}") as Record<string, unknown>;
+  } catch (error) {
+    const details =
+      typeof error === "object" && error !== null
+        ? [Reflect.get(error, "message"), Reflect.get(error, "stderr"), Reflect.get(error, "stdout")]
+            .filter((value) => typeof value === "string" && value.trim().length > 0)
+            .join("\n")
+        : String(error);
+    throw new Error(`Outlook script ${scriptName} failed.\n${details}`);
+  }
 }
 
 export class OutlookComAdapter {

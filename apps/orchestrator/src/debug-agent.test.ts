@@ -6,9 +6,14 @@ import type { PlannerClient, PlannerRequest } from "../../../packages/contracts/
 import { buildDebugPlannerRequest, createFallbackDebugPlanner, createHeuristicDebugPlanner } from "./debug-agent.js";
 
 test("fallback debug planner uses heuristic planner when llm returns non-json text", async () => {
-  const failingPlanner: PlannerClient = {
+  const failingPlanner: PlannerClient & { getTrace(): Record<string, unknown> | undefined } = {
     async plan(): Promise<never> {
       throw new Error("Unable to parse JSON from legacy LLM response");
+    },
+    getTrace(): Record<string, unknown> | undefined {
+      return {
+        source: "failing_stub"
+      };
     }
   };
 

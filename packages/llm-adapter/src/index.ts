@@ -12,6 +12,16 @@ export interface LegacyChatCompletionConfig {
   timeoutMs?: number;
 }
 
+export interface PlannerDebugTrace {
+  client: "legacy_openai_compatible" | "ai_sdk_openai_compatible";
+  model: string;
+  request_messages?: unknown;
+  request_tools?: unknown;
+  raw_response?: unknown;
+  raw_text?: string;
+  tool_calls?: unknown;
+}
+
 interface LegacyChatCompletionResponse {
   choices?: Array<{
     message?: {
@@ -27,6 +37,8 @@ interface LegacyChatCompletionResponse {
 }
 
 export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
+  private lastTrace: PlannerDebugTrace | undefined;
+
   constructor(private readonly config: LegacyChatCompletionConfig) {}
 
   async plan(request: PlannerRequest): Promise<PlannerOutput> {
@@ -61,6 +73,13 @@ export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
     }
 
     const payload = (await response.json()) as LegacyChatCompletionResponse;
+    this.lastTrace = {
+      client: "legacy_openai_compatible",
+      model: request.model ?? this.config.model,
+      request_messages: request.messages,
+      request_tools: request.tools,
+      raw_response: payload
+    };
     const choice = payload.choices?.[0]?.message;
     if (!choice) {
       throw new Error("Legacy planner returned no choices");
@@ -87,9 +106,19 @@ export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
 
     return plannerOutputSchema.parse(parseJsonSafely(content));
   }
+
+  getLastTrace(): PlannerDebugTrace | undefined {
+    return this.lastTrace;
+  }
+
+  getTrace(): PlannerDebugTrace | undefined {
+    return this.lastTrace;
+  }
 }
 
 export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
+  private lastTrace: PlannerDebugTrace | undefined;
+
   constructor(private readonly config: LegacyChatCompletionConfig) {}
 
   async plan(request: PlannerRequest): Promise<PlannerOutput> {
@@ -120,6 +149,14 @@ export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
       this.config.timeoutMs ?? 20_000,
       `AI SDK planner timed out after ${this.config.timeoutMs ?? 20_000}ms`
     );
+    this.lastTrace = {
+      client: "ai_sdk_openai_compatible",
+      model: request.model ?? this.config.model,
+      request_messages: request.messages,
+      request_tools: request.tools,
+      raw_text: result.text,
+      tool_calls: result.toolCalls
+    };
 
     const toolCall = result.toolCalls[0];
     if (toolCall?.toolName) {
@@ -140,6 +177,14 @@ export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
     }
 
     return plannerOutputSchema.parse(parseJsonSafely(result.text));
+  }
+
+  getLastTrace(): PlannerDebugTrace | undefined {
+    return this.lastTrace;
+  }
+
+  getTrace(): PlannerDebugTrace | undefined {
+    return this.lastTrace;
   }
 }
 

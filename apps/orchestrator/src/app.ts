@@ -189,6 +189,56 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const body = request.body as { instruction?: string; context?: Record<string, unknown> };
     const instruction = typeof body.instruction === "string" ? body.instruction : "";
     const context = typeof body.context === "object" && body.context !== null ? body.context : {};
+    const plannerRequest = buildDebugPlannerRequest(instruction, context, [
+      {
+        name: "open_system",
+        description: "Open a known web system and observe it.",
+        input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
+      },
+      {
+        name: "fill_web_form",
+        description: "Fill known fields on the active web system.",
+        input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
+      },
+      {
+        name: "preview_web_submission",
+        description: "Preview the current web submission state.",
+        input_schema: { system_id: { type: "string" } }
+      },
+      {
+        name: "submit_web_form",
+        description: "Click the final submit button on the active web system.",
+        input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
+      },
+      {
+        name: "draft_outlook_mail",
+        description: "Create an Outlook mail draft.",
+        input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
+      },
+      {
+        name: "send_outlook_mail",
+        description: "Send a drafted Outlook mail.",
+        input_schema: { draft_id: { type: "string" } }
+      },
+      {
+        name: "watch_email_reply",
+        description: "Watch for a matching reply in Outlook.",
+        input_schema: {
+          case_id: { type: "string" },
+          conversation_id: { type: "string" },
+          expected_from: { type: "array" },
+          required_fields: { type: "array" }
+        }
+      },
+      {
+        name: "search_outlook_mail",
+        description: "Search Outlook mail by keyword.",
+        input_schema: {
+          keyword: { type: "string" },
+          max_results: { type: "number" }
+        }
+      }
+    ]);
     const startedAt = Date.now();
     const timing = {
       total_ms: 0,
@@ -197,58 +247,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     };
     try {
       const plannerStartedAt = Date.now();
-      const plannerOutput = await debugPlanner.plan(
-        buildDebugPlannerRequest(instruction, context, [
-          {
-            name: "open_system",
-            description: "Open a known web system and observe it.",
-            input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
-          },
-          {
-            name: "fill_web_form",
-            description: "Fill known fields on the active web system.",
-            input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
-          },
-          {
-            name: "preview_web_submission",
-            description: "Preview the current web submission state.",
-            input_schema: { system_id: { type: "string" } }
-          },
-          {
-            name: "submit_web_form",
-            description: "Click the final submit button on the active web system.",
-            input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
-          },
-          {
-            name: "draft_outlook_mail",
-            description: "Create an Outlook mail draft.",
-            input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
-          },
-          {
-            name: "send_outlook_mail",
-            description: "Send a drafted Outlook mail.",
-            input_schema: { draft_id: { type: "string" } }
-          },
-          {
-            name: "watch_email_reply",
-            description: "Watch for a matching reply in Outlook.",
-            input_schema: {
-              case_id: { type: "string" },
-              conversation_id: { type: "string" },
-              expected_from: { type: "array" },
-              required_fields: { type: "array" }
-            }
-          },
-          {
-            name: "search_outlook_mail",
-            description: "Search Outlook mail by keyword.",
-            input_schema: {
-              keyword: { type: "string" },
-              max_results: { type: "number" }
-            }
-          }
-        ])
-      );
+      const plannerOutput = await debugPlanner.plan(plannerRequest);
       timing.planner_ms = Date.now() - plannerStartedAt;
 
       const toolStartedAt = Date.now();
@@ -259,19 +258,37 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       timing.tool_ms = Date.now() - toolStartedAt;
       timing.total_ms = Date.now() - startedAt;
 
-      return {
-        ok: true,
+      const debugTrace = {
+        planner_request: plannerRequest,
+        planner_trace: debugPlanner.getTrace(),
         planner_output: plannerOutput,
         tool_result: toolResult,
         timing
       };
+      console.log("[debug-agent-run]", JSON.stringify(debugTrace, null, 2));
+
+      return {
+        ok: true,
+        planner_output: plannerOutput,
+        tool_result: toolResult,
+        timing,
+        debug_trace: debugTrace
+      };
     } catch (error) {
       timing.total_ms = Date.now() - startedAt;
+      const debugTrace = {
+        planner_request: plannerRequest,
+        planner_trace: debugPlanner.getTrace(),
+        error_message: error instanceof Error ? error.message : String(error),
+        timing
+      };
+      console.error("[debug-agent-run]", JSON.stringify(debugTrace, null, 2));
       return {
         ok: false,
         error_stage: "debug_agent_run",
         error_message: error instanceof Error ? error.message : String(error),
         timing,
+        debug_trace: debugTrace,
         llm: {
           enabled: Boolean(llmConfig.baseUrl && llmConfig.apiKey && llmConfig.model),
           source: llmConfig.source,

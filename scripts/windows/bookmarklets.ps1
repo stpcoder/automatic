@@ -3,7 +3,7 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-$systems = @("security_portal", "dhl", "cube")
+$systems = @("security_portal", "dhl", "cube", "naver_search")
 foreach ($systemId in $systems) {
   $result = Invoke-AgentApi -Method "GET" -Uri (Get-AgentUrl "/bridge/bookmarklet?systemId=$systemId")
   Write-Host ""

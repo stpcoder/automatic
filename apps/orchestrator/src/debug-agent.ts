@@ -12,7 +12,11 @@ export interface DebugAgentToolSpec {
   input_schema: Record<string, unknown>;
 }
 
-export function createDebugPlanner(): PlannerClient {
+export interface DebugPlannerClient extends PlannerClient {
+  getTrace(): unknown;
+}
+
+export function createDebugPlanner(): DebugPlannerClient {
   const config = resolveLlmConfig();
   const heuristicPlanner = createHeuristicDebugPlanner();
 
@@ -31,11 +35,11 @@ export function createDebugPlanner(): PlannerClient {
   return heuristicPlanner;
 }
 
-export function createHeuristicDebugPlanner(): PlannerClient {
+export function createHeuristicDebugPlanner(): DebugPlannerClient {
   return new HeuristicDebugPlanner();
 }
 
-export function createFallbackDebugPlanner(primary: PlannerClient, fallback: PlannerClient): PlannerClient {
+export function createFallbackDebugPlanner(primary: DebugPlannerClient, fallback: DebugPlannerClient): DebugPlannerClient {
   return new FallbackDebugPlanner(primary, fallback);
 }
 
@@ -56,7 +60,9 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
   };
 }
 
-class HeuristicDebugPlanner implements PlannerClient {
+class HeuristicDebugPlanner implements DebugPlannerClient {
+  private lastTrace: Record<string, unknown> | undefined;
+
   async plan(request: PlannerRequest): Promise<PlannerOutput> {
     const userContent = [...request.messages].reverse().find((message) => message.role === "user")?.content ?? "{}";
     const parsed = parseDebugPayload(userContent);
@@ -65,87 +71,126 @@ class HeuristicDebugPlanner implements PlannerClient {
     const systemId = inferSystemId(instruction, context);
 
     if (includesAny(instruction, ["open", "열어", "접속"])) {
-      return buildOutput("Open target system", "open_system", {
+      const output = buildOutput("Open target system", "open_system", {
         system_id: systemId
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["fill", "채워", "입력"])) {
-      return buildOutput("Fill target form", "fill_web_form", {
+      const output = buildOutput("Fill target form", "fill_web_form", {
         system_id: systemId,
         field_values: asRecord(context.field_values)
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["preview", "미리보기", "검토"])) {
-      return buildOutput("Preview target submission", "preview_web_submission", {
+      const output = buildOutput("Preview target submission", "preview_web_submission", {
         system_id: systemId
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["submit", "제출", "등록", "저장"])) {
-      return buildOutput("Submit target form", "submit_web_form", {
+      const output = buildOutput("Submit target form", "submit_web_form", {
         system_id: systemId,
         expected_button: typeof context.expected_button === "string" ? context.expected_button : inferExpectedButton(systemId)
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["draft mail", "mail draft", "메일 초안", "메일 작성", "email draft"])) {
-      return buildOutput("Draft mail", "draft_outlook_mail", {
+      const output = buildOutput("Draft mail", "draft_outlook_mail", {
         template_id: typeof context.template_id === "string" ? context.template_id : "debug_template",
         to: asStringArray(context.to),
         cc: asStringArray(context.cc),
         variables: asRecord(context.variables)
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["send mail", "메일 발송", "메일 보내", "email send"])) {
-      return buildOutput("Send drafted mail", "send_outlook_mail", {
+      const output = buildOutput("Send drafted mail", "send_outlook_mail", {
         draft_id: typeof context.draft_id === "string" ? context.draft_id : ""
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["watch reply", "reply watch", "회신 대기", "회신 감시"])) {
-      return buildOutput("Register reply watch", "watch_email_reply", {
+      const output = buildOutput("Register reply watch", "watch_email_reply", {
         case_id: typeof context.case_id === "string" ? context.case_id : "DEBUG-CASE",
         conversation_id: typeof context.conversation_id === "string" ? context.conversation_id : "",
         expected_from: asStringArray(context.expected_from),
         required_fields: asStringArray(context.required_fields)
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (includesAny(instruction, ["search mail", "mail search", "메일 검색", "메일 조회", "mail lookup", "조회"])) {
-      return buildOutput("Search Outlook mail", "search_outlook_mail", {
+      const output = buildOutput("Search Outlook mail", "search_outlook_mail", {
         keyword: typeof context.keyword === "string" ? context.keyword : parsed.instruction,
         max_results: typeof context.max_results === "number" ? context.max_results : 10
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     if (typeof context.system_id === "string" || includesAny(instruction, ["security", "보안", "dhl", "cube", "메신저", "chat"])) {
-      return buildOutput("Open target system by default", "open_system", {
+      const output = buildOutput("Open target system by default", "open_system", {
         system_id: systemId
       });
+      this.lastTrace = buildHeuristicTrace(request, output);
+      return output;
     }
 
     throw new Error("No actionable tool inferred from instruction");
   }
+
+  getTrace(): Record<string, unknown> | undefined {
+    return this.lastTrace;
+  }
 }
 
-class FallbackDebugPlanner implements PlannerClient {
+class FallbackDebugPlanner implements DebugPlannerClient {
+  private lastTrace: Record<string, unknown> | undefined;
+
   constructor(
-    private readonly primary: PlannerClient,
-    private readonly fallback: PlannerClient
+    private readonly primary: DebugPlannerClient,
+    private readonly fallback: DebugPlannerClient
   ) {}
 
   async plan(request: PlannerRequest): Promise<PlannerOutput> {
     try {
-      return await this.primary.plan(request);
+      const output = await this.primary.plan(request);
+      this.lastTrace = {
+        source: "primary",
+        trace: this.primary.getTrace()
+      };
+      return output;
     } catch (error) {
       if (!shouldFallbackToHeuristic(error)) {
         throw error;
       }
-      return this.fallback.plan(request);
+      const output = await this.fallback.plan(request);
+      this.lastTrace = {
+        source: "fallback",
+        primary_error: error instanceof Error ? error.message : String(error),
+        trace: this.fallback.getTrace()
+      };
+      return output;
     }
+  }
+
+  getTrace(): Record<string, unknown> | undefined {
+    return this.lastTrace;
   }
 }
 
@@ -231,4 +276,13 @@ function shouldFallbackToHeuristic(error: unknown): boolean {
     message.includes("status 5") ||
     message.includes("unauthorized")
   );
+}
+
+function buildHeuristicTrace(request: PlannerRequest, output: PlannerOutput): Record<string, unknown> {
+  return {
+    source: "heuristic",
+    request_messages: request.messages,
+    request_tools: request.tools,
+    planner_output: output
+  };
 }
