@@ -3,8 +3,9 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
+$queryText = Decode-Utf8Base64 "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
 $fieldValues = @{
-  query = "하이닉스 주가"
+  query = $queryText
 }
 
 $body = @{

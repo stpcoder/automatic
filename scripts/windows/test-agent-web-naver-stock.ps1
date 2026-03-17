@@ -8,8 +8,11 @@ $sessions = Assert-AgentSessionForSystem -SystemId "naver_search"
 Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 Write-Host "[skh-agent] running multi-step agent loop for naver_search..."
 
+$queryText = Decode-Utf8Base64 "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
+$instructionText = Decode-Utf8Base64 "64Sk7J2067KEIOyXtOyWtOyEnCDtlZjsnbTri4nsiqQg7KO86rCA65286rOgIOqygOyDie2VmOqzoCDsp4DquIgg7KO86rCAIOyVjOugpOykmA=="
+
 $fieldValues = @{
-  query = "하이닉스 주가"
+  query = $queryText
 }
 
 $context = @{
@@ -19,7 +22,7 @@ $context = @{
 }
 
 $body = @{
-  instruction = "네이버 열어서 하이닉스 주가라고 검색하고 지금 주가 알려줘"
+  instruction = $instructionText
   context = $context
   max_steps = 6
 }

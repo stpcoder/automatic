@@ -68,6 +68,15 @@ function ConvertFrom-AgentJson {
   return ConvertTo-AgentHashtable -InputObject $parsed
 }
 
+function Decode-Utf8Base64 {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Value
+  )
+
+  return [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Value))
+}
+
 function Get-AgentUrl {
   param(
     [Parameter(Mandatory = $true)]

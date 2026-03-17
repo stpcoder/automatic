@@ -8,12 +8,15 @@ $sessions = Assert-AgentSessionForSystem -SystemId "naver_stock"
 Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 Write-Host "[skh-agent] running direct stock extraction loop..."
 
-$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
-  instruction = "현재 페이지에서 하이닉스 현재 주가 알려줘"
-  context = @{
-    system_id = "naver_stock"
-  }
+$instructionText = Decode-Utf8Base64 "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
+$context = @{
+  system_id = "naver_stock"
+}
+$body = @{
+  instruction = $instructionText
+  context = $context
   max_steps = 4
 }
 
+$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body $body
 Format-AgentRunResult -Result $result

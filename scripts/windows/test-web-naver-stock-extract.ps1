@@ -3,9 +3,10 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
+$goalText = Decode-Utf8Base64 "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
 $body = @{
   system_id = "naver_stock"
-  goal = "현재 페이지에서 하이닉스 현재 주가 알려줘"
+  goal = $goalText
   query = ""
 }
 
