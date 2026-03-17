@@ -63,6 +63,14 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
 
   app.get("/bridge/sessions", async () => browserBridgeCoordinator.listSessions());
 
+  app.get("/bridge/extension/tasks", async () => browserBridgeCoordinator.pullPendingBrowserTasks());
+
+  app.post("/bridge/extension/tasks/:taskId/result", async (request) => {
+    const params = request.params as { taskId: string };
+    const body = request.body as { success: boolean; result?: Record<string, unknown>; error?: string };
+    return browserBridgeCoordinator.completeBrowserTask(params.taskId, body);
+  });
+
   app.get("/bridge/extension-bootstrap", async (request) => {
     const host = request.headers.host ?? defaultHost;
     return {
@@ -216,8 +224,16 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const plannerRequest = buildDebugPlannerRequest(instruction, context, [
       {
         name: "open_system",
-        description: "Open a known web system and observe it.",
-        input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
+        description: "Open or attach to a web page. You may specify target_url, url_contains, title_contains, or session_id.",
+        input_schema: {
+          system_id: { type: "string" },
+          page_id: { type: "string" },
+          target_url: { type: "string" },
+          url_contains: { type: "string" },
+          title_contains: { type: "string" },
+          session_id: { type: "string" },
+          open_if_missing: { type: "boolean" }
+        }
       },
       {
         name: "fill_web_form",
@@ -352,6 +368,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     const maxSteps = typeof body.max_steps === "number" && body.max_steps > 0 ? Math.min(body.max_steps, 12) : 6;
     const tools = buildDebugToolSpecs();
     let currentObservation: Record<string, unknown> | undefined;
+    let previousObservation: Record<string, unknown> | undefined;
     let lastToolResult: Record<string, unknown> | undefined;
     const steps: Array<Record<string, unknown>> = [];
     const startedAt = Date.now();
@@ -361,6 +378,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       const loopContext = {
         ...context,
         current_observation: currentObservation ?? null,
+        previous_observation: previousObservation ?? null,
         last_tool_result: lastToolResult ?? null,
         step_history: steps.map((step) => ({
           step: step.step,
@@ -419,6 +437,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
           typeof toolResult.output.observation === "object" && toolResult.output.observation !== null
             ? (toolResult.output.observation as Record<string, unknown>)
             : undefined;
+        previousObservation = currentObservation;
         currentObservation = observationCandidate ?? currentObservation;
         lastToolResult = toolResult.output;
 

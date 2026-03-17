@@ -309,6 +309,37 @@ function asStringArray(value: unknown): string[] {
   return Array.isArray(value) ? value.map((entry) => String(entry)) : [];
 }
 
+function observationMeaningfullyChanged(
+  previousObservation: Record<string, unknown>,
+  currentObservation: Record<string, unknown>
+): boolean {
+  if (Object.keys(previousObservation).length === 0 || Object.keys(currentObservation).length === 0) {
+    return false;
+  }
+
+  const previousUrl = typeof previousObservation.url === "string" ? previousObservation.url : "";
+  const currentUrl = typeof currentObservation.url === "string" ? currentObservation.url : "";
+  if (previousUrl && currentUrl && previousUrl !== currentUrl) {
+    return true;
+  }
+
+  const previousTitle = typeof previousObservation.title === "string" ? previousObservation.title : "";
+  const currentTitle = typeof currentObservation.title === "string" ? currentObservation.title : "";
+  if (previousTitle && currentTitle && previousTitle !== currentTitle) {
+    return true;
+  }
+
+  const previousSummary = typeof previousObservation.summary === "string" ? previousObservation.summary : "";
+  const currentSummary = typeof currentObservation.summary === "string" ? currentObservation.summary : "";
+  if (previousSummary && currentSummary && previousSummary !== currentSummary) {
+    return true;
+  }
+
+  const previousPageText = typeof previousObservation.pageText === "string" ? previousObservation.pageText : "";
+  const currentPageText = typeof currentObservation.pageText === "string" ? currentObservation.pageText : "";
+  return Boolean(previousPageText && currentPageText && previousPageText !== currentPageText);
+}
+
 function planLoopContinuation(
   instruction: string,
   context: Record<string, unknown>,
@@ -335,6 +366,7 @@ function planLoopContinuation(
   const currentVisibleTextBlocks = Array.isArray(currentObservation.visibleTextBlocks)
     ? currentObservation.visibleTextBlocks.map((value) => String(value))
     : [];
+  const previousObservation = asRecord(context.previous_observation);
 
   if (selectedTools.includes("search_outlook_mail")) {
     return buildFinishOutput(`Mail search completed for keyword ${String(context.keyword ?? "").trim() || "query"}.`);
@@ -373,6 +405,18 @@ function planLoopContinuation(
   }
 
   if (lastSelectedTool === "follow_web_navigation") {
+    return buildOutput("Read result from the updated page", "extract_web_result", {
+      system_id: systemId,
+      session_id: currentSessionId,
+      goal: instruction,
+      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+    });
+  }
+
+  if (
+    (lastSelectedTool === "click_web_element" || lastSelectedTool === "submit_web_form") &&
+    observationMeaningfullyChanged(previousObservation, currentObservation)
+  ) {
     return buildOutput("Read result from the updated page", "extract_web_result", {
       system_id: systemId,
       session_id: currentSessionId,
