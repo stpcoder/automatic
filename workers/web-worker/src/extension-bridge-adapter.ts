@@ -14,6 +14,7 @@ import type {
 
 export class ExtensionBridgeAdapter implements WebAdapter {
   readonly harnessName = "extension_bridge";
+  private readonly clickNavigationTimeoutMs = Number(process.env.BRIDGE_CLICK_NAVIGATION_TIMEOUT_MS ?? "1800");
 
   async openSystem(systemId: string, _pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {
     const resolvedSelection = selection ?? {};
@@ -93,11 +94,15 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     if (result.status === "failed") {
       throw new Error(result.error ?? `Extension bridge click failed for ${systemId}`);
     }
+    const observation =
+      sessionId
+        ? await this.observeAfterClick(systemId, sessionId)
+        : await this.observe(systemId, sessionId);
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
       targetHandle,
-      observation: await this.observe(systemId, sessionId)
+      observation
     };
   }
 
@@ -190,5 +195,19 @@ export class ExtensionBridgeAdapter implements WebAdapter {
       finalActionButton:
         typeof payload.finalActionButton === "string" ? payload.finalActionButton : definition.finalActionButton
     };
+  }
+
+  private async observeAfterClick(systemId: string, sessionId: string): Promise<PageObservation> {
+    try {
+      const followed = await browserBridgeCoordinator.waitForNavigation(sessionId, this.clickNavigationTimeoutMs);
+      return this.toPageObservation(
+        typeof followed.observation.payload.systemId === "string" ? String(followed.observation.payload.systemId) : systemId,
+        followed.observation,
+        followed.session.session_id,
+        followed.session.parent_session_id
+      );
+    } catch {
+      return this.observe(systemId, sessionId);
+    }
   }
 }
