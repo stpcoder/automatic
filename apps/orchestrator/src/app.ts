@@ -390,6 +390,8 @@ export async function createApp(
     let globalPlan: Record<string, unknown> | undefined;
     let currentStepPlan: Record<string, unknown> | undefined;
     let lastFailure: Record<string, unknown> | undefined;
+    let currentObservationSignature: string | undefined;
+    let stagnationCount = 0;
     const steps: Array<Record<string, unknown>> = [];
     const planHistory: Array<Record<string, unknown>> = [];
     const replanHistory: Array<Record<string, unknown>> = [];
@@ -401,10 +403,12 @@ export async function createApp(
         ...context,
         current_observation: currentObservation ?? null,
         previous_observation: previousObservation ?? null,
+        current_observation_signature: currentObservationSignature ?? null,
         last_tool_result: lastToolResult ?? null,
         global_plan: globalPlan ?? null,
         current_step_plan: currentStepPlan ?? null,
         last_failure: lastFailure ?? null,
+        stagnation_count: stagnationCount,
         replan_history: replanHistory,
         plan_history: planHistory,
         step_history: steps.map((step) => ({
@@ -505,9 +509,30 @@ export async function createApp(
           typeof toolResult.output.observation === "object" && toolResult.output.observation !== null
             ? (toolResult.output.observation as Record<string, unknown>)
             : undefined;
+        const previousSignature = currentObservationSignature;
         previousObservation = currentObservation;
         currentObservation = observationCandidate ?? currentObservation;
+        currentObservationSignature = currentObservation ? computeObservationSignature(currentObservation) : currentObservationSignature;
         lastToolResult = toolResult.output;
+
+        const observationChanged =
+          Boolean(currentObservationSignature) &&
+          Boolean(previousSignature) &&
+          currentObservationSignature !== previousSignature;
+        const navigationLikelyTool =
+          plannerOutput.next_action.tool === "open_system" ||
+          plannerOutput.next_action.tool === "click_web_element" ||
+          plannerOutput.next_action.tool === "submit_web_form";
+        const interactionTool =
+          navigationLikelyTool ||
+          plannerOutput.next_action.tool === "fill_web_form" ||
+          plannerOutput.next_action.tool === "scroll_web_page";
+
+        if (interactionTool && currentObservation && previousObservation) {
+          stagnationCount = observationChanged ? 0 : stagnationCount + 1;
+        } else if (observationChanged) {
+          stagnationCount = 0;
+        }
 
         steps.push({
           step: stepIndex,
@@ -518,7 +543,9 @@ export async function createApp(
           normalized_input: normalizedInput,
           tool_result: toolResult,
           success: toolResult.success,
-          timing: stepTiming
+          timing: stepTiming,
+          observation_changed: observationChanged,
+          stagnation_count: stagnationCount
         });
 
         if (!toolResult.success) {
@@ -527,6 +554,17 @@ export async function createApp(
             stage: "tool_execution",
             tool: plannerOutput.next_action.tool,
             message: String(toolResult.output.error ?? "Tool execution failed")
+          };
+          replanHistory.push(lastFailure);
+          continue;
+        }
+
+        if (navigationLikelyTool && currentObservation && previousObservation && !observationChanged) {
+          lastFailure = {
+            step: stepIndex,
+            stage: "stale_observation",
+            tool: plannerOutput.next_action.tool,
+            message: "The last navigation-like action did not produce a fresh visible page state. Re-evaluate the current page before acting again."
           };
           replanHistory.push(lastFailure);
           continue;
@@ -1081,4 +1119,13 @@ function decodeUtf8Base64(value: string): string {
   } catch {
     return value;
   }
+}
+
+function computeObservationSignature(observation: Record<string, unknown>): string {
+  const title = typeof observation.title === "string" ? observation.title : "";
+  const url = typeof observation.url === "string" ? observation.url : "";
+  const pageText = typeof observation.pageText === "string" ? observation.pageText.slice(0, 300) : "";
+  const summary = typeof observation.summary === "string" ? observation.summary.slice(0, 180) : "";
+  const domOutline = typeof observation.domOutline === "string" ? observation.domOutline.slice(0, 400) : "";
+  return [title, url, summary, pageText, domOutline].join("|");
 }

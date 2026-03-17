@@ -109,15 +109,7 @@ class JsonDebugPlanner implements DebugPlannerClient {
       .map((message) => `${message.role.toUpperCase()}:\n${message.content}`)
       .join("\n\n");
 
-    const result = await withTimeout(
-      generateText({
-        model: provider.chatModel(request.model ?? this.config.model),
-        system,
-        prompt
-      }),
-      this.config.timeoutMs,
-      `Debug planner timed out after ${this.config.timeoutMs}ms`
-    );
+    const result = await this.generatePlannerText(provider, request.model ?? this.config.model, system, prompt);
 
     this.lastTrace = {
       source: "llm_json_planner",
@@ -141,6 +133,45 @@ class JsonDebugPlanner implements DebugPlannerClient {
       };
       return plannerOutputSchema.parse(parsePlannerJsonText(repairedText));
     }
+  }
+
+  private async generatePlannerText(
+    provider: ReturnType<typeof createOpenAICompatible>,
+    modelName: string,
+    system: string | undefined,
+    prompt: string
+  ) {
+    const attempts: Array<{ attempt: number; raw_text: string }> = [];
+
+    for (let attempt = 1; attempt <= 2; attempt += 1) {
+      const attemptPrompt =
+        attempt === 1
+          ? prompt
+          : `${prompt}\n\nIMPORTANT: Your previous response was empty. Return exactly one valid JSON object and nothing else.`;
+      const result = await withTimeout(
+        generateText({
+          model: provider.chatModel(modelName),
+          system,
+          prompt: attemptPrompt
+        }),
+        this.config.timeoutMs,
+        `Debug planner timed out after ${this.config.timeoutMs}ms`
+      );
+      attempts.push({ attempt, raw_text: result.text ?? "" });
+      if (result.text && result.text.trim().length > 0) {
+        this.lastTrace = {
+          ...this.lastTrace,
+          attempts
+        };
+        return result;
+      }
+    }
+
+    this.lastTrace = {
+      ...this.lastTrace,
+      attempts
+    };
+    return { text: "" };
   }
 
   getTrace(): Record<string, unknown> | undefined {
