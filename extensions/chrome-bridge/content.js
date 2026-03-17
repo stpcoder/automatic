@@ -132,6 +132,10 @@
     return "unknown";
   }
 
+  function clampScore(value) {
+    return Math.max(0.05, Math.min(0.99, Math.round(value * 100) / 100));
+  }
+
   function isElementNearViewportCenter(element) {
     const rect = element.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -180,7 +184,134 @@
     return isMainContentContainer(element) || isElementNearViewportCenter(element);
   }
 
-  function collectVisibleTextBlocks() {
+  function extractNearbyText(element) {
+    const candidates = [
+      element.closest("form, section, article, li, tr, td, th, div, fieldset"),
+      element.parentElement
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      const text = String(candidate.innerText || candidate.textContent || "").replace(/\s+/g, " ").trim();
+      if (text && text.length >= 4 && !isUtilityText(text)) {
+        return text.slice(0, 180);
+      }
+    }
+    return "";
+  }
+
+  function inferInteractiveSemanticRole(element, type, label, nearbyText) {
+    const normalizedLabel = normalize(label);
+    const normalizedNearby = normalize(nearbyText);
+
+    if (type === "input" || type === "select") {
+      if (/search|검색|찾기|query/.test(normalizedLabel) || /search|검색/.test(normalizedNearby)) {
+        return "search_input";
+      }
+      return "form_field";
+    }
+
+    if (type === "link") {
+      if (/result|article|detail|상세|기사|바로가기|go to|read more/.test(normalizedLabel) || /검색 결과|result/.test(normalizedNearby)) {
+        return "result_link";
+      }
+      if (/next|more|자세히|더보기|open|열기/.test(normalizedLabel)) {
+        return "detail_link";
+      }
+      return "navigation_link";
+    }
+
+    if (/search|검색|submit|조회|확인|등록|apply|continue|next|send|open|go/.test(normalizedLabel)) {
+      return "primary_action";
+    }
+    if (/close|cancel|dismiss|back|취소|닫기|뒤로/.test(normalizedLabel)) {
+      return "secondary_action";
+    }
+    return "unknown";
+  }
+
+  function computeInteractiveImportance(element, type, label, nearbyText) {
+    let score = 0.45;
+    const normalizedLabel = normalize(label);
+    const normalizedNearby = normalize(nearbyText);
+    const region = inferRegion(element);
+
+    if (region === "main") {
+      score += 0.22;
+    }
+    if (isElementNearViewportCenter(element)) {
+      score += 0.1;
+    }
+    if (type === "input" || type === "select") {
+      score += 0.12;
+    }
+    if (type === "button") {
+      score += 0.08;
+    }
+    if (element.closest("form, [role='search'], [role='dialog'], article, section, main")) {
+      score += 0.08;
+    }
+    if (/search|검색|submit|조회|확인|등록|price|가격|주가|시세|article|뉴스|headline/.test(normalizedLabel)) {
+      score += 0.12;
+    }
+    if (/search|검색 결과|price|가격|주가|headline|뉴스|result|상품|article/.test(normalizedNearby)) {
+      score += 0.06;
+    }
+    if (isUtilityContainer(element) && !isMainContentContainer(element)) {
+      score -= 0.3;
+    }
+    return clampScore(score);
+  }
+
+  function inferBlockType(element, text) {
+    const normalized = normalize(text);
+    const tagName = element.tagName.toLowerCase();
+    if (/[0-9]{1,3}(?:,[0-9]{3})+\s*(krw|원|usd|eur|\$)/i.test(text)) {
+      return "price";
+    }
+    if (tagName === "h1" || tagName === "h2" || tagName === "h3") {
+      return "heading";
+    }
+    if (tagName === "li" || tagName === "a" || /기사|article|headline|검색 결과|result|상품|product/.test(normalized)) {
+      return "result_item";
+    }
+    if (tagName === "label" || /:/.test(text)) {
+      return "label_value";
+    }
+    if (tagName === "form" || element.closest("form, [role='search']")) {
+      return "form_area";
+    }
+    if (text.length <= 120) {
+      return "summary";
+    }
+    return "paragraph";
+  }
+
+  function computeBlockImportance(element, text, blockType) {
+    let score = 0.4;
+    const region = inferRegion(element);
+
+    if (region === "main") {
+      score += 0.22;
+    }
+    if (isElementNearViewportCenter(element)) {
+      score += 0.08;
+    }
+    if (blockType === "heading" || blockType === "price") {
+      score += 0.2;
+    }
+    if (blockType === "result_item" || blockType === "label_value") {
+      score += 0.12;
+    }
+    if (element.closest("article, main, section, form, [role='main'], [role='search']")) {
+      score += 0.08;
+    }
+    if (/검색|search|뉴스|headline|price|가격|주가|시세/.test(normalize(text))) {
+      score += 0.08;
+    }
+    return clampScore(score);
+  }
+
+  function collectSemanticBlocks() {
     const primarySelectors = "main h1, main h2, main h3, main h4, main h5, main p, main label, main button, main a, main th, main td, main li, main strong, main b, main [role='button'], main [role='link'], article h1, article h2, article h3, article p, article a, article li, form label, form button, form p, form [role='button'], [role='main'] h1, [role='main'] h2, [role='main'] p, [role='search'] label, [role='search'] button";
     const fallbackSelectors = "h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,[role='button'],[role='link']";
     const primaryCandidates = Array.from(document.querySelectorAll(primarySelectors));
@@ -191,22 +322,37 @@
         text: String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim()
       }))
       .filter(({ element, text }) => shouldIncludeTextElement(element, text))
-      .map(({ text }) => text);
+      .map(({ element, text }, index) => {
+        const blockType = inferBlockType(element, text);
+        return {
+          id: `block-${index + 1}`,
+          type: blockType,
+          text,
+          title: /^h[1-3]$/i.test(element.tagName) ? text : undefined,
+          region: inferRegion(element),
+          importance: computeBlockImportance(element, text, blockType),
+          relatedKeys: []
+        };
+      });
 
     const unique = [];
     const seen = new Set();
-    for (const text of candidates) {
-      const normalized = normalize(text);
+    for (const candidate of candidates) {
+      const normalized = normalize(candidate.text);
       if (!normalized || seen.has(normalized)) {
         continue;
       }
       seen.add(normalized);
-      unique.push(text);
+      unique.push(candidate);
       if (unique.length >= 40) {
         break;
       }
     }
-    return unique;
+    return unique.sort((left, right) => right.importance - left.importance);
+  }
+
+  function collectVisibleTextBlocks() {
+    return collectSemanticBlocks().map((block) => block.text);
   }
 
   function buildObservation() {
@@ -220,26 +366,37 @@
             : tagName === "button" || element.type === "submit" || element.type === "button"
             ? "button"
             : tagName === "select"
-              ? "select"
-              : "input";
+            ? "select"
+            : "input";
+        const label = getLabelText(element) || element.innerText || element.textContent || "Field";
+        const nearbyText = extractNearbyText(element);
         return {
           index,
           type,
           key: resolveSemanticKey(element),
-          label: getLabelText(element) || element.innerText || element.textContent || "Field",
+          label,
           value: "value" in element ? element.value || "" : "",
           required: element.hasAttribute("required") || element.getAttribute("aria-required") === "true",
           action: type === "input" ? "type" : type === "select" ? "select" : "click",
           href: element instanceof HTMLAnchorElement ? element.href : "",
-          region: inferRegion(element)
+          region: inferRegion(element),
+          semanticRole: inferInteractiveSemanticRole(element, type, label, nearbyText),
+          importance: computeInteractiveImportance(element, type, label, nearbyText),
+          nearbyText
         };
-      });
+      })
+      .sort((left, right) => (right.importance || 0) - (left.importance || 0));
 
-    const visibleTextBlocks = collectVisibleTextBlocks();
-    const pageText = visibleTextBlocks.join(" ");
+    const semanticBlocks = collectSemanticBlocks();
+    const visibleTextBlocks = semanticBlocks.map((block) => block.text);
+    const pageText = semanticBlocks.map((block) => block.text).join(" ").slice(0, 4000);
     return {
       channel: "web",
-      summary: `${document.title} observed through chrome extension. ${visibleTextBlocks.slice(0, 5).join(" | ").slice(0, 240)}`,
+      summary: `${document.title} observed through chrome extension. ${semanticBlocks
+        .slice(0, 5)
+        .map((block) => block.text)
+        .join(" | ")
+        .slice(0, 240)}`,
       payload: {
         sessionId,
         parentSessionId,
@@ -249,6 +406,7 @@
         title: document.title,
         pageText,
         visibleTextBlocks,
+        semanticBlocks,
         interactiveElements: controls,
         finalActionButton: system?.final_action_button ?? "Submit"
       }

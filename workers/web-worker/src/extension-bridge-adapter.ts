@@ -208,6 +208,9 @@ export class ExtensionBridgeAdapter implements WebAdapter {
       visibleTextBlocks: Array.isArray(payload.visibleTextBlocks)
         ? (payload.visibleTextBlocks as string[])
         : undefined,
+      semanticBlocks: Array.isArray(payload.semanticBlocks)
+        ? (payload.semanticBlocks as PageObservation["semanticBlocks"])
+        : undefined,
       interactiveElements: Array.isArray(payload.interactiveElements)
         ? (payload.interactiveElements as PageObservation["interactiveElements"])
         : [],

@@ -88,6 +88,8 @@ test("web worker fills, previews, and submits a form", async () => {
   const openOutput = getOutput(open);
   assert.equal(openOutput.harness, "page_agent_dom");
   assert.equal(openOutput.observation.finalActionButton, "등록");
+  assert.ok(Array.isArray(openOutput.observation.semanticBlocks));
+  assert.ok((openOutput.observation.semanticBlocks ?? []).length > 0);
 
   const fill = await worker.execute({
     request_id: "TR-1",
@@ -110,6 +112,7 @@ test("web worker fills, previews, and submits a form", async () => {
   assert.equal(fillOutput.system_id, "security_portal");
   assert.equal(fillOutput.harness, "page_agent_dom");
   assert.equal(fillOutput.observation.interactiveElements[0].value, "Kim");
+  assert.equal(typeof fillOutput.observation.interactiveElements[0].importance, "number");
 
   const preview = await worker.execute({
     request_id: "TR-2",

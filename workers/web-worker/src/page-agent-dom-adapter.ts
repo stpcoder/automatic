@@ -5,6 +5,7 @@ import type {
   HarnessPageDefinition,
   PageObservation,
   PreviewResult,
+  SemanticBlock,
   ScrollResult,
   SubmitResult,
   TypeTextResult,
@@ -190,6 +191,32 @@ export class PageAgentDomAdapter implements WebAdapter {
     parentSessionId?: string
   ): PageObservation {
     const pageText = this.buildPageText(page);
+    const visibleTextBlocks = splitVisibleTextBlocks(pageText);
+    const interactiveElements = page.interactiveElements.map((element) => ({
+      ...element,
+      region: element.region ?? "main",
+      importance:
+        typeof element.importance === "number"
+          ? element.importance
+          : element.type === "input" || element.type === "select"
+            ? 0.86
+            : element.type === "button"
+              ? 0.82
+              : 0.74,
+      semanticRole:
+        element.semanticRole ??
+        (element.type === "input" || element.type === "select"
+          ? /검색|search/i.test(element.label)
+            ? "search_input"
+            : "form_field"
+          : element.type === "button"
+            ? /검색|조회|submit|등록|open|next/i.test(element.label)
+              ? "primary_action"
+              : "secondary_action"
+            : element.type === "link"
+              ? "result_link"
+              : "unknown")
+    }));
     return {
       sessionId,
       parentSessionId,
@@ -199,8 +226,9 @@ export class PageAgentDomAdapter implements WebAdapter {
       title: page.title,
       summary: page.summary,
       pageText,
-      visibleTextBlocks: splitVisibleTextBlocks(pageText),
-      interactiveElements: page.interactiveElements,
+      visibleTextBlocks,
+      semanticBlocks: buildHarnessSemanticBlocks(page, visibleTextBlocks),
+      interactiveElements,
       finalActionButton: page.finalActionButton
     };
   }
@@ -311,6 +339,30 @@ function splitVisibleTextBlocks(pageText: string): string[] {
     .map((segment) => segment.trim())
     .filter(Boolean)
     .slice(0, 20);
+}
+
+function buildHarnessSemanticBlocks(page: HarnessPageDefinition, visibleTextBlocks: string[]): SemanticBlock[] {
+  const blocks: SemanticBlock[] = visibleTextBlocks.map((text, index) => ({
+    id: `harness-text-${index + 1}`,
+    type: index === 0 ? "heading" : index < 3 ? "summary" : "paragraph",
+    text,
+    title: index === 0 ? page.title : undefined,
+    region: "main" as const,
+    importance: Math.max(0.45, 0.95 - index * 0.08),
+    relatedKeys: []
+  }));
+
+  const controlBlocks: SemanticBlock[] = page.interactiveElements.slice(0, 6).map((element, index) => ({
+    id: `harness-control-${index + 1}`,
+    type: element.type === "link" ? "result_item" : "form_area",
+    text: `${element.label}${element.value ? `: ${element.value}` : ""}`,
+    title: element.label,
+    region: element.region ?? "main",
+    importance: typeof element.importance === "number" ? element.importance : element.type === "input" ? 0.86 : 0.78,
+    relatedKeys: [element.key]
+  }));
+
+  return [...blocks, ...controlBlocks].slice(0, 12);
 }
 
 function buildGenericSearchResultsPage(baseUrl: string, query: string): HarnessPageDefinition {

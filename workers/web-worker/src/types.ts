@@ -8,6 +8,27 @@ export interface InteractiveElement {
   action?: "type" | "click" | "select";
   href?: string;
   region?: "main" | "header" | "nav" | "footer" | "aside" | "unknown";
+  semanticRole?:
+    | "search_input"
+    | "form_field"
+    | "primary_action"
+    | "secondary_action"
+    | "result_link"
+    | "detail_link"
+    | "navigation_link"
+    | "unknown";
+  importance?: number;
+  nearbyText?: string;
+}
+
+export interface SemanticBlock {
+  id: string;
+  type: "heading" | "paragraph" | "result_item" | "price" | "summary" | "form_area" | "label_value";
+  text: string;
+  title?: string;
+  region?: "main" | "header" | "nav" | "footer" | "aside" | "unknown";
+  importance: number;
+  relatedKeys?: string[];
 }
 
 export interface PageObservation {
@@ -20,6 +41,7 @@ export interface PageObservation {
   summary: string;
   pageText?: string;
   visibleTextBlocks?: string[];
+  semanticBlocks?: SemanticBlock[];
   interactiveElements: InteractiveElement[];
   finalActionButton?: string;
 }

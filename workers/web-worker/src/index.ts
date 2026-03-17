@@ -329,13 +329,23 @@ function collectMatchedSnippets(pageText: string, terms: string[]): string[] {
 function parseGenericResult(
   goal: string,
   query: string,
-  observation: { title: string; pageText?: string; visibleTextBlocks?: string[]; interactiveElements: Array<{ type: string; label: string }> }
+  observation: {
+    title: string;
+    pageText?: string;
+    visibleTextBlocks?: string[];
+    semanticBlocks?: Array<{ type: string; text: string; title?: string; importance?: number }>;
+    interactiveElements: Array<{ type: string; label: string; importance?: number }>;
+  }
 ):
   | { kind: "price"; summary: string; value: { company: string; price: string; currency: string } }
   | { kind: "headline"; summary: string; value: { headline: string } }
   | { kind: "summary"; summary: string; value: { lines: string[] } }
   | undefined {
-  const pageText = [observation.title, observation.pageText ?? ""].join("\n").trim();
+  const semanticText = (observation.semanticBlocks ?? [])
+    .slice(0, 10)
+    .map((block) => block.text)
+    .join("\n");
+  const pageText = [observation.title, semanticText, observation.pageText ?? ""].join("\n").trim();
   const quoteLikeResult = parseQuoteLikeResult(goal, query, pageText);
   if (quoteLikeResult) {
     return {
@@ -354,7 +364,7 @@ function parseGenericResult(
     };
   }
 
-  const lines = summarizeVisibleBlocks(observation.visibleTextBlocks ?? []);
+  const lines = summarizeVisibleBlocks(observation.visibleTextBlocks ?? [], observation.semanticBlocks ?? []);
   if (lines.length > 0 && /요약|summary|설명|무엇을 할 수|핵심 내용|정리/i.test(goal)) {
     return {
       kind: "summary",
@@ -396,10 +406,26 @@ function parseQuoteLikeResult(goal: string, query: string, pageText: string): { 
 
 function parseHeadlineLikeResult(
   goal: string,
-  observation: { visibleTextBlocks?: string[]; interactiveElements: Array<{ type: string; label: string }> }
+  observation: {
+    visibleTextBlocks?: string[];
+    semanticBlocks?: Array<{ type: string; text: string; title?: string; importance?: number }>;
+    interactiveElements: Array<{ type: string; label: string; importance?: number }>;
+  }
 ): string | undefined {
   if (!/뉴스|headline|기사|article|title/i.test(goal)) {
     return undefined;
+  }
+
+  const semanticHeadline = (observation.semanticBlocks ?? [])
+    .filter((block) => block.type === "heading" || block.type === "result_item" || block.type === "summary")
+    .sort((left, right) => Number(right.importance ?? 0) - Number(left.importance ?? 0))
+    .map((block) => block.title ?? block.text)
+    .find((text) => {
+      const normalized = text.trim();
+      return normalized.length >= 8 && !/돌아가기|back|^news article\.?$|^product \/ quote detail\.?$/i.test(normalized);
+    });
+  if (semanticHeadline) {
+    return semanticHeadline;
   }
 
   const visibleHeadline = (observation.visibleTextBlocks ?? []).find((line) => {
@@ -412,6 +438,7 @@ function parseHeadlineLikeResult(
 
   const linkHeadline = observation.interactiveElements
     .filter((element) => element.type === "link")
+    .sort((left, right) => Number(right.importance ?? 0) - Number(left.importance ?? 0))
     .map((element) => element.label.trim())
     .find((label) => label.length >= 8 && !/돌아가기|back/i.test(label));
   if (linkHeadline) {
@@ -421,7 +448,18 @@ function parseHeadlineLikeResult(
   return undefined;
 }
 
-function summarizeVisibleBlocks(blocks: string[]): string[] {
+function summarizeVisibleBlocks(
+  blocks: string[],
+  semanticBlocks: Array<{ text: string; importance?: number }> = []
+): string[] {
+  const semanticLines = semanticBlocks
+    .sort((left, right) => Number(right.importance ?? 0) - Number(left.importance ?? 0))
+    .map((block) => block.text.trim())
+    .filter((block) => block.length >= 6)
+    .slice(0, 3);
+  if (semanticLines.length > 0) {
+    return semanticLines;
+  }
   return blocks
     .map((block) => block.trim())
     .filter((block) => block.length >= 6)
