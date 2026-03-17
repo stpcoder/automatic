@@ -118,6 +118,15 @@ npm run win:debug:mail:draft -- -To vendor@example.com -TemplateId request_custo
 npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -ContextJson '{"template_id":"request_customs_number","to":["vendor@example.com"],"variables":{"traveler_name":"Kim"}}'
 ```
 
+Naver stock prompt examples:
+
+```bash
+npm run win:test:agent:web-naver-stock
+npm run win:test:agent:web-naver-stock-direct
+npm run win:test:agent:prompt -- -Instruction "네이버 열어서 하이닉스 주가라고 검색하고 지금 주가 알려줘" -SystemId naver_search -Query "하이닉스 주가" -MaxSteps 6
+npm run win:test:agent:prompt -- -Instruction "현재 페이지에서 하이닉스 현재 주가 알려줘" -SystemId naver_stock -MaxSteps 4
+```
+
 See `docs/windows-real-test-runbook.md` for the current Windows extension setup.
 
 The natural-language debug agent uses `@ai-sdk/openai-compatible` when `opencode.ai/config.json` contains a valid API key.

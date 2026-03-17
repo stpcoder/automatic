@@ -293,11 +293,11 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
     method: "POST",
     url: "/debug/agent/run-loop",
     payload: {
-      instruction: "Open Naver search and search for SK hynix stock price",
+      instruction: "네이버 열어서 하이닉스 주가라고 검색하고 지금 주가 알려줘",
       context: {
         system_id: "naver_search",
         field_values: {
-          query: "SK hynix stock price"
+          query: "하이닉스 주가"
         },
         expected_button: "search"
       },
@@ -328,7 +328,7 @@ test("debug agent loop can read stock result from a direct naver stock page", as
     method: "POST",
     url: "/debug/agent/run-loop",
     payload: {
-      instruction: "Read SK hynix stock result from the current Naver stock page",
+      instruction: "현재 페이지에서 하이닉스 현재 주가 알려줘",
       context: {
         system_id: "naver_stock"
       },
@@ -344,6 +344,7 @@ test("debug agent loop can read stock result from a direct naver stock page", as
     ["open_system", "extract_web_result"]
   );
   assert.equal(response.json().final_result.stock_result.company, "SK hynix");
+  assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
   await app.close();
   process.env.WEB_WORKER_ADAPTER = previousAdapter;

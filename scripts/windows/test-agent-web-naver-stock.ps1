@@ -9,11 +9,11 @@ Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 Write-Host "[skh-agent] running multi-step agent loop for naver_search..."
 
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
-  instruction = "Open Naver search and search for SK hynix stock price"
+  instruction = "네이버 열어서 하이닉스 주가라고 검색하고 지금 주가 알려줘"
   context = @{
     system_id = "naver_search"
     field_values = @{
-      query = "SK hynix stock price"
+      query = "하이닉스 주가"
     }
     target_key = "search"
   }

@@ -9,7 +9,7 @@ Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 Write-Host "[skh-agent] running direct stock extraction loop..."
 
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
-  instruction = "Read SK hynix stock result from the current Naver stock page"
+  instruction = "현재 페이지에서 하이닉스 현재 주가 알려줘"
   context = @{
     system_id = "naver_stock"
   }
