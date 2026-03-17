@@ -119,12 +119,22 @@ class JsonDebugPlanner implements DebugPlannerClient {
       .join("\n\n");
 
     const result = await this.generatePlannerText(provider, request.model ?? this.config.model, system, prompt);
+    const usage = extractPlannerUsage(result);
+    const requestChars = (system?.length ?? 0) + prompt.length;
+    const responseChars = typeof result.text === "string" ? result.text.length : 0;
 
     this.lastTrace = {
       source: "llm_json_planner",
       request_messages: request.messages,
       request_tools: request.tools,
-      raw_text: result.text
+      raw_text: result.text,
+      request_metrics: {
+        request_chars: requestChars
+      },
+      response_metrics: {
+        response_chars: responseChars,
+        usage
+      }
     };
 
     if (!result.text || result.text.trim().length === 0) {
@@ -431,6 +441,49 @@ function normalizeExpectedTransition(value: unknown): string | undefined {
   };
 
   return aliasMap[normalized] ?? normalized;
+}
+
+function extractPlannerUsage(result: unknown): Record<string, number | undefined> | undefined {
+  if (!result || typeof result !== "object" || !("usage" in result)) {
+    return undefined;
+  }
+
+  const usage = (result as { usage?: unknown }).usage;
+  if (!usage || typeof usage !== "object") {
+    return undefined;
+  }
+
+  const usageRecord = usage as Record<string, unknown>;
+  const inputTokens =
+    typeof usageRecord.inputTokens === "number"
+      ? usageRecord.inputTokens
+      : typeof usageRecord.promptTokens === "number"
+        ? usageRecord.promptTokens
+        : undefined;
+  const outputTokens =
+    typeof usageRecord.outputTokens === "number"
+      ? usageRecord.outputTokens
+      : typeof usageRecord.completionTokens === "number"
+        ? usageRecord.completionTokens
+        : undefined;
+  const reasoningTokens =
+    typeof usageRecord.reasoningTokens === "number"
+      ? usageRecord.reasoningTokens
+      : typeof usageRecord.outputTokenDetails === "object" && usageRecord.outputTokenDetails !== null
+        ? typeof (usageRecord.outputTokenDetails as Record<string, unknown>).reasoningTokens === "number"
+          ? ((usageRecord.outputTokenDetails as Record<string, unknown>).reasoningTokens as number)
+          : undefined
+        : undefined;
+
+  if (inputTokens === undefined && outputTokens === undefined && reasoningTokens === undefined) {
+    return undefined;
+  }
+
+  return {
+    input_tokens: inputTokens,
+    output_tokens: outputTokens,
+    reasoning_tokens: reasoningTokens
+  };
 }
 
 function parseJsonSafely(raw: string): unknown {

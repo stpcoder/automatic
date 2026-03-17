@@ -328,7 +328,7 @@ export async function createApp(
       const plannerOutput = await debugPlanner.plan(plannerRequest);
       timing.planner_ms = Date.now() - plannerStartedAt;
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, context, instruction);
-      logDebugPlannerDecision("run", 1, plannerOutput, plannerOutput.next_action.tool, normalizedInput);
+      logDebugPlannerDecision("run", 1, plannerOutput, plannerOutput.next_action.tool, normalizedInput, debugPlanner.getTrace());
 
       const toolStartedAt = Date.now();
       const toolResult =
@@ -479,7 +479,7 @@ export async function createApp(
       });
 
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
-      logDebugPlannerDecision("run-loop", stepIndex, plannerOutput, plannerOutput.next_action.tool, normalizedInput);
+      logDebugPlannerDecision("run-loop", stepIndex, plannerOutput, plannerOutput.next_action.tool, normalizedInput, debugPlanner.getTrace());
 
       if (plannerOutput.next_action.tool === "finish_task") {
         logDebugAgentFinish(
@@ -701,7 +701,8 @@ function logDebugPlannerDecision(
   step: number,
   plannerOutput: PlannerOutput,
   toolName: string,
-  normalizedInput: Record<string, unknown>
+  normalizedInput: Record<string, unknown>,
+  plannerTrace?: unknown
 ): void {
   const planSummary = formatPlannerSummary(plannerOutput);
   if (planSummary.primary) {
@@ -712,6 +713,10 @@ function logDebugPlannerDecision(
   }
   const toolHint = formatToolHint(toolName, normalizedInput);
   console.log(`[${step}] TOOL  ${toolName}${toolHint ? ` -> ${toolHint}` : ""}`);
+  const plannerIo = formatPlannerIoSummary(plannerTrace);
+  if (plannerIo) {
+    console.log(`[${step}] IO    ${plannerIo}`);
+  }
 }
 
 function logDebugToolResult(
@@ -766,6 +771,51 @@ function logDebugToolResult(
     console.log(`[${step}] SESSION ${sessionId}`);
   }
   console.log(`[${step}] TIME  llm_api=${timing.planner_ms ?? 0}ms action=${timing.tool_ms ?? 0}ms`);
+}
+
+function formatPlannerIoSummary(plannerTrace: unknown): string {
+  if (!plannerTrace || typeof plannerTrace !== "object") {
+    return "";
+  }
+
+  const trace = plannerTrace as Record<string, unknown>;
+  const requestMetrics =
+    typeof trace.request_metrics === "object" && trace.request_metrics !== null
+      ? (trace.request_metrics as Record<string, unknown>)
+      : undefined;
+  const responseMetrics =
+    typeof trace.response_metrics === "object" && trace.response_metrics !== null
+      ? (trace.response_metrics as Record<string, unknown>)
+      : undefined;
+  const usage =
+    responseMetrics && typeof responseMetrics.usage === "object" && responseMetrics.usage !== null
+      ? (responseMetrics.usage as Record<string, unknown>)
+      : undefined;
+
+  const inputTokens = typeof usage?.input_tokens === "number" ? usage.input_tokens : undefined;
+  const outputTokens = typeof usage?.output_tokens === "number" ? usage.output_tokens : undefined;
+  const reasoningTokens = typeof usage?.reasoning_tokens === "number" ? usage.reasoning_tokens : undefined;
+
+  if (inputTokens !== undefined || outputTokens !== undefined || reasoningTokens !== undefined) {
+    const parts = [
+      inputTokens !== undefined ? `tokens_in=${inputTokens}` : undefined,
+      outputTokens !== undefined ? `tokens_out=${outputTokens}` : undefined,
+      reasoningTokens !== undefined ? `reasoning=${reasoningTokens}` : undefined
+    ].filter(Boolean);
+    return parts.join(" ");
+  }
+
+  const requestChars = typeof requestMetrics?.request_chars === "number" ? requestMetrics.request_chars : undefined;
+  const responseChars = typeof responseMetrics?.response_chars === "number" ? responseMetrics.response_chars : undefined;
+  if (requestChars !== undefined || responseChars !== undefined) {
+    const parts = [
+      requestChars !== undefined ? `chars_in=${requestChars}` : undefined,
+      responseChars !== undefined ? `chars_out=${responseChars}` : undefined
+    ].filter(Boolean);
+    return parts.join(" ");
+  }
+
+  return "";
 }
 
 function logDebugAgentFinish(
