@@ -190,6 +190,7 @@ export class PageAgentDomAdapter implements WebAdapter {
       title: page.title,
       summary: page.summary,
       pageText,
+      domOutline: buildHarnessDomOutline(page, visibleTextBlocks),
       visibleTextBlocks,
       semanticBlocks: buildHarnessSemanticBlocks(page, visibleTextBlocks),
       interactiveElements,
@@ -327,6 +328,27 @@ function buildHarnessSemanticBlocks(page: HarnessPageDefinition, visibleTextBloc
   }));
 
   return [...blocks, ...controlBlocks].slice(0, 12);
+}
+
+function buildHarnessDomOutline(page: HarnessPageDefinition, visibleTextBlocks: string[]): string {
+  const lines: string[] = [];
+
+  for (const text of visibleTextBlocks.slice(0, 6)) {
+    lines.push(text);
+  }
+
+  for (const element of page.interactiveElements.slice(0, 12)) {
+    const attrs = [`key=${element.key}`, `type=${element.type}`];
+    if (element.semanticRole) {
+      attrs.push(`role=${element.semanticRole}`);
+    }
+    lines.push(`[${element.key}]<${element.type} ${attrs.join(" ")}>${element.label || element.key} />`);
+    if (element.value) {
+      lines.push(`  value: ${element.value}`);
+    }
+  }
+
+  return lines.join("\n").slice(0, 4000);
 }
 
 function buildGenericSearchResultsPage(baseUrl: string, query: string): HarnessPageDefinition {

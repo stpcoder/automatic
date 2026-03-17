@@ -361,7 +361,7 @@
     return clampScore(score);
   }
 
-  function collectSemanticBlocks() {
+  function collectSemanticBlocksInDomOrder() {
     const primarySelectors = "main h1, main h2, main h3, main h4, main h5, main p, main label, main button, main a, main th, main td, main li, main strong, main b, main [role='button'], main [role='link'], article h1, article h2, article h3, article p, article a, article li, form label, form button, form p, form [role='button'], [role='main'] h1, [role='main'] h2, [role='main'] p, [role='search'] label, [role='search'] button";
     const fallbackSelectors = "h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,[role='button'],[role='link']";
     const primaryCandidates = Array.from(document.querySelectorAll(primarySelectors));
@@ -398,7 +398,11 @@
         break;
       }
     }
-    return unique.sort((left, right) => right.importance - left.importance);
+    return unique;
+  }
+
+  function collectSemanticBlocks() {
+    return collectSemanticBlocksInDomOrder().slice().sort((left, right) => right.importance - left.importance);
   }
 
   function collectVisibleTextBlocks() {
@@ -436,8 +440,7 @@
           nearbyText,
           domPath: buildDomPath(element)
         };
-      })
-      .sort((left, right) => (right.importance || 0) - (left.importance || 0));
+      });
 
     const seen = new Map();
     for (const control of controls) {
@@ -450,14 +453,78 @@
     return controls;
   }
 
+  function buildDomOutline(controls, orderedBlocks) {
+    const blockMap = new Map();
+    for (const block of orderedBlocks) {
+      const normalizedText = normalize(block.text);
+      if (normalizedText && !blockMap.has(normalizedText)) {
+        blockMap.set(normalizedText, block);
+      }
+    }
+
+    const lines = [];
+    const seenLines = new Set();
+    const outlineSelectors =
+      "main h1, main h2, main h3, main p, main label, main button, main a, main li, article h1, article h2, article h3, article p, article a, article li, form label, form input, form textarea, form select, form button, [role='main'] h1, [role='main'] h2, [role='main'] p, [role='search'] input, [role='search'] textarea, [role='search'] button, [role='search'] a";
+
+    const controlMap = new Map(controls.map((control) => [control.element, control]));
+    const outlineCandidates = Array.from(document.querySelectorAll(outlineSelectors));
+
+    for (const element of outlineCandidates) {
+      if (!isVisibleElement(element)) {
+        continue;
+      }
+
+      const control = controlMap.get(element);
+      if (control) {
+        const attrs = [`key=${control.key}`, `type=${control.type}`];
+        if (control.semanticRole && control.semanticRole !== "unknown") {
+          attrs.push(`role=${control.semanticRole}`);
+        }
+        const line = `[${control.key}]<${control.type} ${attrs.join(" ")}>${control.label || control.key} />`;
+        if (!seenLines.has(line)) {
+          seenLines.add(line);
+          lines.push(line);
+        }
+        if (control.nearbyText && control.nearbyText.length >= 4) {
+          const nearbyLine = `  ${control.nearbyText}`;
+          if (!seenLines.has(nearbyLine)) {
+            seenLines.add(nearbyLine);
+            lines.push(nearbyLine);
+          }
+        }
+        continue;
+      }
+
+      const text = String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+      if (!shouldIncludeTextElement(element, text)) {
+        continue;
+      }
+      const normalizedText = normalize(text);
+      const block = blockMap.get(normalizedText);
+      const line = block ? block.text : text;
+      if (line && !seenLines.has(line)) {
+        seenLines.add(line);
+        lines.push(line);
+      }
+      if (lines.length >= 60) {
+        break;
+      }
+    }
+
+    return lines.join("\n").slice(0, 4000);
+  }
+
   function buildObservation() {
     const controls = buildInteractiveCandidates();
-    const semanticBlocks = collectSemanticBlocks();
-    const visibleTextBlocks = semanticBlocks.map((block) => block.text);
-    const pageText = semanticBlocks.map((block) => block.text).join(" ").slice(0, 4000);
+    const orderedBlocks = collectSemanticBlocksInDomOrder();
+    const semanticBlocks = orderedBlocks.slice().sort((left, right) => right.importance - left.importance);
+    const visibleTextBlocks = orderedBlocks.map((block) => block.text);
+    const pageText = orderedBlocks.map((block) => block.text).join(" ").slice(0, 4000);
+    const domOutline = buildDomOutline(controls, orderedBlocks);
     return {
       channel: "web",
-      summary: `${document.title} observed through chrome extension. ${semanticBlocks
+      summary: `${document.title} observed through chrome extension. ${orderedBlocks
         .slice(0, 5)
         .map((block) => block.text)
         .join(" | ")
@@ -470,6 +537,7 @@
         url: location.href,
         title: document.title,
         pageText,
+        domOutline,
         visibleTextBlocks,
         semanticBlocks,
         interactiveElements: controls.map(({ element, ...control }) => control),

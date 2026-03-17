@@ -41,6 +41,7 @@ export interface PageObservation {
   title: string;
   summary: string;
   pageText?: string;
+  domOutline?: string;
   visibleTextBlocks?: string[];
   semanticBlocks?: SemanticBlock[];
   interactiveElements: InteractiveElement[];

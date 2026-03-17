@@ -26,6 +26,7 @@ class StubExtensionBridgeAdapter implements WebAdapter {
       url: "https://example.test/live",
       title: "Live Page",
       summary: "Observed via live chrome adapter.",
+      domOutline: "[search]<button key=search>Search />",
       finalActionButton: "Submit",
       interactiveElements: []
     };
@@ -90,6 +91,8 @@ test("web worker fills, previews, and submits a form", async () => {
   assert.equal(openOutput.observation.finalActionButton, "등록");
   assert.ok(Array.isArray(openOutput.observation.semanticBlocks));
   assert.ok((openOutput.observation.semanticBlocks ?? []).length > 0);
+  assert.equal(typeof openOutput.observation.domOutline, "string");
+  assert.match(String(openOutput.observation.domOutline), /\[/);
 
   const fill = await worker.execute({
     request_id: "TR-1",
@@ -167,6 +170,7 @@ test("web worker reports extension_bridge harness when extension adapter is inje
   const openOutput = getOutput(open);
   assert.equal(openOutput.harness, "extension_bridge");
   assert.equal(openOutput.observation.title, "Live Page");
+  assert.equal(typeof openOutput.observation.domOutline, "string");
 });
 
 test("web worker can click a generic search result and extract detail text", async () => {
