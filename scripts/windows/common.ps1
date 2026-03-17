@@ -111,7 +111,9 @@ function Invoke-AgentApi {
 
   if ($null -ne $Body) {
     try {
-      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json" -Body ($Body | ConvertTo-Json -Depth 20)
+      $jsonBody = $Body | ConvertTo-Json -Depth 20 -Compress
+      $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
+      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -Body $utf8Body
     }
     catch {
       $detail = $_.ErrorDetails.Message
