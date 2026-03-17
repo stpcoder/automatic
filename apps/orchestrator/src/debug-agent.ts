@@ -271,8 +271,6 @@ function buildSingleTurnSystemPrompt(): string {
     "Use the provided available_tools only.",
     "When no page is attached yet and the instruction references a URL or page to inspect, use open_system first.",
     "When the goal is satisfied, use finish_task with a short summary.",
-    "Even at the final step, never answer the user outside JSON.",
-    "Put the final human-readable answer only inside next_action.input.summary.",
     "The JSON must follow this shape:",
     JSON.stringify(buildPlannerResponseContract())
   ].join(" ");
@@ -303,7 +301,6 @@ function buildLoopSystemPrompt(): string {
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
     "- navigate_browser_history: move back or forward in the current browser tab history when you reached the wrong page and need to return to the previous results or page state.",
     "- finish_task: only when the goal is truly satisfied and you can summarize the answer from what is visible on the current page.",
-    "When you choose finish_task, do not switch to free-form assistant prose. Still return one JSON object, and place the final answer only in next_action.input.summary.",
     "Your step_plan should be rich enough to show intended attach/open, page verification, interaction, and result verification steps, even though you may execute only one tool now.",
     "The JSON must follow this shape:",
     JSON.stringify(buildPlannerResponseContract())
@@ -341,9 +338,7 @@ function buildPlannerResponseContract(): Record<string, unknown> {
     },
     next_action: {
       tool: "one_available_tool_name",
-      input: {
-        summary: "For finish_task only: short final answer text"
-      }
+      input: {}
     },
     requires_approval: false,
     expected_transition: "RUNNING"
