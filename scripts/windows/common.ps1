@@ -185,23 +185,16 @@ function Format-AgentRunResult {
   )
 
   if ($Result.ok -eq $true) {
-    $output = [ordered]@{
-      ok = $true
-      final_response = $Result.final_response
-      final_result = $Result.final_result
-      total_ms = $Result.timing.total_ms
-      steps = @($Result.steps | ForEach-Object { $_.tool })
-    }
-    return ($output | ConvertTo-Json -Depth 10)
+    $summary = if ($Result.final_response) { [string]$Result.final_response } else { "Task completed." }
+    $steps = @($Result.steps | ForEach-Object { $_.tool })
+    $stepLine = if ($steps.Count -gt 0) { "tools: $($steps -join ' -> ')" } else { $null }
+    $timeLine = if ($Result.timing.total_ms -ne $null) { "time: $($Result.timing.total_ms)ms" } else { $null }
+    return @("[DONE] $summary", $stepLine, $timeLine | Where-Object { $_ }) -join [Environment]::NewLine
   }
 
-  $output = [ordered]@{
-    ok = $false
-    error_stage = $Result.error_stage
-    error_message = $Result.error_message
-    total_ms = $Result.timing.total_ms
-  }
-  return ($output | ConvertTo-Json -Depth 10)
+  $timeLine = if ($Result.timing.total_ms -ne $null) { "time: $($Result.timing.total_ms)ms" } else { $null }
+  $codeLine = if ($Result.error_code) { "code: $($Result.error_code)" } else { $null }
+  return @("[FAIL] $($Result.error_stage)", $codeLine, $Result.error_message, $timeLine | Where-Object { $_ }) -join [Environment]::NewLine
 }
 
 function Format-AgentSingleRunResult {
@@ -211,23 +204,15 @@ function Format-AgentSingleRunResult {
   )
 
   if ($Result.ok -eq $true) {
-    $output = [ordered]@{
-      ok = $true
-      tool = $Result.planner_output.next_action.tool
-      summary = $Result.tool_result.output.summary
-      output = $Result.tool_result.output
-      total_ms = $Result.timing.total_ms
-    }
-    return ($output | ConvertTo-Json -Depth 10)
+    $tool = [string]$Result.planner_output.next_action.tool
+    $summary = if ($Result.tool_result.output.summary) { [string]$Result.tool_result.output.summary } else { "OK" }
+    $timeLine = if ($Result.timing.total_ms -ne $null) { "time: $($Result.timing.total_ms)ms" } else { $null }
+    return @("[OK] $tool", $summary, $timeLine | Where-Object { $_ }) -join [Environment]::NewLine
   }
 
-  $output = [ordered]@{
-    ok = $false
-    error_stage = $Result.error_stage
-    error_message = $Result.error_message
-    total_ms = $Result.timing.total_ms
-  }
-  return ($output | ConvertTo-Json -Depth 10)
+  $timeLine = if ($Result.timing.total_ms -ne $null) { "time: $($Result.timing.total_ms)ms" } else { $null }
+  $codeLine = if ($Result.error_code) { "code: $($Result.error_code)" } else { $null }
+  return @("[FAIL] $($Result.error_stage)", $codeLine, $Result.error_message, $timeLine | Where-Object { $_ }) -join [Environment]::NewLine
 }
 
 function Format-WebReadResult {
