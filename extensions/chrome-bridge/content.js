@@ -113,6 +113,25 @@
     );
   }
 
+  function inferRegion(element) {
+    if (element.closest("main, article, [role='main'], form, section")) {
+      return "main";
+    }
+    if (element.closest("header, [role='banner']")) {
+      return "header";
+    }
+    if (element.closest("nav, [role='navigation']")) {
+      return "nav";
+    }
+    if (element.closest("footer")) {
+      return "footer";
+    }
+    if (element.closest("aside")) {
+      return "aside";
+    }
+    return "unknown";
+  }
+
   function isElementNearViewportCenter(element) {
     const rect = element.getBoundingClientRect();
     const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
@@ -210,7 +229,9 @@
           label: getLabelText(element) || element.innerText || element.textContent || "Field",
           value: "value" in element ? element.value || "" : "",
           required: element.hasAttribute("required") || element.getAttribute("aria-required") === "true",
-          action: type === "input" ? "type" : type === "select" ? "select" : "click"
+          action: type === "input" ? "type" : type === "select" ? "select" : "click",
+          href: element instanceof HTMLAnchorElement ? element.href : "",
+          region: inferRegion(element)
         };
       });
 

@@ -53,6 +53,10 @@
     "win:test:agent:web-naver-stock": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-web-naver-stock.ps1",
     "win:test:agent:web-naver-stock-direct": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-web-naver-stock-direct.ps1",
     "win:test:agent:scenario:naver-news": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-naver-news.ps1",
+    "win:test:agent:scenario:naver-news-detail": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-naver-news-detail.ps1",
+    "win:test:agent:scenario:naver-shopping-price": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-naver-shopping-price.ps1",
+    "win:test:agent:scenario:google-news-detail": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-google-news-detail.ps1",
+    "win:test:agent:scenario:google-price-detail": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-google-price-detail.ps1",
     "win:test:agent:scenario:current-page-summary": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-current-page-summary.ps1",
     "win:test:agent:scenario:current-page-actions": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-current-page-actions.ps1"
   },

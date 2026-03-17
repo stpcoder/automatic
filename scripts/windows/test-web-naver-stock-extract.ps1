@@ -5,7 +5,7 @@ Set-AgentEnvironment | Out-Null
 
 $goalTextBase64 = "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
 $body = @{
-  system_id = "naver_stock"
+  system_id = "web_generic"
   goal_base64 = $goalTextBase64
   query = ""
 }

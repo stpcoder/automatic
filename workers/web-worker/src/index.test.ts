@@ -166,28 +166,29 @@ test("web worker reports extension_bridge harness when extension adapter is inje
   assert.equal(openOutput.observation.title, "Live Page");
 });
 
-test("web worker can extract result text after a naver search submission", async () => {
+test("web worker can click a generic search result and extract detail text", async () => {
   const worker = new WebWorker();
 
   await worker.execute({
     request_id: "TR-N-0",
     case_id: "CASE-N",
-    step_id: "naver_stock_search",
+    step_id: "generic_search",
     tool_name: "open_system",
     mode: "preview",
     input: {
-      system_id: "naver_search"
+      system_id: "web_generic",
+      target_url: "https://search.example.test"
     }
   });
 
   await worker.execute({
     request_id: "TR-N-1",
     case_id: "CASE-N",
-    step_id: "naver_stock_search",
+    step_id: "generic_search",
     tool_name: "fill_web_form",
     mode: "draft",
     input: {
-      system_id: "naver_search",
+      system_id: "web_generic",
       field_values: {
         query: "SK hynix stock price"
       }
@@ -197,30 +198,44 @@ test("web worker can extract result text after a naver search submission", async
   await worker.execute({
     request_id: "TR-N-2",
     case_id: "CASE-N",
-    step_id: "naver_stock_search",
+    step_id: "generic_search",
     tool_name: "click_web_element",
     mode: "preview",
     input: {
-      system_id: "naver_search",
-      target_key: "search"
+      system_id: "web_generic",
+      target_key: "search_action"
     }
   });
 
   const extract = await worker.execute({
+    request_id: "TR-N-3a",
+    case_id: "CASE-N",
+    step_id: "generic_search",
+    tool_name: "click_web_element",
+    mode: "preview",
+    input: {
+      system_id: "web_generic",
+      target_key: "result_1"
+    }
+  });
+
+  assert.equal(extract.success, true);
+
+  const detailExtract = await worker.execute({
     request_id: "TR-N-3",
     case_id: "CASE-N",
-    step_id: "naver_stock_search",
+    step_id: "generic_search",
     tool_name: "extract_web_result",
     mode: "preview",
     input: {
-      system_id: "naver_search",
+      system_id: "web_generic",
       goal: "Search for SK hynix stock price",
       query: "SK hynix stock price"
     }
   });
 
-  assert.equal(extract.success, true);
-  const extractOutput = getOutput(extract);
+  assert.equal(detailExtract.success, true);
+  const extractOutput = getOutput(detailExtract);
   assert.equal(extractOutput.goal_satisfied, true);
   assert.match(String(extractOutput.summary), /SK hynix/i);
   assert.match(String(extractOutput.observation.pageText), /210,000 KRW/i);
@@ -234,14 +249,14 @@ test("web worker can follow navigation and preserve session metadata", async () 
   const follow = await worker.execute({
     request_id: "TR-live-follow",
     case_id: "CASE-3",
-    step_id: "follow",
-    tool_name: "follow_web_navigation",
-    mode: "preview",
-    input: {
-      system_id: "naver_search",
-      session_id: "live-session-1"
-    }
-  });
+      step_id: "follow",
+      tool_name: "follow_web_navigation",
+      mode: "preview",
+      input: {
+        system_id: "web_generic",
+        session_id: "live-session-1"
+      }
+    });
 
   assert.equal(follow.success, true);
   const output = getOutput(follow);

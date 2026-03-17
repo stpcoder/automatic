@@ -9,7 +9,7 @@ $fieldValues = @{
 }
 
 $body = @{
-  system_id = "naver_search"
+  system_id = "web_generic"
   field_values = $fieldValues
 }
 

@@ -104,7 +104,7 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
       }
     }
 
-    if (shouldOpenWebContext(context, currentObservation) || includesAny(instruction, ["open", "열어", "접속"])) {
+    if (shouldOpenWebContext(context, currentObservation) || includesAny(instruction, ["open", "열어", "접속"]) || containsUrl(instruction)) {
       const output = buildOutput("Open target system", "open_system", {
         system_id: systemId,
         target_url: typeof context.target_url === "string" ? context.target_url : undefined,
@@ -361,10 +361,10 @@ function planLoopContinuation(
   selectedTools: string[]
 ): PlannerOutput | null {
   const normalizedInstruction = normalize(instruction);
-  const fieldValues = asRecord(context.field_values);
   const interactiveElements = Array.isArray(currentObservation.interactiveElements)
     ? currentObservation.interactiveElements.map(asRecord)
     : [];
+  const fieldValues = mergeDesiredFieldValues(interactiveElements, asRecord(context.field_values), instruction);
   const lastToolResult = asRecord(context.last_tool_result);
   const lastSelectedTool = selectedTools[selectedTools.length - 1] ?? "";
   const currentSessionId =
@@ -395,7 +395,7 @@ function planLoopContinuation(
 
   if (
     Object.keys(currentObservation).length === 0 &&
-    shouldOpenWebContext(context, currentObservation) &&
+    (shouldOpenWebContext(context, currentObservation) || containsUrl(instruction)) &&
     !selectedTools.includes("open_system")
   ) {
     return buildOutput("Open target system", "open_system", {
@@ -417,12 +417,31 @@ function planLoopContinuation(
     });
   }
 
-  if (selectedTools.includes("extract_web_result")) {
+  if (lastSelectedTool === "extract_web_result") {
     const goalSatisfied = lastToolResult.goal_satisfied === true;
     const summary =
       typeof lastToolResult.summary === "string" && lastToolResult.summary.trim().length > 0
         ? lastToolResult.summary
         : "Web result extraction completed.";
+    if (!goalSatisfied) {
+      const nextClickableTarget = inferClickableTarget(interactiveElements, instruction, context);
+      if (nextClickableTarget) {
+        return buildOutput("Open the most relevant result from the current page", "click_web_element", {
+          system_id: systemId,
+          session_id: currentSessionId,
+          target_key: nextClickableTarget
+        });
+      }
+      const canScroll = interactiveElements.length > 0 && !selectedTools.includes("scroll_web_page");
+      if (canScroll) {
+        return buildOutput("Scroll to reveal more result content", "scroll_web_page", {
+          system_id: systemId,
+          session_id: currentSessionId,
+          direction: "down",
+          amount: 0.8
+        });
+      }
+    }
     return buildFinishOutput(goalSatisfied ? summary : `${summary} Goal could not be fully confirmed.`);
   }
 
@@ -444,6 +463,15 @@ function planLoopContinuation(
       session_id: currentSessionId,
       goal: instruction,
         query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+    });
+  }
+
+  if (lastSelectedTool === "open_system" && looksLikeDetailPage(currentObservation)) {
+    return buildOutput("Read the currently opened page before taking further action", "extract_web_result", {
+      system_id: systemId,
+      session_id: currentSessionId,
+      goal: instruction,
+      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
     });
   }
 
@@ -553,6 +581,40 @@ function collectMissingFieldValues(
   return Object.keys(missing).length > 0 ? missing : null;
 }
 
+function mergeDesiredFieldValues(
+  interactiveElements: Record<string, unknown>[],
+  desiredFieldValues: Record<string, unknown>,
+  instruction: string
+): Record<string, unknown> {
+  const merged = { ...desiredFieldValues };
+  const inferredQuery = inferSearchQuery(instruction);
+  if (!inferredQuery) {
+    return merged;
+  }
+
+  const searchField = interactiveElements.find((element) => {
+    const type = typeof element.type === "string" ? element.type : "";
+    if (type !== "input" && type !== "select") {
+      return false;
+    }
+    const haystack = `${normalize(element.key)} ${normalize(element.label)}`;
+    return /query|search|검색|keyword|키워드/.test(haystack);
+  });
+
+  if (searchField && typeof merged[String(searchField.key)] !== "string") {
+    merged[String(searchField.key)] = inferredQuery;
+  }
+
+  if (!searchField && interactiveElements.filter((element) => element.type === "input").length === 1) {
+    const onlyInput = interactiveElements.find((element) => element.type === "input");
+    if (onlyInput && typeof merged[String(onlyInput.key)] !== "string") {
+      merged[String(onlyInput.key)] = inferredQuery;
+    }
+  }
+
+  return merged;
+}
+
 function inferClickableTarget(
   interactiveElements: Record<string, unknown>[],
   instruction: string,
@@ -577,12 +639,21 @@ function inferClickableTarget(
     .map((element) => {
       const key = typeof element.key === "string" ? element.key : "";
       const label = typeof element.label === "string" ? element.label : "";
+      const type = typeof element.type === "string" ? element.type : "";
+      const href = typeof element.href === "string" ? normalize(element.href) : "";
       const haystack = `${normalize(key)} ${normalize(label)}`.trim();
-      const score = preferredTokens.reduce((total, token) => (haystack.includes(token) ? total + 1 : total), 0);
+      let score = preferredTokens.reduce((total, token) => (haystack.includes(token) || href.includes(token) ? total + 1 : total), 0);
+      if (type === "button" && /search|검색|submit|제출|go|찾기/.test(haystack)) {
+        score += 2;
+      }
+      if (type === "link" && /headline|news|article|price|상세|결과|뉴스|주가|가격/.test(haystack)) {
+        score += 2;
+      }
       return {
         key,
         score,
-        label: normalize(label)
+        label: normalize(label),
+        type
       };
     })
     .sort((left, right) => right.score - left.score);
@@ -597,6 +668,56 @@ function inferClickableTarget(
     )
   );
   return sensibleDefault?.key ?? null;
+}
+
+function inferSearchQuery(instruction: string): string | null {
+  const raw = instruction
+    .replace(/https?:\/\/[^\s"'<>]+/gi, " ")
+    .replace(/[“”"'`]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (!raw) {
+    return null;
+  }
+
+  const explicitPatterns = [
+    /(.+?)\s*(?:라고|로)\s*검색/iu,
+    /(.+?)\s*검색하고/iu,
+    /(.+?)\s*검색해/iu,
+    /(.+?)\s*찾아/iu,
+    /(.+?)\s*조회/iu
+  ];
+  for (const pattern of explicitPatterns) {
+    const match = raw.match(pattern);
+    if (match?.[1]) {
+      const cleaned = cleanupQueryCandidate(match[1]);
+      if (cleaned) {
+        return cleaned;
+      }
+    }
+  }
+
+  return null;
+}
+
+function cleanupQueryCandidate(value: string): string | null {
+  const cleaned = value
+    .replace(/https?:\/\/[^\s"'<>]+/giu, " ")
+    .replace(/네이버|구글|google|naver|페이지|사이트|열어서|열고|접속해서|접속하고|현재|지금|알려줘|설명해줘/giu, " ")
+    .replace(/\b(?:에서|으로|로)\b/giu, " ")
+    .replace(/[은는이가에의을를로와과]\s*$/u, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  return cleaned.length >= 2 ? cleaned : null;
+}
+
+function looksLikeDetailPage(currentObservation: Record<string, unknown>): boolean {
+  const pageId = typeof currentObservation.pageId === "string" ? currentObservation.pageId.toLowerCase() : "";
+  const title = typeof currentObservation.title === "string" ? currentObservation.title.toLowerCase() : "";
+  const links = Array.isArray(currentObservation.interactiveElements)
+    ? currentObservation.interactiveElements.map(asRecord).filter((element) => element.type === "link").length
+    : 0;
+  return /detail|article|product/.test(pageId) || /article|detail|product/.test(title) || links <= 1;
 }
 
 function extractInstructionTokens(normalizedInstruction: string): string[] {
@@ -623,6 +744,10 @@ function shouldOpenWebContext(context: Record<string, unknown>, currentObservati
       context.open_if_missing === true ||
       (typeof context.field_values === "object" && context.field_values !== null)
   );
+}
+
+function containsUrl(value: string): boolean {
+  return /https?:\/\/[^\s"'<>]+/i.test(value);
 }
 
 function shouldFallbackToHeuristic(error: unknown): boolean {

@@ -6,6 +6,8 @@ export interface InteractiveElement {
   value?: string;
   required?: boolean;
   action?: "type" | "click" | "select";
+  href?: string;
+  region?: "main" | "header" | "nav" | "footer" | "aside" | "unknown";
 }
 
 export interface PageObservation {
@@ -29,6 +31,7 @@ export interface HarnessPageDefinition {
   summary: string;
   finalActionButton?: string;
   interactiveElements: InteractiveElement[];
+  meta?: Record<string, unknown>;
 }
 
 export interface FillResult {

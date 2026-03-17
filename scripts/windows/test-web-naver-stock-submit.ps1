@@ -4,8 +4,8 @@ param()
 Set-AgentEnvironment | Out-Null
 
 $body = @{
-  system_id = "naver_search"
-  expected_button = "search"
+  system_id = "web_generic"
+  expected_button = "Submit"
 }
 
 Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/submit") -Body $body | ConvertTo-Json -Depth 20

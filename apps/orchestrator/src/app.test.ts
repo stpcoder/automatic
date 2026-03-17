@@ -252,8 +252,8 @@ test("extension bootstrap endpoint exposes web system definitions", async () => 
 
   assert.equal(response.statusCode, 200);
   assert.ok(Array.isArray(response.json().systems));
-  assert.ok(response.json().systems.some((system: { system_id: string }) => system.system_id === "naver_search"));
-  assert.ok(response.json().systems.some((system: { system_id: string }) => system.system_id === "naver_stock"));
+  assert.ok(response.json().systems.some((system: { system_id: string }) => system.system_id === "web_generic"));
+  assert.ok(response.json().systems.some((system: { system_id: string }) => system.system_id === "security_portal"));
 
   await app.close();
 });
@@ -293,14 +293,8 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
     method: "POST",
     url: "/debug/agent/run-loop",
     payload: {
-      instruction: "네이버 열어서 하이닉스 주가라고 검색하고 지금 주가 알려줘",
-      context: {
-        system_id: "naver_search",
-        field_values: {
-          query: "하이닉스 주가"
-        },
-        expected_button: "search"
-      }
+      instruction: "https://search.example.test 에 접속해서 하이닉스 주가를 검색하고 지금 주가를 알려줘",
+      context: {}
     }
   });
 
@@ -308,10 +302,14 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
   assert.equal(response.json().ok, true);
   assert.equal(response.json().completed, true);
   assert.ok(Array.isArray(response.json().steps));
-  assert.deepEqual(
-    response.json().steps.map((step: { tool: string }) => step.tool),
-    ["open_system", "fill_web_form", "click_web_element", "extract_web_result"]
-  );
+  assert.deepEqual(response.json().steps.map((step: { tool: string }) => step.tool), [
+    "open_system",
+    "fill_web_form",
+    "click_web_element",
+    "extract_web_result",
+    "click_web_element",
+    "extract_web_result"
+  ]);
   assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
   await app.close();
@@ -327,20 +325,15 @@ test("debug agent loop can read stock result from a direct naver stock page", as
     method: "POST",
     url: "/debug/agent/run-loop",
     payload: {
-      instruction: "현재 페이지에서 하이닉스 현재 주가 알려줘",
-      context: {
-        system_id: "naver_stock"
-      }
+      instruction: "https://example.com/products/sk-hynix 페이지를 열고 현재 하이닉스 가격을 알려줘",
+      context: {}
     }
   });
 
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().ok, true);
   assert.equal(response.json().completed, true);
-  assert.deepEqual(
-    response.json().steps.map((step: { tool: string }) => step.tool),
-    ["open_system", "extract_web_result"]
-  );
+  assert.deepEqual(response.json().steps.map((step: { tool: string }) => step.tool), ["open_system", "extract_web_result"]);
   assert.match(String(response.json().final_result.stock_result.company), /하이닉스|SK hynix/i);
   assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
@@ -357,14 +350,8 @@ test("debug agent loop decodes base64 Korean instruction and query payloads", as
     method: "POST",
     url: "/debug/agent/run-loop",
     payload: {
-      instruction_base64: "64Sk7J2067KEIOyXtOyWtOyEnCDtlZjsnbTri4nsiqQg7KO86rCA65286rOgIOqygOyDie2VmOqzoCDsp4DquIgg7KO86rCAIOyVjOugpOykmA==",
-      context: {
-        system_id: "naver_search",
-        field_values: {
-          query_base64: "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
-        },
-        target_key: "search"
-      }
+      instruction_base64: "aHR0cHM6Ly9zZWFyY2guZXhhbXBsZS50ZXN0IOyXkCDsoJHsho3tlbTshJwg7ZWY7J2064uJ7IqkIOyjvOqwgOulvCDqsoDsg4ntlZjqs6Ag7KeA6riIIOyjvOqwgOulvCDslYzroKTspJg=",
+      context: {}
     }
   });
 
@@ -372,6 +359,30 @@ test("debug agent loop decodes base64 Korean instruction and query payloads", as
   assert.equal(response.json().ok, true);
   assert.equal(response.json().completed, true);
   assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
+
+  await app.close();
+  process.env.WEB_WORKER_ADAPTER = previousAdapter;
+});
+
+test("debug agent loop can click a search result and read a news headline", async () => {
+  const previousAdapter = process.env.WEB_WORKER_ADAPTER;
+  delete process.env.WEB_WORKER_ADAPTER;
+  const app = await createApp();
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/debug/agent/run-loop",
+    payload: {
+      instruction: "https://search.example.test 에 접속해서 SK hynix 뉴스를 검색하고 가장 관련 높은 결과를 열어서 핵심 내용을 알려줘",
+      context: {}
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().ok, true);
+  assert.equal(response.json().completed, true);
+  assert.ok(response.json().steps.filter((step: { tool: string }) => step.tool === "click_web_element").length >= 2);
+  assert.match(String(response.json().final_response), /SK hynix|시장 반응|동향/i);
 
   await app.close();
   process.env.WEB_WORKER_ADAPTER = previousAdapter;

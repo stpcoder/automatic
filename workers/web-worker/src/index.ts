@@ -1,7 +1,6 @@
 import { type ToolExecutor, type ToolRequest, type ToolResult } from "../../../packages/contracts/src/index.js";
 import { ExtensionBridgeAdapter } from "./extension-bridge-adapter.js";
 import { PageAgentDomAdapter } from "./page-agent-dom-adapter.js";
-import { getWebSystemDefinition } from "./system-definitions.js";
 import type { WebAdapter } from "./types.js";
 
 export interface WebWorkerOptions {
@@ -223,16 +222,15 @@ export class WebWorker implements ToolExecutor {
     const pageText = [observation.title, observation.summary, observation.pageText ?? ""].join("\n").trim();
     const matchTerms = buildMatchTerms(goal, query);
     const matchedSnippets = collectMatchedSnippets(pageText, matchTerms);
-    const systemDefinition = getWebSystemDefinition(systemId);
-    const requiredIndicators = systemDefinition.resultIndicators ?? [];
-    const quoteLikeResult = parseQuoteLikeResult(goal, query, pageText);
+    const extractedResult = parseGenericResult(goal, query, observation);
+    const detailRequired = requiresDetailVisit(goal);
+    const resultListPage = looksLikeResultListPage(observation);
     const goalSatisfied =
-      matchedSnippets.length > 0 ||
-      Boolean(quoteLikeResult) ||
-      (requiredIndicators.length > 0 ? includesAllTerms(pageText, requiredIndicators) : false);
+      Boolean(extractedResult) &&
+      (!detailRequired || !resultListPage || (extractedResult && extractedResult.kind === "price"));
     const summary =
-      quoteLikeResult
-        ? `${quoteLikeResult.company} ${quoteLikeResult.price} ${quoteLikeResult.currency}`
+      extractedResult
+        ? extractedResult.summary
         : matchedSnippets[0] ??
       (goalSatisfied
         ? `${observation.title} result appears to satisfy the goal.`
@@ -250,7 +248,8 @@ export class WebWorker implements ToolExecutor {
         query,
         goal_satisfied: goalSatisfied,
         matched_snippets: matchedSnippets,
-        stock_result: quoteLikeResult,
+        stock_result: extractedResult?.kind === "price" ? extractedResult.value : undefined,
+        extracted_result: extractedResult ?? null,
         summary,
         observation
       },
@@ -296,9 +295,54 @@ function collectMatchedSnippets(pageText: string, terms: string[]): string[] {
   return matched.slice(0, 5);
 }
 
-function includesAllTerms(pageText: string, terms: string[]): boolean {
-  const normalized = pageText.toLowerCase();
-  return terms.every((term) => normalized.includes(term));
+function parseGenericResult(
+  goal: string,
+  query: string,
+  observation: { title: string; pageText?: string; visibleTextBlocks?: string[]; interactiveElements: Array<{ type: string; label: string }> }
+):
+  | { kind: "price"; summary: string; value: { company: string; price: string; currency: string } }
+  | { kind: "headline"; summary: string; value: { headline: string } }
+  | { kind: "summary"; summary: string; value: { lines: string[] } }
+  | undefined {
+  const pageText = [observation.title, observation.pageText ?? ""].join("\n").trim();
+  const quoteLikeResult = parseQuoteLikeResult(goal, query, pageText);
+  if (quoteLikeResult) {
+    return {
+      kind: "price",
+      summary: `${quoteLikeResult.company} ${quoteLikeResult.price} ${quoteLikeResult.currency}`,
+      value: quoteLikeResult
+    };
+  }
+
+  const headline = parseHeadlineLikeResult(goal, observation);
+  if (headline) {
+    return {
+      kind: "headline",
+      summary: headline,
+      value: { headline }
+    };
+  }
+
+  const lines = summarizeVisibleBlocks(observation.visibleTextBlocks ?? []);
+  if (lines.length > 0 && /요약|summary|설명|무엇을 할 수|핵심 내용|정리/i.test(goal)) {
+    return {
+      kind: "summary",
+      summary: lines.join(" / "),
+      value: { lines }
+    };
+  }
+
+  return undefined;
+}
+
+function requiresDetailVisit(goal: string): boolean {
+  return /열어서|들어가|접속|본문|상세|자세히|핵심 내용|원문/i.test(goal);
+}
+
+function looksLikeResultListPage(observation: { pageId?: string; title: string; interactiveElements: Array<{ type: string }> }): boolean {
+  const pageId = typeof observation.pageId === "string" ? observation.pageId : "";
+  const linkCount = observation.interactiveElements.filter((element) => element.type === "link").length;
+  return /result/i.test(pageId) || /search results/i.test(observation.title.toLowerCase()) || linkCount >= 2;
 }
 
 function parseQuoteLikeResult(goal: string, query: string, pageText: string): { company: string; price: string; currency: string } | undefined {
@@ -319,7 +363,46 @@ function parseQuoteLikeResult(goal: string, query: string, pageText: string): { 
   };
 }
 
+function parseHeadlineLikeResult(
+  goal: string,
+  observation: { visibleTextBlocks?: string[]; interactiveElements: Array<{ type: string; label: string }> }
+): string | undefined {
+  if (!/뉴스|headline|기사|article|title/i.test(goal)) {
+    return undefined;
+  }
+
+  const visibleHeadline = (observation.visibleTextBlocks ?? []).find((line) => {
+    const normalized = line.trim();
+    return normalized.length >= 8 && !/돌아가기|back|^news article\.?$|^product \/ quote detail\.?$/i.test(normalized);
+  });
+  if (visibleHeadline) {
+    return visibleHeadline;
+  }
+
+  const linkHeadline = observation.interactiveElements
+    .filter((element) => element.type === "link")
+    .map((element) => element.label.trim())
+    .find((label) => label.length >= 8 && !/돌아가기|back/i.test(label));
+  if (linkHeadline) {
+    return linkHeadline;
+  }
+
+  return undefined;
+}
+
+function summarizeVisibleBlocks(blocks: string[]): string[] {
+  return blocks
+    .map((block) => block.trim())
+    .filter((block) => block.length >= 6)
+    .slice(0, 3);
+}
+
 function inferQuoteSubject(goal: string, query: string, pageText: string): string | undefined {
+  const explicitSubject = pageText.match(/([가-힣A-Za-z][가-힣A-Za-z0-9&.\-\s]{1,40})\s+(?:현재\s+)?(?:주가|시세|가격)/);
+  if (explicitSubject) {
+    return explicitSubject[1].trim();
+  }
+
   const titleSubject = pageText.match(/(?:-|:)\s*([A-Z][A-Za-z0-9&.\-]+(?:\s+[A-Za-z0-9&.\-]+){0,3})/);
   if (titleSubject && !/^(Naver|Finance|Search)$/i.test(titleSubject[1])) {
     return titleSubject[1].trim();
@@ -329,6 +412,7 @@ function inferQuoteSubject(goal: string, query: string, pageText: string): strin
     .filter((value) => value.trim().length > 0)
     .map((value) =>
       value
+        .replace(/https?:\/\/[^\s"'<>]+/gi, " ")
         .replace(/현재|지금|검색|알려줘|조회|가격|주가|시세|stock|price/gi, " ")
         .replace(/\s+/g, " ")
         .trim()

@@ -73,31 +73,6 @@ const WEB_SYSTEMS: Record<string, WebSystemDefinition> = {
     ],
     buttons: [{ key: "send", label: "Send", aliases: ["submit"] }]
   },
-  naver_search: {
-    systemId: "naver_search",
-    pageId: "search_home",
-    title: "Naver Search",
-    url: "https://www.naver.com",
-    urlPatterns: ["https://www.naver.com/*", "https://search.naver.com/*"],
-    summary: "Naver search page is open.",
-    finalActionButton: "search",
-    resultIndicators: ["sk hynix", "stock", "price"],
-    fields: [
-      { key: "query", label: "검색어", aliases: ["search", "search query", "query", "검색", "검색창"], required: true }
-    ],
-    buttons: [{ key: "search", label: "검색", aliases: ["search"] }]
-  },
-  naver_stock: {
-    systemId: "naver_stock",
-    pageId: "stock_page",
-    title: "Naver Finance - SK hynix",
-    url: "https://finance.naver.com/item/main.naver?code=000660",
-    urlPatterns: ["https://finance.naver.com/*"],
-    summary: "Naver Finance SK hynix stock page is open.",
-    resultIndicators: ["sk hynix", "krw"],
-    fields: [],
-    buttons: []
-  },
   web_generic: {
     systemId: "web_generic",
     pageId: "generic_page",
