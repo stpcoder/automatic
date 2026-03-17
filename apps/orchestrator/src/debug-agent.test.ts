@@ -1,7 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { plannerOutputSchema } from "../../../packages/contracts/src/index.js";
 
-import { buildDebugLoopPlannerRequest, parsePlannerJsonText } from "./debug-agent.js";
+import { buildDebugLoopPlannerRequest, normalizePlannerOutputForSchema, parsePlannerJsonText } from "./debug-agent.js";
 
 test("debug planner request includes explicit global and step planning contract", () => {
   const request = buildDebugLoopPlannerRequest("테스트", {}, [
@@ -36,4 +37,14 @@ test("parsePlannerJsonText recovers fenced JSON with smart quotes", () => {
   ) as Record<string, unknown>;
 
   assert.equal(parsed.expected_transition, "RUNNING");
+});
+
+test("debug planner normalizes SUCCEEDED transition aliases before schema validation", () => {
+  const parsed = normalizePlannerOutputForSchema(
+    parsePlannerJsonText(
+      '{"objective":"Finish the task","rationale":"The answer is already visible","next_action":{"tool":"finish_task","input":{"summary":"Done"}},"requires_approval":false,"expected_transition":"SUCCEEDED"}'
+    )
+  );
+  const result = plannerOutputSchema.parse(parsed);
+  assert.equal(result.expected_transition, "COMPLETED");
 });

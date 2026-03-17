@@ -127,7 +127,7 @@ class JsonDebugPlanner implements DebugPlannerClient {
     }
 
     try {
-      return plannerOutputSchema.parse(parsePlannerJsonText(result.text));
+      return plannerOutputSchema.parse(normalizePlannerOutputForSchema(parsePlannerJsonText(result.text)));
     } catch (error) {
       logPlannerRepairAttempt(error, result.text);
       let repairedText: string;
@@ -143,7 +143,7 @@ class JsonDebugPlanner implements DebugPlannerClient {
         repaired_text: repairedText
       };
       try {
-        return plannerOutputSchema.parse(parsePlannerJsonText(repairedText));
+        return plannerOutputSchema.parse(normalizePlannerOutputForSchema(parsePlannerJsonText(repairedText)));
       } catch (repairParseError) {
         logPlannerRepairOutputFailure(repairParseError, repairedText);
         throw repairParseError;
@@ -290,6 +290,7 @@ function buildSingleTurnSystemPrompt(): string {
     "Use the provided available_tools only.",
     "When no page is attached yet and the instruction references a URL or page to inspect, use open_system first.",
     "When the goal is satisfied, use finish_task with a short summary.",
+    "expected_transition must be one of: READY, RUNNING, DRAFT_READY, APPROVAL_REQUIRED, WAITING_EMAIL, WAITING_CHAT, WAITING_HUMAN, WAITING_SYSTEM, COMPLETED, FAILED, ESCALATED.",
     "The JSON must follow this shape:",
     JSON.stringify(buildPlannerResponseContract())
   ].join(" ");
@@ -320,6 +321,7 @@ function buildLoopSystemPrompt(): string {
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
     "- navigate_browser_history: move back or forward in the current browser tab history when you reached the wrong page and need to return to the previous results or page state.",
     "- finish_task: only when the goal is truly satisfied and you can summarize the answer from what is visible on the current page.",
+    "expected_transition must be one of: READY, RUNNING, DRAFT_READY, APPROVAL_REQUIRED, WAITING_EMAIL, WAITING_CHAT, WAITING_HUMAN, WAITING_SYSTEM, COMPLETED, FAILED, ESCALATED.",
     "Your step_plan should be rich enough to show intended attach/open, page verification, interaction, and result verification steps, even though you may execute only one tool now.",
     "The JSON must follow this shape:",
     JSON.stringify(buildPlannerResponseContract())
@@ -392,6 +394,38 @@ function normalizePlannerResponseText(raw: string): string {
     .replace(/[\u201c\u201d]/g, "\"")
     .replace(/[\u2018\u2019]/g, "'")
     .trim();
+}
+
+export function normalizePlannerOutputForSchema(value: unknown): unknown {
+  if (!value || typeof value !== "object") {
+    return value;
+  }
+
+  const output = { ...(value as Record<string, unknown>) };
+  const expectedTransition = normalizeExpectedTransition(output.expected_transition);
+  if (expectedTransition) {
+    output.expected_transition = expectedTransition;
+  }
+  return output;
+}
+
+function normalizeExpectedTransition(value: unknown): string | undefined {
+  if (typeof value !== "string") {
+    return undefined;
+  }
+
+  const normalized = value.trim().toUpperCase().replace(/[\s-]+/g, "_");
+  const aliasMap: Record<string, string> = {
+    SUCCEED: "COMPLETED",
+    SUCCEEDED: "COMPLETED",
+    SUCCESS: "COMPLETED",
+    DONE: "COMPLETED",
+    FINISHED: "COMPLETED",
+    COMPLETE: "COMPLETED",
+    ERROR: "FAILED"
+  };
+
+  return aliasMap[normalized] ?? normalized;
 }
 
 function parseJsonSafely(raw: string): unknown {
