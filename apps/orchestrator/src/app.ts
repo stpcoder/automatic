@@ -410,17 +410,17 @@ export async function createApp(
     for (let stepIndex = 1; stepIndex <= maxSteps; stepIndex += 1) {
       const loopContext = {
         ...context,
-        current_observation: currentObservation ?? null,
-        previous_observation: previousObservation ?? null,
+        current_observation: summarizeObservationForPlanner(currentObservation) ?? null,
+        previous_observation: summarizeObservationForPlanner(previousObservation) ?? null,
         current_observation_signature: currentObservationSignature ?? null,
-        last_tool_result: lastToolResult ?? null,
+        last_tool_result: summarizeToolResultForPlanner(lastToolResult) ?? null,
         global_plan: globalPlan ?? null,
         current_step_plan: currentStepPlan ?? null,
         last_failure: lastFailure ?? null,
         stagnation_count: stagnationCount,
-        replan_history: replanHistory,
-        plan_history: planHistory,
-        step_history: steps.map((step) => ({
+        replan_history: replanHistory.slice(-6),
+        plan_history: planHistory.slice(-6),
+        step_history: steps.slice(-8).map((step) => ({
           step: step.step,
           tool: step.tool,
           success: step.success
@@ -1295,4 +1295,106 @@ function computeObservationSignature(observation: Record<string, unknown>): stri
   const summary = typeof observation.summary === "string" ? observation.summary.slice(0, 180) : "";
   const domOutline = typeof observation.domOutline === "string" ? observation.domOutline.slice(0, 400) : "";
   return [title, url, summary, pageText, domOutline].join("|");
+}
+
+function summarizeObservationForPlanner(observation: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!observation) {
+    return undefined;
+  }
+
+  const semanticBlocks = Array.isArray(observation.semanticBlocks)
+    ? observation.semanticBlocks
+        .filter((block): block is Record<string, unknown> => typeof block === "object" && block !== null)
+        .slice(0, 10)
+        .map((block) => ({
+          type: typeof block.type === "string" ? block.type : undefined,
+          text: typeof block.text === "string" ? truncateForLog(block.text, 180) : undefined,
+          importance: typeof block.importance === "number" ? block.importance : undefined,
+          region: typeof block.region === "string" ? block.region : undefined,
+          title: typeof block.title === "string" ? truncateForLog(block.title, 120) : undefined
+        }))
+    : [];
+
+  const interactiveElements = Array.isArray(observation.interactiveElements)
+    ? observation.interactiveElements
+        .filter((element): element is Record<string, unknown> => typeof element === "object" && element !== null)
+        .slice(0, 16)
+        .map((element) => ({
+          handle: typeof element.handle === "string" ? element.handle : undefined,
+          key: typeof element.key === "string" ? element.key : undefined,
+          label: typeof element.label === "string" ? truncateForLog(element.label, 120) : undefined,
+          value: typeof element.value === "string" ? truncateForLog(element.value, 160) : undefined,
+          type: typeof element.type === "string" ? element.type : undefined,
+          semanticRole: typeof element.semanticRole === "string" ? element.semanticRole : undefined,
+          importance: typeof element.importance === "number" ? element.importance : undefined,
+          nearbyText: typeof element.nearbyText === "string" ? truncateForLog(element.nearbyText, 160) : undefined,
+          required: typeof element.required === "boolean" ? element.required : undefined
+        }))
+    : [];
+
+  const visibleTextBlocks = Array.isArray(observation.visibleTextBlocks)
+    ? observation.visibleTextBlocks
+        .filter((block): block is string => typeof block === "string" && block.trim().length > 0)
+        .slice(0, 10)
+        .map((block) => truncateForLog(block, 160))
+    : [];
+
+  return {
+    sessionId: typeof observation.sessionId === "string" ? observation.sessionId : undefined,
+    parentSessionId: typeof observation.parentSessionId === "string" ? observation.parentSessionId : undefined,
+    systemId: typeof observation.systemId === "string" ? observation.systemId : undefined,
+    pageId: typeof observation.pageId === "string" ? observation.pageId : undefined,
+    title: typeof observation.title === "string" ? observation.title : undefined,
+    url: typeof observation.url === "string" ? observation.url : undefined,
+    summary: typeof observation.summary === "string" ? truncateForLog(observation.summary, 220) : undefined,
+    pageText: typeof observation.pageText === "string" ? truncateForLog(observation.pageText, 1200) : undefined,
+    domOutline: typeof observation.domOutline === "string" ? truncateForLog(observation.domOutline, 1800) : undefined,
+    visibleTextBlocks,
+    semanticBlocks,
+    interactiveElements,
+    finalActionButton: typeof observation.finalActionButton === "string" ? observation.finalActionButton : undefined
+  };
+}
+
+function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!toolResult) {
+    return undefined;
+  }
+
+  const summary: Record<string, unknown> = {};
+  for (const key of ["artifact_kind", "summary", "system_id", "session_id", "record_id", "draft_id", "preview_id", "click_id", "target_key", "target_handle"]) {
+    if (key in toolResult) {
+      summary[key] = toolResult[key];
+    }
+  }
+
+  if (typeof toolResult.title === "string") {
+    summary.title = toolResult.title;
+  }
+  if (typeof toolResult.url === "string") {
+    summary.url = toolResult.url;
+  }
+
+  const clickTarget =
+    typeof toolResult.click_target === "object" && toolResult.click_target !== null
+      ? (toolResult.click_target as Record<string, unknown>)
+      : undefined;
+  if (clickTarget) {
+    summary.click_target = {
+      handle: typeof clickTarget.handle === "string" ? clickTarget.handle : undefined,
+      key: typeof clickTarget.key === "string" ? clickTarget.key : undefined,
+      label: typeof clickTarget.label === "string" ? truncateForLog(clickTarget.label, 120) : undefined,
+      nearbyText: typeof clickTarget.nearbyText === "string" ? truncateForLog(clickTarget.nearbyText, 160) : undefined
+    };
+  }
+
+  const observation =
+    typeof toolResult.observation === "object" && toolResult.observation !== null
+      ? (toolResult.observation as Record<string, unknown>)
+      : undefined;
+  if (observation) {
+    summary.observation = summarizeObservationForPlanner(observation);
+  }
+
+  return summary;
 }
