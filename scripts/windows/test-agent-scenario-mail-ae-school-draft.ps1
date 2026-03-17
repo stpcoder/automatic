@@ -1,0 +1,23 @@
+param()
+
+. (Join-Path $PSScriptRoot "common.ps1")
+Set-AgentEnvironment | Out-Null
+
+$instruction = "Outlook에서 ae school 교육일정 관련 이메일을 찾아 내용을 정리하고 taeho.je@sk.com에게 보낼 메일 초안을 만든 뒤, 보내지 말고 나에게 확인 요청해줘"
+$instructionBase64 = Encode-Utf8Base64 -Value $instruction
+
+$context = @{
+  keyword = "ae school 교육일정"
+  to = @("taeho.je@sk.com")
+  cc = @()
+  template_id = "mail_summary"
+  approved_to_send = $false
+}
+
+Write-Host "[skh-agent] running mail scenario: search -> summarize -> draft -> approval..."
+$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
+  instruction_base64 = $instructionBase64
+  context = $context
+}
+
+Format-AgentRunResult -Result $result

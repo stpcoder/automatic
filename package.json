@@ -60,6 +60,8 @@
     "win:test:agent:scenario:naver-news": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-naver-news.ps1",
     "win:test:agent:scenario:naver-news-detail": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-naver-news-detail.ps1",
     "win:test:agent:scenario:naver-shopping-price": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-naver-shopping-price.ps1",
+    "win:test:agent:scenario:mail-ae-school-draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-mail-ae-school-draft.ps1",
+    "win:test:agent:scenario:mail-request-watch": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-mail-request-watch.ps1",
     "win:test:agent:scenario:google-news-detail": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-google-news-detail.ps1",
     "win:test:agent:scenario:google-price-detail": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-google-price-detail.ps1",
     "win:test:agent:scenario:current-page-summary": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-current-page-summary.ps1",
@@ -71,7 +73,9 @@
     "win:test:5": "npm run win:test:agent:scenario:current-page-summary",
     "win:test:6": "npm run win:test:agent:scenario:current-page-actions",
     "win:test:7": "npm run win:test:agent:web-naver-stock-direct",
-    "win:test:8": "npm run win:test:agent:scenario:naver-shopping-price"
+    "win:test:8": "npm run win:test:agent:scenario:naver-shopping-price",
+    "win:test:9": "npm run win:test:agent:scenario:mail-ae-school-draft",
+    "win:test:10": "npm run win:test:agent:scenario:mail-request-watch"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.35",

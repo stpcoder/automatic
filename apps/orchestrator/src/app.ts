@@ -428,6 +428,25 @@ export async function createApp(
       logDebugPlannerDecision("run", 1, plannerOutput, plannerOutput.next_action.tool, normalizedInput, debugPlanner.getTrace());
 
       const toolStartedAt = Date.now();
+      if (isSendBlockedWithoutApproval(plannerOutput.next_action.tool, context)) {
+        const errorMessage = "Sending is blocked until context.approved_to_send is true.";
+        timing.tool_ms = Date.now() - toolStartedAt;
+        timing.total_ms = Date.now() - startedAt;
+        logDebugAgentFailure("run", 1, { code: "approval_required", message: errorMessage }, timing);
+        return {
+          ok: false,
+          error_stage: "approval_required",
+          error_code: "approval_required",
+          error_message: errorMessage,
+          timing,
+          debug_trace: {
+            planner_request: plannerRequest,
+            planner_trace: debugPlanner.getTrace(),
+            planner_output: plannerOutput,
+            normalized_input: normalizedInput
+          }
+        };
+      }
       const toolResult =
         isWebDebugTool(plannerOutput.next_action.tool)
           ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", normalizedInput))
@@ -607,6 +626,32 @@ export async function createApp(
 
       try {
         const toolStartedAt = Date.now();
+        if (isSendBlockedWithoutApproval(plannerOutput.next_action.tool, loopContext)) {
+          const blockedMessage = "Sending is blocked until context.approved_to_send is true.";
+          stepTiming.tool_ms = Date.now() - toolStartedAt;
+          lastFailure = {
+            step: stepIndex,
+            stage: "approval_required",
+            tool: plannerOutput.next_action.tool,
+            message: blockedMessage
+          };
+          replanHistory.push(lastFailure);
+          steps.push({
+            step: stepIndex,
+            tool: plannerOutput.next_action.tool,
+            planner_request: plannerRequest,
+            planner_trace: debugPlanner.getTrace(),
+            planner_output: plannerOutput,
+            normalized_input: normalizedInput,
+            success: false,
+            timing: stepTiming,
+            error: blockedMessage
+          });
+          logDebugAgentFailure("run-loop", stepIndex, { code: "approval_required", message: blockedMessage }, {
+            total_ms: Date.now() - startedAt
+          });
+          continue;
+        }
         const toolResult =
           isWebDebugTool(plannerOutput.next_action.tool)
             ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput))
@@ -1392,6 +1437,27 @@ function normalizeDebugToolInput(
     }
   }
 
+  if (toolName === "draft_outlook_mail") {
+    if (typeof normalized.template_id !== "string" || normalized.template_id.trim().length === 0) {
+      normalized.template_id = typeof context.template_id === "string" && context.template_id.trim().length > 0 ? context.template_id : "general_mail";
+    }
+    if (!Array.isArray(normalized.to) && Array.isArray(context.to)) {
+      normalized.to = context.to;
+    }
+    if (!Array.isArray(normalized.cc) && Array.isArray(context.cc)) {
+      normalized.cc = context.cc;
+    }
+    if ((typeof normalized.variables !== "object" || normalized.variables === null) && typeof context.variables === "object" && context.variables !== null) {
+      normalized.variables = context.variables;
+    }
+  }
+
+  if (toolName === "send_outlook_mail") {
+    if (typeof normalized.draft_id !== "string" || normalized.draft_id.trim().length === 0) {
+      normalized.draft_id = typeof context.draft_id === "string" ? context.draft_id : "";
+    }
+  }
+
   if (toolName === "read_outlook_mail") {
     if (typeof normalized.entry_id !== "string") {
       normalized.entry_id = typeof context.entry_id === "string" ? context.entry_id : "";
@@ -1455,6 +1521,21 @@ function normalizeDebugToolInput(
     }
   }
 
+  if (toolName === "watch_email_reply") {
+    if (typeof normalized.case_id !== "string" || normalized.case_id.trim().length === 0) {
+      normalized.case_id = typeof context.case_id === "string" ? context.case_id : "DEBUG-CASE";
+    }
+    if (typeof normalized.conversation_id !== "string" || normalized.conversation_id.trim().length === 0) {
+      normalized.conversation_id = typeof context.conversation_id === "string" ? context.conversation_id : "";
+    }
+    if (!Array.isArray(normalized.expected_from) && Array.isArray(context.expected_from)) {
+      normalized.expected_from = context.expected_from;
+    }
+    if (!Array.isArray(normalized.required_fields) && Array.isArray(context.required_fields)) {
+      normalized.required_fields = context.required_fields;
+    }
+  }
+
   return normalized;
 }
 
@@ -1465,6 +1546,10 @@ function isWebDebugTool(toolName: string): boolean {
     toolName === "navigate_browser_history" ||
     toolName.includes("web")
   );
+}
+
+function isSendBlockedWithoutApproval(toolName: string, context: Record<string, unknown>): boolean {
+  return toolName === "send_outlook_mail" && context.approved_to_send !== true;
 }
 
 function inferSessionIdFromContext(context: Record<string, unknown>): string | undefined {
