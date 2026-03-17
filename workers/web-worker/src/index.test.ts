@@ -10,7 +10,6 @@ function getOutput(result: { output: unknown }) {
     system_id: string;
     record_id?: string;
     summary?: string;
-    goal_satisfied?: boolean;
     observation: PageObservation;
   };
 }
@@ -206,7 +205,7 @@ test("web worker can read the current page without extracting a final answer", a
   assert.equal(typeof (read.output as { dom_outline?: string }).dom_outline, "string");
 });
 
-test("web worker can click a generic search result and extract detail text", async () => {
+test("web worker can click a generic search result and read detail text", async () => {
   const worker = new WebWorker();
 
   await worker.execute({
@@ -247,7 +246,7 @@ test("web worker can click a generic search result and extract detail text", asy
     }
   });
 
-  const extract = await worker.execute({
+  const clickResult = await worker.execute({
     request_id: "TR-N-3a",
     case_id: "CASE-N",
     step_id: "generic_search",
@@ -259,26 +258,23 @@ test("web worker can click a generic search result and extract detail text", asy
     }
   });
 
-  assert.equal(extract.success, true);
+  assert.equal(clickResult.success, true);
 
-  const detailExtract = await worker.execute({
+  const detailRead = await worker.execute({
     request_id: "TR-N-3",
     case_id: "CASE-N",
     step_id: "generic_search",
-    tool_name: "extract_web_result",
+    tool_name: "read_web_page",
     mode: "preview",
     input: {
-      system_id: "web_generic",
-      goal: "Search for SK hynix stock price",
-      query: "SK hynix stock price"
+      system_id: "web_generic"
     }
   });
 
-  assert.equal(detailExtract.success, true);
-  const extractOutput = getOutput(detailExtract);
-  assert.equal(extractOutput.goal_satisfied, true);
-  assert.match(String(extractOutput.summary), /SK hynix/i);
-  assert.match(String(extractOutput.observation.pageText), /210,000 KRW/i);
+  assert.equal(detailRead.success, true);
+  const readOutput = getOutput(detailRead);
+  assert.match(String(readOutput.summary), /SK hynix/i);
+  assert.match(String(readOutput.observation.pageText), /210,000 KRW/i);
 });
 
 test("web worker can follow navigation and preserve session metadata", async () => {

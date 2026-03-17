@@ -187,8 +187,7 @@ function Format-AgentRunResult {
     $output = [ordered]@{
       ok = $true
       final_response = $Result.final_response
-      stock_result = $Result.final_result.stock_result
-      goal_satisfied = $Result.final_result.goal_satisfied
+      final_result = $Result.final_result
       total_ms = $Result.timing.total_ms
       steps = @($Result.steps | ForEach-Object { $_.tool })
     }
@@ -215,8 +214,7 @@ function Format-AgentSingleRunResult {
       ok = $true
       tool = $Result.planner_output.next_action.tool
       summary = $Result.tool_result.output.summary
-      stock_result = $Result.tool_result.output.stock_result
-      goal_satisfied = $Result.tool_result.output.goal_satisfied
+      output = $Result.tool_result.output
       total_ms = $Result.timing.total_ms
     }
     return ($output | ConvertTo-Json -Depth 10)
@@ -231,7 +229,7 @@ function Format-AgentSingleRunResult {
   return ($output | ConvertTo-Json -Depth 10)
 }
 
-function Format-WebExtractResult {
+function Format-WebReadResult {
   param(
     [Parameter(Mandatory = $true)]
     $Result
@@ -240,8 +238,9 @@ function Format-WebExtractResult {
   $output = [ordered]@{
     success = $Result.success
     summary = $Result.output.summary
-    stock_result = $Result.output.stock_result
-    goal_satisfied = $Result.output.goal_satisfied
+    title = $Result.output.title
+    url = $Result.output.url
+    artifact_kind = $Result.output.artifact_kind
   }
   return ($output | ConvertTo-Json -Depth 10)
 }

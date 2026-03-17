@@ -124,12 +124,10 @@ function createGenericBrowserTestPlanner(): DebugPlannerClient {
     }
 
     if (pageId === "generic_search_results") {
-      if (!lastToolResult || lastToolResult.artifact_kind !== "web_result_extraction") {
-        return buildPlannerOutput("Read the result list", "extract_web_result", {
+      if (!lastToolResult || lastToolResult.artifact_kind !== "web_read") {
+        return buildPlannerOutput("Read the result list", "read_web_page", {
           system_id: "web_generic",
-          session_id: sessionId,
-          goal: instruction,
-          query: ""
+          session_id: sessionId
         });
       }
       return buildPlannerOutput("Open the most relevant result", "click_web_element", {
@@ -140,29 +138,27 @@ function createGenericBrowserTestPlanner(): DebugPlannerClient {
     }
 
     if (pageId === "generic_product_page" || pageId === "generic_news_article" || pageId === "generic_detail_page") {
-      if (!lastToolResult || lastToolResult.artifact_kind !== "web_result_extraction") {
-        return buildPlannerOutput("Extract the final answer", "extract_web_result", {
+      if (!lastToolResult || lastToolResult.artifact_kind !== "web_read") {
+        return buildPlannerOutput("Read the current page", "read_web_page", {
           system_id: "web_generic",
-          session_id: sessionId,
-          goal: instruction,
-          query: ""
+          session_id: sessionId
         });
       }
-      return buildPlannerOutput("Finish with the extracted answer", "finish_task", {
+      return buildPlannerOutput("Finish with the visible answer", "finish_task", {
         summary:
-          typeof lastToolResult.summary === "string" && lastToolResult.summary.trim().length > 0
-            ? lastToolResult.summary
-            : "Task completed."
+          typeof currentObservation.pageText === "string" && currentObservation.pageText.trim().length > 0
+            ? currentObservation.pageText
+            : typeof currentObservation.summary === "string" && currentObservation.summary.trim().length > 0
+              ? currentObservation.summary
+              : "Task completed."
       }, {
         expected_transition: "COMPLETED"
       });
     }
 
-    return buildPlannerOutput("Extract the currently visible result", "extract_web_result", {
+    return buildPlannerOutput("Read the current page", "read_web_page", {
       system_id: "web_generic",
-      session_id: sessionId,
-      goal: instruction,
-      query: ""
+      session_id: sessionId
     });
   });
 }
@@ -477,9 +473,9 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
     "open_system",
     "fill_web_form",
     "click_web_element",
-    "extract_web_result",
+    "read_web_page",
     "click_web_element",
-    "extract_web_result"
+    "read_web_page"
   ]);
   assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
@@ -506,8 +502,7 @@ test("debug agent loop can read stock result from a direct naver stock page", as
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().ok, true);
   assert.equal(response.json().completed, true);
-  assert.deepEqual(response.json().steps.map((step: { tool: string }) => step.tool), ["open_system", "extract_web_result"]);
-  assert.match(String(response.json().final_result.stock_result.company), /하이닉스|SK hynix/i);
+  assert.deepEqual(response.json().steps.map((step: { tool: string }) => step.tool), ["open_system", "read_web_page"]);
   assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
   await app.close();

@@ -47,8 +47,7 @@
   - `open_system`
   - `fill_web_form`
   - `click_web_element`
-  - `follow_web_navigation`
-  - `extract_web_result`
+  - `read_web_page`
   - `finish_task`
 - same-tab / child-tab follow
 - 포인터 / 스크롤 / 클릭 시각화
@@ -89,11 +88,10 @@
 
 ## Recommended Next Direction
 
-1. `system rule` 고도화
-   - page markers
-   - wait rules
-   - result extractors
-   - session preference
+1. DOM observation 고도화
+   - semantic blocks
+   - visible DOM ordering
+   - candidate grounding
 2. 검색 결과 리스트 추출 / 후보 선택
 3. extension session selection 강화
 4. site-specific mapping validation
@@ -107,7 +105,7 @@
 
 - `npm run check`: PASS
 - `npm test`: PASS
-- automated tests: `40/40 PASS`
+- automated tests: `46/46 PASS`
 
 ## Latest Extension Fix
 

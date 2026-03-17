@@ -8,7 +8,7 @@ The web worker uses a `Page Agent` style DOM harness and supports two adapters:
   - works through a Chrome extension content script
   - automatically reconnects across same-tab and new-tab navigation
   - sends reduced DOM observations to the local orchestrator
-  - executes queued fill, click, follow, submit, and extract commands
+  - executes queued fill, click, read, submit, and navigation commands
 - `page_agent_dom`
   - in-memory harness for deterministic local development and tests
 
@@ -36,9 +36,8 @@ For a normal interactive web step:
 1. `open_system`
 2. `fill_web_form`
 3. `click_web_element`
-4. `follow_web_navigation`
-5. `extract_web_result`
-6. `finish_task`
+4. `read_web_page`
+5. `finish_task`
 
 For an approval-sensitive commit step:
 
@@ -47,8 +46,8 @@ For an approval-sensitive commit step:
 3. `preview_web_submission`
 4. human approval
 5. `submit_web_form`
-6. `follow_web_navigation`
-7. `extract_web_result`
+6. `read_web_page`
+7. `finish_task`
 
 ## 4. Field Mapping Rule
 
@@ -64,6 +63,7 @@ The current implementation provides:
 - a Cube web execution path over the extension bridge
 - semantic field fill
 - click and navigation follow
+- page read / DOM observation
 - preview
 - final-button validation
 - adapter selection through `WEB_WORKER_ADAPTER=extension_bridge|page_agent_dom`
@@ -84,10 +84,9 @@ To use the extension adapter:
    - `open_system`
    - `fill_web_form`
    - `click_web_element`
-   - `follow_web_navigation`
+   - `read_web_page`
    - `preview_web_submission`
    - `submit_web_form`
-   - `extract_web_result`
 
 Example:
 

@@ -171,17 +171,6 @@ export async function createApp(
     }));
   });
 
-  app.post("/debug/web/extract", async (request) => {
-    const rawBody = request.body as { system_id?: string; session_id?: string; goal?: string; query?: string };
-    const body = decodePayloadStrings(rawBody) as { system_id?: string; session_id?: string; goal?: string; query?: string };
-    return webWorker.execute(buildDebugToolRequest("extract_web_result", "preview", {
-      system_id: body.system_id ?? "security_portal",
-      session_id: body.session_id,
-      goal: body.goal ?? "",
-      query: body.query ?? ""
-    }));
-  });
-
   app.post("/debug/mail/draft", async (request) => {
     const body = request.body as {
       template_id?: string;
@@ -297,11 +286,6 @@ export async function createApp(
         name: "submit_web_form",
         description: "Click the final submit button on the active web system.",
         input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
-      },
-      {
-        name: "extract_web_result",
-        description: "Extract and verify the final answer from the current page when the relevant result is already visible.",
-        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
       },
       {
         name: "draft_outlook_mail",
@@ -596,37 +580,6 @@ export async function createApp(
           };
           replanHistory.push(lastFailure);
           continue;
-        }
-
-        if (
-          plannerOutput.next_action.tool === "extract_web_result" &&
-          toolResult.output.goal_satisfied === true
-        ) {
-          const finalSummary =
-            typeof toolResult.output.summary === "string" && toolResult.output.summary.trim().length > 0
-              ? toolResult.output.summary
-              : "Task completed.";
-          logDebugAgentFinish("run-loop", stepIndex, finalSummary, {
-            total_ms: Date.now() - startedAt
-          });
-          return {
-            ok: true,
-            completed: true,
-            final_response: finalSummary,
-            final_result: toolResult.output,
-            global_plan: globalPlan ?? null,
-            current_step_plan: currentStepPlan ?? null,
-            steps,
-            timing: {
-              total_ms: Date.now() - startedAt
-            },
-            debug_trace: {
-              planner_request: plannerRequest,
-              planner_trace: debugPlanner.getTrace(),
-              planner_output: plannerOutput,
-              normalized_input: normalizedInput
-            }
-          };
         }
 
         lastFailure = undefined;
@@ -1003,9 +956,6 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
   if (toolName === "navigate_browser_history") {
     return truncateForLog(stringForLog(input.direction), 20);
   }
-  if (toolName === "extract_web_result") {
-    return truncateForLog(stringForLog(input.query), 40);
-  }
   if (toolName === "draft_outlook_mail") {
     return truncateForLog(stringForLog(input.template_id), 40);
   }
@@ -1125,11 +1075,6 @@ function buildDebugToolSpecs() {
       input_schema: { system_id: { type: "string" }, expected_button: { type: "string" } }
     },
     {
-      name: "extract_web_result",
-      description: "Extract and verify the final answer from the current page when the relevant result is already visible.",
-      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
-    },
-    {
       name: "draft_outlook_mail",
       description: "Create an Outlook mail draft.",
       input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
@@ -1237,16 +1182,6 @@ function normalizeDebugToolInput(
       }
       if (typeof normalized.amount !== "number") {
         normalized.amount = typeof context.amount === "number" ? context.amount : 0.75;
-      }
-    }
-    if (toolName === "extract_web_result") {
-      if (typeof normalized.goal !== "string" || normalized.goal.trim().length === 0) {
-        normalized.goal = instruction;
-      }
-      if (typeof normalized.query !== "string" || normalized.query.trim().length === 0) {
-        const fieldValues =
-          typeof context.field_values === "object" && context.field_values !== null ? (context.field_values as Record<string, unknown>) : {};
-        normalized.query = typeof fieldValues.query === "string" ? fieldValues.query : "";
       }
     }
   }

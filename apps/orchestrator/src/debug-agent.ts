@@ -277,8 +277,7 @@ function buildLoopSystemPrompt(): string {
     "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements. Prefer target_handle from domOutline when a numbered handle is visible there.",
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
     "- navigate_browser_history: move back or forward in the current browser tab history when you reached the wrong page and need to return to the previous results or page state.",
-    "- extract_web_result: extract and verify the final answer only when the relevant result is already visible on the current page.",
-    "- finish_task: only when the goal is truly satisfied and you can summarize the answer.",
+    "- finish_task: only when the goal is truly satisfied and you can summarize the answer from what is visible on the current page.",
     "Your step_plan should be rich enough to show intended attach/open, page verification, interaction, and result verification steps, even though you may execute only one tool now.",
     "The JSON must follow this shape:",
     JSON.stringify(buildPlannerResponseContract())

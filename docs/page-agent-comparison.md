@@ -19,16 +19,15 @@
   - `open_system`
   - `fill_web_form`
   - `click_web_element`
-  - `follow_web_navigation`
+  - `read_web_page`
   - `submit_web_form`
-  - `extract_web_result`
   - `finish_task`
   를 여러 step에 걸쳐 실행한다.
 
 ### 3. 결과 읽기 후 종료
 - 단순히 버튼 클릭에서 끝나지 않는다.
-- `extract_web_result`가 결과 페이지의 `pageText`를 읽고 목표 만족 여부를 판단한다.
-- `naver_search`는 결과 텍스트에서 `SK hynix`, `stock`, `price`를 확인한 뒤 종료한다.
+- `read_web_page`가 결과 페이지의 `pageText`, `domOutline`, `semanticBlocks`를 읽는다.
+- 최종 답은 별도 추출 도구가 아니라 planner가 `finish_task`에서 정리한다.
 
 ### 4. 시스템 정의 기반 동작
 - 시스템별로:
@@ -46,7 +45,7 @@
 - click
 - preview
 - submit
-- extract
+- read
 
 Page Agent 계열과 비교해 아직 부족한 것:
 - hover
@@ -66,10 +65,10 @@ Page Agent 계열과 비교해 아직 부족한 것:
 - 페이지 전환 후 새 목표 자동 재설정
 - 다중 후보 버튼/필드 중 최적 선택
 
-### 3. 결과 추출의 범용성
+### 3. 결과 읽기의 범용성
 현재:
-- 시스템 정의의 `resultIndicators`
-- 텍스트 snippet 매칭
+- `read_web_page`
+- DOM outline / semantic blocks / visible text 기반 해석
 
 부족한 부분:
 - 표/카드/리스트 구조 이해
@@ -90,20 +89,15 @@ Page Agent 계열과 비교해 아직 부족한 것:
   - `현재 페이지에서 하이닉스 현재 주가 알려줘`
 
 ### 더 안정적인 테스트 경로
-- `naver_search`
-  - 검색 홈에서 검색어 입력 후 클릭하는 흐름
-  - extension bridge 기준으로 same-tab / child-tab follow가 가능하다
-- `naver_stock`
-  - SK hynix 종목 결과 페이지에 직접 붙는 흐름
-  - 결과 읽기 안정성은 이 경로가 더 높다
+- 검색 홈에서 검색어 입력 후 클릭하는 흐름
+- 결과 리스트/상세 페이지에서 `read_web_page`를 반복하며 다음 액션을 고른다
 
 ### 현재 명령 흐름
 1. `open_system`
 2. `fill_web_form`
 3. `click_web_element`
-4. `follow_web_navigation`
-5. `extract_web_result`
-6. `finish_task`
+4. `read_web_page`
+5. `finish_task`
 
 ## 다음 우선순위
 
@@ -114,8 +108,8 @@ Page Agent 계열과 비교해 아직 부족한 것:
 현재는 같은 `system_id`의 최신 세션을 우선 사용한다.
 멀티탭 환경에서는 `session_id` 선택과 우선순위 규칙이 더 필요하다.
 
-### 3. extraction 고도화
-`pageText` 기반에서:
+### 3. read 결과 고도화
+`read_web_page` 기반에서:
 - 결과 카드 추출
 - label/value 추출
 - ranking
