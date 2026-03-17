@@ -5,8 +5,164 @@ import os from "node:os";
 import path from "node:path";
 
 import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
+import type { PlannerOutput, PlannerRequest } from "../../../packages/contracts/src/index.js";
 import { createApp } from "./app.js";
+import type { DebugPlannerClient } from "./debug-agent.js";
 import { resolveLlmConfig } from "./llm-config.js";
+
+function createTestPlanner(
+  resolver: (request: PlannerRequest) => PlannerOutput
+): DebugPlannerClient {
+  return {
+    async plan(request: PlannerRequest): Promise<PlannerOutput> {
+      return resolver(request);
+    },
+    getTrace(): Record<string, unknown> {
+      return {
+        source: "test_planner"
+      };
+    }
+  };
+}
+
+function parsePlannerPayload(request: PlannerRequest): { instruction: string; context: Record<string, unknown> } {
+  const userContent = request.messages.find((message) => message.role === "user")?.content ?? "{}";
+  const parsed = JSON.parse(userContent) as { instruction?: string; context?: Record<string, unknown> };
+  return {
+    instruction: typeof parsed.instruction === "string" ? parsed.instruction : "",
+    context: typeof parsed.context === "object" && parsed.context !== null ? parsed.context : {}
+  };
+}
+
+function buildPlannerOutput(
+  objective: string,
+  tool: string,
+  input: Record<string, unknown>,
+  overrides: Partial<PlannerOutput> = {}
+): PlannerOutput {
+  return {
+    objective,
+    rationale: "Selected by test planner",
+    next_action: {
+      tool,
+      input
+    },
+    requires_approval: false,
+    expected_transition: "RUNNING",
+    global_plan: {
+      goal: objective,
+      success_criteria: ["Requested result is returned"],
+      assumptions: [],
+      steps: [
+        {
+          step_id: "step-1",
+          title: objective,
+          description: objective,
+          completion_signals: ["Tool result advances the task"]
+        }
+      ],
+      current_step_id: "step-1",
+      progress_summary: objective
+    },
+    step_plan: {
+      step_id: "step-1",
+      current_goal: objective,
+      action_plan: [objective],
+      completion_signals: ["Tool result advances the task"],
+      replan_if: ["Tool fails or page changes unexpectedly"]
+    },
+    ...overrides
+  };
+}
+
+function createGenericBrowserTestPlanner(): DebugPlannerClient {
+  return createTestPlanner((request) => {
+    const { instruction, context } = parsePlannerPayload(request);
+    const currentObservation =
+      typeof context.current_observation === "object" && context.current_observation !== null
+        ? (context.current_observation as Record<string, unknown>)
+        : null;
+    const lastToolResult =
+      typeof context.last_tool_result === "object" && context.last_tool_result !== null
+        ? (context.last_tool_result as Record<string, unknown>)
+        : null;
+
+    if (!currentObservation) {
+      const urlMatch = instruction.match(/https?:\/\/[^\s"'<>]+/i)?.[0] ?? "https://search.example.test";
+      return buildPlannerOutput("Open the target page", "open_system", {
+        system_id: "web_generic",
+        target_url: urlMatch,
+        open_if_missing: true
+      });
+    }
+
+    const pageId = typeof currentObservation.pageId === "string" ? currentObservation.pageId : "";
+    const sessionId = typeof currentObservation.sessionId === "string" ? currentObservation.sessionId : undefined;
+
+    if (pageId === "generic_search_home") {
+      const interactiveElements = Array.isArray(currentObservation.interactiveElements)
+        ? (currentObservation.interactiveElements as Array<Record<string, unknown>>)
+        : [];
+      const queryInput = interactiveElements.find((element) => element.key === "query");
+      const currentValue = typeof queryInput?.value === "string" ? queryInput.value.trim() : "";
+      if (currentValue.length === 0) {
+        const query = /뉴스/.test(instruction) ? "SK hynix 뉴스" : "하이닉스 주가";
+        return buildPlannerOutput("Type the search query", "fill_web_form", {
+          system_id: "web_generic",
+          session_id: sessionId,
+          field_values: { query }
+        });
+      }
+      return buildPlannerOutput("Submit the search", "click_web_element", {
+        system_id: "web_generic",
+        session_id: sessionId,
+        target_key: "search_action"
+      });
+    }
+
+    if (pageId === "generic_search_results") {
+      if (!lastToolResult || lastToolResult.artifact_kind !== "web_result_extraction") {
+        return buildPlannerOutput("Read the result list", "extract_web_result", {
+          system_id: "web_generic",
+          session_id: sessionId,
+          goal: instruction,
+          query: ""
+        });
+      }
+      return buildPlannerOutput("Open the most relevant result", "click_web_element", {
+        system_id: "web_generic",
+        session_id: sessionId,
+        target_key: "result_1"
+      });
+    }
+
+    if (pageId === "generic_product_page" || pageId === "generic_news_article" || pageId === "generic_detail_page") {
+      if (!lastToolResult || lastToolResult.artifact_kind !== "web_result_extraction") {
+        return buildPlannerOutput("Extract the final answer", "extract_web_result", {
+          system_id: "web_generic",
+          session_id: sessionId,
+          goal: instruction,
+          query: ""
+        });
+      }
+      return buildPlannerOutput("Finish with the extracted answer", "finish_task", {
+        summary:
+          typeof lastToolResult.summary === "string" && lastToolResult.summary.trim().length > 0
+            ? lastToolResult.summary
+            : "Task completed."
+      }, {
+        expected_transition: "COMPLETED"
+      });
+    }
+
+    return buildPlannerOutput("Extract the currently visible result", "extract_web_result", {
+      system_id: "web_generic",
+      session_id: sessionId,
+      goal: instruction,
+      query: ""
+    });
+  });
+}
 
 test("http api creates, advances, approves, and resumes a shipment case", async () => {
   const app = await createApp();
@@ -259,7 +415,17 @@ test("extension bootstrap endpoint exposes web system definitions", async () => 
 });
 
 test("debug agent can route a natural language mail draft instruction", async () => {
-  const app = await createApp();
+  const app = await createApp(undefined, {
+    debugPlanner: createTestPlanner(() =>
+      buildPlannerOutput("Draft the requested mail", "draft_outlook_mail", {
+        template_id: "request_customs_number",
+        to: ["vendor@example.com"],
+        variables: {
+          traveler_name: "Kim"
+        }
+      })
+    )
+  });
 
   const response = await app.inject({
     method: "POST",
@@ -287,7 +453,9 @@ test("debug agent can route a natural language mail draft instruction", async ()
 test("debug agent loop can complete a multi-step web interaction", async () => {
   const previousAdapter = process.env.WEB_WORKER_ADAPTER;
   delete process.env.WEB_WORKER_ADAPTER;
-  const app = await createApp();
+  const app = await createApp(undefined, {
+    debugPlanner: createGenericBrowserTestPlanner()
+  });
 
   const response = await app.inject({
     method: "POST",
@@ -319,7 +487,9 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
 test("debug agent loop can read stock result from a direct naver stock page", async () => {
   const previousAdapter = process.env.WEB_WORKER_ADAPTER;
   delete process.env.WEB_WORKER_ADAPTER;
-  const app = await createApp();
+  const app = await createApp(undefined, {
+    debugPlanner: createGenericBrowserTestPlanner()
+  });
 
   const response = await app.inject({
     method: "POST",
@@ -344,7 +514,9 @@ test("debug agent loop can read stock result from a direct naver stock page", as
 test("debug agent loop decodes base64 Korean instruction and query payloads", async () => {
   const previousAdapter = process.env.WEB_WORKER_ADAPTER;
   delete process.env.WEB_WORKER_ADAPTER;
-  const app = await createApp();
+  const app = await createApp(undefined, {
+    debugPlanner: createGenericBrowserTestPlanner()
+  });
 
   const response = await app.inject({
     method: "POST",
@@ -367,7 +539,9 @@ test("debug agent loop decodes base64 Korean instruction and query payloads", as
 test("debug agent loop can click a search result and read a news headline", async () => {
   const previousAdapter = process.env.WEB_WORKER_ADAPTER;
   delete process.env.WEB_WORKER_ADAPTER;
-  const app = await createApp();
+  const app = await createApp(undefined, {
+    debugPlanner: createGenericBrowserTestPlanner()
+  });
 
   const response = await app.inject({
     method: "POST",

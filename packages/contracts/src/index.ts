@@ -170,12 +170,41 @@ export const plannerActionSchema = z.object({
 });
 export type PlannerAction = z.infer<typeof plannerActionSchema>;
 
+export const plannerGlobalPlanStepSchema = z.object({
+  step_id: z.string(),
+  title: z.string(),
+  description: z.string().default(""),
+  completion_signals: z.array(z.string()).default([])
+});
+export type PlannerGlobalPlanStep = z.infer<typeof plannerGlobalPlanStepSchema>;
+
+export const plannerGlobalPlanSchema = z.object({
+  goal: z.string(),
+  success_criteria: z.array(z.string()).default([]),
+  assumptions: z.array(z.string()).default([]),
+  steps: z.array(plannerGlobalPlanStepSchema).default([]),
+  current_step_id: z.string().optional(),
+  progress_summary: z.string().default("")
+});
+export type PlannerGlobalPlan = z.infer<typeof plannerGlobalPlanSchema>;
+
+export const plannerStepPlanSchema = z.object({
+  step_id: z.string().optional(),
+  current_goal: z.string(),
+  action_plan: z.array(z.string()).default([]),
+  completion_signals: z.array(z.string()).default([]),
+  replan_if: z.array(z.string()).default([])
+});
+export type PlannerStepPlan = z.infer<typeof plannerStepPlanSchema>;
+
 export const plannerOutputSchema = z.object({
   objective: z.string(),
   rationale: z.string(),
   next_action: plannerActionSchema,
   requires_approval: z.boolean(),
-  expected_transition: caseStateSchema
+  expected_transition: caseStateSchema,
+  global_plan: plannerGlobalPlanSchema.optional(),
+  step_plan: plannerStepPlanSchema.optional()
 });
 export type PlannerOutput = z.infer<typeof plannerOutputSchema>;
 

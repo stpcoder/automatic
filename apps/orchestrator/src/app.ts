@@ -5,25 +5,29 @@ import {
   completeExtensionBrowserTask,
   pullPendingExtensionBrowserTasks
 } from "../../../packages/browser-bridge/src/index.js";
+import type { PlannerOutput } from "../../../packages/contracts/src/index.js";
 import { approvalDecisionInputSchema, createCaseInputSchema, incomingEmailPayloadSchema } from "../../../packages/contracts/src/index.js";
 import { OutlookWorker } from "../../../workers/outlook-worker/src/index.js";
 import { OutlookComAdapter } from "../../../workers/outlook-worker/src/outlook-com-adapter.js";
 import { HttpOutlookReplyEventSink, OutlookReplyPoller } from "../../../workers/outlook-worker/src/reply-poller.js";
 import { getWebSystemDefinition, listWebSystemDefinitions } from "../../../workers/web-worker/src/system-definitions.js";
 import { WebWorker } from "../../../workers/web-worker/src/index.js";
-import { buildDebugLoopPlannerRequest, buildDebugPlannerRequest, createDebugPlanner } from "./debug-agent.js";
+import { buildDebugLoopPlannerRequest, buildDebugPlannerRequest, createDebugPlanner, type DebugPlannerClient } from "./debug-agent.js";
 import { resolveLlmConfig } from "./llm-config.js";
 import { OrchestratorService } from "./orchestrator.js";
 import { renderApprovalsPage, renderCaseDetailPage } from "./ui.js";
 
-export async function createApp(orchestrator?: OrchestratorService): Promise<FastifyInstance> {
+export async function createApp(
+  orchestrator?: OrchestratorService,
+  options: { debugPlanner?: DebugPlannerClient } = {}
+): Promise<FastifyInstance> {
   const resolvedOrchestrator = orchestrator ?? (await OrchestratorService.createDefault());
   const app = Fastify({ logger: false });
   const defaultPort = process.env.ORCHESTRATOR_PORT ?? "43117";
   const defaultHost = `127.0.0.1:${defaultPort}`;
   const webWorker = new WebWorker();
   const outlookWorker = new OutlookWorker();
-  const debugPlanner = createDebugPlanner();
+  const debugPlanner = options.debugPlanner ?? createDebugPlanner();
   const llmConfig = resolveLlmConfig();
 
   app.addHook("onRequest", async (request, reply) => {
@@ -388,8 +392,12 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     let currentObservation: Record<string, unknown> | undefined;
     let previousObservation: Record<string, unknown> | undefined;
     let lastToolResult: Record<string, unknown> | undefined;
+    let globalPlan: Record<string, unknown> | undefined;
+    let currentStepPlan: Record<string, unknown> | undefined;
+    let lastFailure: Record<string, unknown> | undefined;
     const steps: Array<Record<string, unknown>> = [];
     const planHistory: Array<Record<string, unknown>> = [];
+    const replanHistory: Array<Record<string, unknown>> = [];
     const startedAt = Date.now();
     logDebugAgentStart("run-loop", instruction, context);
 
@@ -399,6 +407,10 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         current_observation: currentObservation ?? null,
         previous_observation: previousObservation ?? null,
         last_tool_result: lastToolResult ?? null,
+        global_plan: globalPlan ?? null,
+        current_step_plan: currentStepPlan ?? null,
+        last_failure: lastFailure ?? null,
+        replan_history: replanHistory,
         plan_history: planHistory,
         step_history: steps.map((step) => ({
           step: step.step,
@@ -412,44 +424,77 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         tool_ms: 0
       };
 
+      let plannerOutput: PlannerOutput;
       try {
         const plannerStartedAt = Date.now();
-        const plannerOutput = await debugPlanner.plan(plannerRequest);
+        plannerOutput = await debugPlanner.plan(plannerRequest);
         stepTiming.planner_ms = Date.now() - plannerStartedAt;
-        planHistory.push({
-          step: stepIndex,
-          objective: plannerOutput.objective,
-          rationale: plannerOutput.rationale
+      } catch (error) {
+        logDebugAgentFailure("run-loop", stepIndex, error, {
+          total_ms: Date.now() - startedAt
         });
-        const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
-        logDebugPlannerDecision("run-loop", stepIndex, plannerOutput.next_action.tool, normalizedInput);
+        return {
+          ok: false,
+          completed: false,
+          error_stage: "planner_execution",
+          error_message: error instanceof Error ? error.message : String(error),
+          steps,
+          timing: {
+            total_ms: Date.now() - startedAt
+          },
+          debug_trace: {
+            planner_trace: debugPlanner.getTrace()
+          }
+        };
+      }
 
-        if (plannerOutput.next_action.tool === "finish_task") {
-          logDebugAgentFinish(
-            "run-loop",
-            stepIndex,
-            typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
-            { total_ms: Date.now() - startedAt }
-          );
-          const response = {
-            ok: true,
-            completed: true,
-            final_response: typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
-            final_result: lastToolResult ?? null,
-            steps,
-            timing: {
-              total_ms: Date.now() - startedAt
-            },
-            debug_trace: {
-              planner_request: plannerRequest,
-              planner_trace: debugPlanner.getTrace(),
-              planner_output: plannerOutput,
-              normalized_input: normalizedInput
-            }
-          };
-          return response;
-        }
+      globalPlan =
+        plannerOutput.global_plan && typeof plannerOutput.global_plan === "object"
+          ? (plannerOutput.global_plan as Record<string, unknown>)
+          : globalPlan;
+      currentStepPlan =
+        plannerOutput.step_plan && typeof plannerOutput.step_plan === "object"
+          ? (plannerOutput.step_plan as Record<string, unknown>)
+          : currentStepPlan;
+      planHistory.push({
+        step: stepIndex,
+        objective: plannerOutput.objective,
+        rationale: plannerOutput.rationale,
+        global_plan: globalPlan ?? null,
+        step_plan: currentStepPlan ?? null
+      });
 
+      const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
+      logDebugPlannerDecision("run-loop", stepIndex, plannerOutput.next_action.tool, normalizedInput);
+
+      if (plannerOutput.next_action.tool === "finish_task") {
+        logDebugAgentFinish(
+          "run-loop",
+          stepIndex,
+          typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
+          { total_ms: Date.now() - startedAt }
+        );
+        return {
+          ok: true,
+          completed: true,
+          final_response: typeof normalizedInput.summary === "string" ? normalizedInput.summary : "Task completed.",
+          final_result: lastToolResult ?? null,
+          global_plan: globalPlan ?? null,
+          current_step_plan: currentStepPlan ?? null,
+          steps,
+          timing: {
+            total_ms: Date.now() - startedAt
+          },
+          debug_trace: {
+            planner_request: plannerRequest,
+            planner_trace: debugPlanner.getTrace(),
+            planner_output: plannerOutput,
+            normalized_input: normalizedInput
+          }
+        };
+      }
+
+      try {
         const toolStartedAt = Date.now();
         const toolResult =
           plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
@@ -479,37 +524,36 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         });
 
         if (!toolResult.success) {
-          logDebugAgentFailure("run-loop", stepIndex, String(toolResult.output.error ?? "Tool execution failed"), {
-            total_ms: Date.now() - startedAt
-          });
-          return {
-            ok: false,
-            completed: false,
-            error_stage: "tool_execution",
-            error_message: String(toolResult.output.error ?? "Tool execution failed"),
-            steps,
-            timing: {
-              total_ms: Date.now() - startedAt
-            }
+          lastFailure = {
+            step: stepIndex,
+            stage: "tool_execution",
+            tool: plannerOutput.next_action.tool,
+            message: String(toolResult.output.error ?? "Tool execution failed")
           };
+          replanHistory.push(lastFailure);
+          continue;
         }
+
+        lastFailure = undefined;
       } catch (error) {
-        logDebugAgentFailure("run-loop", stepIndex, error, {
-          total_ms: Date.now() - startedAt
-        });
-        return {
-          ok: false,
-          completed: false,
-          error_stage: "debug_agent_run_loop",
-          error_message: error instanceof Error ? error.message : String(error),
-          steps,
-          timing: {
-            total_ms: Date.now() - startedAt
-          },
-          debug_trace: {
-            planner_trace: debugPlanner.getTrace()
-          }
+        lastFailure = {
+          step: stepIndex,
+          stage: "tool_exception",
+          tool: plannerOutput.next_action.tool,
+          message: error instanceof Error ? error.message : String(error)
         };
+        replanHistory.push(lastFailure);
+        steps.push({
+          step: stepIndex,
+          tool: plannerOutput.next_action.tool,
+          planner_request: plannerRequest,
+          planner_trace: debugPlanner.getTrace(),
+          planner_output: plannerOutput,
+          normalized_input: normalizedInput,
+          success: false,
+          timing: stepTiming,
+          error: lastFailure.message
+        });
       }
     }
 
@@ -518,6 +562,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       completed: false,
       error_stage: "internal_loop_safety_stop",
       error_message: `Agent loop reached the internal safety limit after ${maxSteps} steps`,
+      global_plan: globalPlan ?? null,
+      current_step_plan: currentStepPlan ?? null,
       steps,
       timing: {
         total_ms: Date.now() - startedAt
