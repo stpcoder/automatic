@@ -27,7 +27,8 @@ function Set-AgentEnvironment {
   $env:ORCHESTRATOR_STORE = if ($env:ORCHESTRATOR_STORE) { $env:ORCHESTRATOR_STORE } else { "sqlite" }
   $env:ORCHESTRATOR_DB_PATH = if ($env:ORCHESTRATOR_DB_PATH) { $env:ORCHESTRATOR_DB_PATH } else { Join-Path $RepoRoot "data\orchestrator.sqlite" }
   $env:ORCHESTRATOR_BASE_URL = if ($env:ORCHESTRATOR_BASE_URL) { $env:ORCHESTRATOR_BASE_URL } else { "http://127.0.0.1:$($env:ORCHESTRATOR_PORT)" }
-  $env:LLM_TIMEOUT_MS = if ($env:LLM_TIMEOUT_MS) { $env:LLM_TIMEOUT_MS } else { "60000" }
+  $env:LLM_TIMEOUT_MS = if ($env:LLM_TIMEOUT_MS) { $env:LLM_TIMEOUT_MS } else { "90000" }
+  $env:LLM_JSON_REPAIR_TIMEOUT_MS = if ($env:LLM_JSON_REPAIR_TIMEOUT_MS) { $env:LLM_JSON_REPAIR_TIMEOUT_MS } else { "45000" }
   $env:BRIDGE_OBSERVATION_TIMEOUT_MS = if ($env:BRIDGE_OBSERVATION_TIMEOUT_MS) { $env:BRIDGE_OBSERVATION_TIMEOUT_MS } else { "30000" }
   $env:BRIDGE_COMMAND_TIMEOUT_MS = if ($env:BRIDGE_COMMAND_TIMEOUT_MS) { $env:BRIDGE_COMMAND_TIMEOUT_MS } else { "30000" }
 

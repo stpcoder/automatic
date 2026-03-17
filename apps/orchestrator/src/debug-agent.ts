@@ -23,11 +23,14 @@ export function createDebugPlanner(): DebugPlannerClient {
   const config = resolveLlmConfig();
 
   if (config.baseUrl && config.apiKey && config.model) {
+    const timeoutMs = Number(process.env.LLM_TIMEOUT_MS ?? "90000");
+    const repairTimeoutMs = Number(process.env.LLM_JSON_REPAIR_TIMEOUT_MS ?? "45000");
     return new JsonDebugPlanner({
       baseUrl: config.baseUrl,
       apiKey: config.apiKey,
       model: config.model,
-      timeoutMs: Number(process.env.LLM_TIMEOUT_MS ?? "60000")
+      timeoutMs,
+      repairTimeoutMs
     });
   }
 
@@ -93,6 +96,7 @@ class JsonDebugPlanner implements DebugPlannerClient {
       apiKey: string;
       model: string;
       timeoutMs: number;
+      repairTimeoutMs: number;
     }
   ) {}
 
@@ -125,6 +129,7 @@ class JsonDebugPlanner implements DebugPlannerClient {
     try {
       return plannerOutputSchema.parse(parsePlannerJsonText(result.text));
     } catch (error) {
+      logPlannerRepairAttempt(error, result.text);
       const repairedText = await this.repairPlannerResponse(request, result.text, error);
       this.lastTrace = {
         ...this.lastTrace,
@@ -188,7 +193,7 @@ class JsonDebugPlanner implements DebugPlannerClient {
       baseURL: this.config.baseUrl,
       apiKey: this.config.apiKey
     });
-    const repairTimeoutMs = Math.min(this.config.timeoutMs, 20000);
+    const repairTimeoutMs = Math.max(1000, Math.min(this.config.timeoutMs, this.config.repairTimeoutMs));
     const repairPrompt = [
       "Rewrite the malformed planner response into one valid JSON object.",
       "Return JSON only. No prose. No markdown fences.",
@@ -217,6 +222,24 @@ class JsonDebugPlanner implements DebugPlannerClient {
 
     return repairResult.text;
   }
+}
+
+function logPlannerRepairAttempt(error: unknown, rawText: string): void {
+  const message = error instanceof Error ? error.message : String(error);
+  const preview = truncateForPlannerLog(normalizeWhitespace(rawText), 220);
+  console.log(`[planner] JSON parse failed: ${truncateForPlannerLog(message, 180)}`);
+  if (preview.length > 0) {
+    console.log(`[planner] RAW  ${preview}`);
+  }
+  console.log("[planner] RETRY JSON repair");
+}
+
+function normalizeWhitespace(value: string): string {
+  return value.replace(/\s+/g, " ").trim();
+}
+
+function truncateForPlannerLog(value: string, maxLength: number): string {
+  return value.length > maxLength ? `${value.slice(0, maxLength - 3)}...` : value;
 }
 
 class UnavailableDebugPlanner implements DebugPlannerClient {
