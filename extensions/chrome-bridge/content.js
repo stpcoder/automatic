@@ -626,9 +626,53 @@
     }
     setAgentState("acting", "click");
     return animateInteraction(target, "click").then(() => {
-      target.click();
+      simulateClickSequence(target);
       return target;
     });
+  }
+
+  function dispatchPointerLikeEvent(element, type) {
+    try {
+      element.dispatchEvent(
+        new MouseEvent(type, {
+          bubbles: true,
+          cancelable: true,
+          view: window
+        })
+      );
+    } catch {
+      // ignore synthetic event failures and continue
+    }
+  }
+
+  function simulateClickSequence(element) {
+    dispatchPointerLikeEvent(element, "mouseenter");
+    dispatchPointerLikeEvent(element, "mouseover");
+    dispatchPointerLikeEvent(element, "mousemove");
+    dispatchPointerLikeEvent(element, "mousedown");
+
+    if (typeof element.focus === "function") {
+      try {
+        element.focus({ preventScroll: true });
+      } catch {
+        try {
+          element.focus();
+        } catch {
+          // ignore focus failures
+        }
+      }
+    }
+
+    dispatchPointerLikeEvent(element, "mouseup");
+    dispatchPointerLikeEvent(element, "click");
+
+    if (typeof element.click === "function") {
+      try {
+        element.click();
+      } catch {
+        // ignore native click failures after synthetic dispatch
+      }
+    }
   }
 
   async function waitForObservationChange(previousSignature) {
