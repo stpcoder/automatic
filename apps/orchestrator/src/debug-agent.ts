@@ -187,7 +187,7 @@ function buildLoopSystemPrompt(): string {
     "When choosing where to click or type, prefer high-importance interactive elements that are grounded by nearby visible text and semantic blocks. Ignore utility controls unless the instruction explicitly asks for them.",
     "Tool semantics:",
     "- open_system: attach to an existing session or open a target URL. Use it for session attach, site access, tab attach, or URL navigation.",
-    "- fill_web_form: set known field values directly when the observation already exposes a semantic field key.",
+    "- fill_web_form: enter text or set field values directly when the observation already exposes a semantic field key or clear input target.",
     "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements.",
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
     "- follow_web_navigation: follow same-tab or child-tab navigation after a page-changing action.",

@@ -248,7 +248,7 @@ export async function createApp(
       },
       {
         name: "fill_web_form",
-        description: "Fill detected fields on the current page. Use session_id when available.",
+        description: "Enter text or set detected field values on the current page. Use session_id when available.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
       },
       {
@@ -327,7 +327,7 @@ export async function createApp(
       const plannerOutput = await debugPlanner.plan(plannerRequest);
       timing.planner_ms = Date.now() - plannerStartedAt;
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, context, instruction);
-      logDebugPlannerDecision("run", 1, plannerOutput.next_action.tool, normalizedInput);
+      logDebugPlannerDecision("run", 1, plannerOutput, plannerOutput.next_action.tool, normalizedInput);
 
       const toolStartedAt = Date.now();
       const toolResult =
@@ -465,7 +465,7 @@ export async function createApp(
       });
 
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
-      logDebugPlannerDecision("run-loop", stepIndex, plannerOutput.next_action.tool, normalizedInput);
+      logDebugPlannerDecision("run-loop", stepIndex, plannerOutput, plannerOutput.next_action.tool, normalizedInput);
 
       if (plannerOutput.next_action.tool === "finish_task") {
         logDebugAgentFinish(
@@ -648,9 +648,14 @@ function logDebugAgentStart(mode: "run" | "run-loop", instruction: string, conte
 function logDebugPlannerDecision(
   mode: "run" | "run-loop",
   step: number,
+  plannerOutput: PlannerOutput,
   toolName: string,
   normalizedInput: Record<string, unknown>
 ): void {
+  const planSummary = formatPlannerSummary(plannerOutput);
+  if (planSummary.length > 0) {
+    console.log(`[debug-agent:${mode}] step=${step} plan ${planSummary}`);
+  }
   console.log(
     `[debug-agent:${mode}] step=${step} tool=${toolName} target=${formatToolTarget(toolName, normalizedInput)}`
   );
@@ -707,6 +712,54 @@ function logDebugAgentFailure(
   console.log(
     `[debug-agent:${mode}] step=${step} error="${truncateForLog(message, 180)}" total_ms=${timing.total_ms ?? 0}`
   );
+}
+
+function formatPlannerSummary(plannerOutput: PlannerOutput): string {
+  const segments: string[] = [];
+
+  if (typeof plannerOutput.objective === "string" && plannerOutput.objective.trim().length > 0) {
+    segments.push(`objective="${truncateForLog(plannerOutput.objective, 90)}"`);
+  }
+
+  const globalPlan =
+    plannerOutput.global_plan && typeof plannerOutput.global_plan === "object"
+      ? (plannerOutput.global_plan as Record<string, unknown>)
+      : undefined;
+  if (globalPlan) {
+    const currentStepId = typeof globalPlan.current_step_id === "string" ? globalPlan.current_step_id : "";
+    const progressSummary = typeof globalPlan.progress_summary === "string" ? globalPlan.progress_summary : "";
+    if (currentStepId) {
+      segments.push(`current_step=${currentStepId}`);
+    }
+    if (progressSummary) {
+      segments.push(`progress="${truncateForLog(progressSummary, 100)}"`);
+    }
+  }
+
+  const stepPlan =
+    plannerOutput.step_plan && typeof plannerOutput.step_plan === "object"
+      ? (plannerOutput.step_plan as Record<string, unknown>)
+      : undefined;
+  if (stepPlan) {
+    const currentGoal = typeof stepPlan.current_goal === "string" ? stepPlan.current_goal : "";
+    const actionPlan = Array.isArray(stepPlan.action_plan)
+      ? stepPlan.action_plan
+          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+          .slice(0, 2)
+      : [];
+    if (currentGoal) {
+      segments.push(`step_goal="${truncateForLog(currentGoal, 90)}"`);
+    }
+    if (actionPlan.length > 0) {
+      segments.push(`actions="${truncateForLog(actionPlan.join(" | "), 120)}"`);
+    }
+  }
+
+  if (typeof plannerOutput.rationale === "string" && plannerOutput.rationale.trim().length > 0) {
+    segments.push(`why="${truncateForLog(plannerOutput.rationale, 110)}"`);
+  }
+
+  return segments.join(" ");
 }
 
 function formatToolTarget(toolName: string, input: Record<string, unknown>): string {
@@ -774,7 +827,7 @@ function buildDebugToolSpecs() {
     },
     {
       name: "fill_web_form",
-      description: "Fill detected fields on the current page.",
+      description: "Enter text or set detected field values on the current page.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
     },
     {
