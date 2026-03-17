@@ -196,14 +196,14 @@ export class WebWorker implements ToolExecutor {
     const matchedSnippets = collectMatchedSnippets(pageText, matchTerms);
     const systemDefinition = getWebSystemDefinition(systemId);
     const requiredIndicators = systemDefinition.resultIndicators ?? [];
+    const quoteLikeResult = parseQuoteLikeResult(goal, query, pageText);
     const goalSatisfied =
-      requiredIndicators.length > 0
-        ? includesAllTerms(pageText, requiredIndicators)
-        : matchedSnippets.length > 0;
-    const stockResult = parseStockResult(systemId, pageText);
+      matchedSnippets.length > 0 ||
+      Boolean(quoteLikeResult) ||
+      (requiredIndicators.length > 0 ? includesAllTerms(pageText, requiredIndicators) : false);
     const summary =
-      stockResult
-        ? `${stockResult.company} ${stockResult.price} ${stockResult.currency}`
+      quoteLikeResult
+        ? `${quoteLikeResult.company} ${quoteLikeResult.price} ${quoteLikeResult.currency}`
         : matchedSnippets[0] ??
       (goalSatisfied
         ? `${observation.title} result appears to satisfy the goal.`
@@ -221,7 +221,7 @@ export class WebWorker implements ToolExecutor {
         query,
         goal_satisfied: goalSatisfied,
         matched_snippets: matchedSnippets,
-        stock_result: stockResult,
+        stock_result: quoteLikeResult,
         summary,
         observation
       },
@@ -272,20 +272,55 @@ function includesAllTerms(pageText: string, terms: string[]): boolean {
   return terms.every((term) => normalized.includes(term));
 }
 
-function parseStockResult(systemId: string, pageText: string): { company: string; price: string; currency: string } | undefined {
-  if (systemId !== "naver_search" && systemId !== "naver_stock") {
-    return undefined;
-  }
-
-  const company = /sk hynix/i.test(pageText) ? "SK hynix" : undefined;
-  const priceMatch = pageText.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*(KRW|원)/i);
+function parseQuoteLikeResult(goal: string, query: string, pageText: string): { company: string; price: string; currency: string } | undefined {
+  const company = inferQuoteSubject(goal, query, pageText);
+  const priceMatch = pageText.match(/([0-9]{1,3}(?:,[0-9]{3})+)\s*(KRW|원|USD|EUR|\$)/i);
   if (!company || !priceMatch) {
     return undefined;
   }
 
+  const currencyToken = priceMatch[2];
+  const currency =
+    /\$/.test(currencyToken) ? "USD" : /eur/i.test(currencyToken) ? "EUR" : /usd/i.test(currencyToken) ? "USD" : "KRW";
+
   return {
     company,
     price: priceMatch[1],
-    currency: /krw/i.test(priceMatch[2]) ? "KRW" : "KRW"
+    currency
   };
+}
+
+function inferQuoteSubject(goal: string, query: string, pageText: string): string | undefined {
+  const titleSubject = pageText.match(/(?:-|:)\s*([A-Z][A-Za-z0-9&.\-]+(?:\s+[A-Za-z0-9&.\-]+){0,3})/);
+  if (titleSubject && !/^(Naver|Finance|Search)$/i.test(titleSubject[1])) {
+    return titleSubject[1].trim();
+  }
+
+  const candidates = [query, goal]
+    .filter((value) => value.trim().length > 0)
+    .map((value) =>
+      value
+        .replace(/현재|지금|검색|알려줘|조회|가격|주가|시세|stock|price/gi, " ")
+        .replace(/\s+/g, " ")
+        .trim()
+    )
+    .filter((value) => value.length >= 2);
+
+  for (const candidate of candidates) {
+    if (pageText.toLowerCase().includes(candidate.toLowerCase())) {
+      return candidate;
+    }
+  }
+
+  const capitalizedCompany = pageText.match(/\b([A-Z][A-Za-z0-9&.\-]+(?:\s+[A-Za-z0-9&.\-]+){1,3})\b/);
+  if (capitalizedCompany) {
+    return capitalizedCompany[1];
+  }
+
+  const koreanCompany = pageText.match(/([가-힣A-Za-z0-9]+)\s*(주가|시세|가격)/);
+  if (koreanCompany) {
+    return koreanCompany[1];
+  }
+
+  return undefined;
 }

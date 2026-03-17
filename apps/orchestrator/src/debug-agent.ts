@@ -49,7 +49,7 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
       {
         role: "system",
         content:
-          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, click_web_element, follow_web_navigation, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Return one tool call only."
+          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, click_web_element, follow_web_navigation, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Use only the provided context and do not assume any site-specific fixed workflow. Return one tool call only."
       },
       {
         role: "user",
@@ -70,7 +70,7 @@ export function buildDebugLoopPlannerRequest(
       {
         role: "system",
         content:
-          "You are an agent loop. Choose exactly one next action. Use only the current observation, the last tool result, the step history, and the available tools. Do not rely on site-specific fixed sequences. First open the target system when there is no current observation. Then inspect interactive elements and visible text to decide whether to type, click, follow navigation, preview, submit, or extract results. Prefer click_web_element for ordinary page interactions like links, tabs, search buttons, and menu entries. Use follow_web_navigation only after an action that can change the page or open a new tab. Reserve submit_web_form for final commits. When the goal is satisfied, call finish_task with a short summary."
+          "You are an agent loop. Choose exactly one next action. Use only the current observation, the last tool result, the step history, and the available tools. Do not rely on site-specific fixed sequences or site-name keyword shortcuts. First open or attach to a page when there is no current observation. Then inspect interactive elements and visible text to decide whether to type, click, follow navigation, preview, submit, or extract results. Prefer click_web_element for ordinary page interactions like links, tabs, search buttons, and menu entries. Use follow_web_navigation only after an action that can change the page or open a new tab. Reserve submit_web_form for final commits. When the goal is satisfied, call finish_task with a short summary."
       },
       {
         role: "user",
@@ -89,7 +89,7 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
     const parsed = parseDebugPayload(userContent);
     const instruction = normalize(parsed.instruction);
     const context = parsed.context ?? {};
-    const systemId = inferSystemId(instruction, context);
+    const systemId = inferSystemId(context);
     const stepHistory = Array.isArray(context.step_history) ? context.step_history.map(asRecord) : [];
     const currentObservation = asRecord(context.current_observation);
     const selectedTools = stepHistory
@@ -104,9 +104,14 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
       }
     }
 
-    if (includesAny(instruction, ["open", "열어", "접속"])) {
+    if (shouldOpenWebContext(context, currentObservation) || includesAny(instruction, ["open", "열어", "접속"])) {
       const output = buildOutput("Open target system", "open_system", {
-        system_id: systemId
+        system_id: systemId,
+        target_url: typeof context.target_url === "string" ? context.target_url : undefined,
+        url_contains: typeof context.url_contains === "string" ? context.url_contains : undefined,
+        title_contains: typeof context.title_contains === "string" ? context.title_contains : undefined,
+        session_id: typeof context.session_id === "string" ? context.session_id : undefined,
+        open_if_missing: context.open_if_missing === true
       });
       this.lastTrace = buildHeuristicTrace(request, output);
       return output;
@@ -122,12 +127,15 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
     }
 
     if (includesAny(instruction, ["click", "press", "누르", "클릭", "search", "검색"])) {
-      const output = buildOutput("Click target page element", "click_web_element", {
-        system_id: systemId,
-        target_key: inferClickTarget(systemId, instruction, context)
-      });
-      this.lastTrace = buildHeuristicTrace(request, output);
-      return output;
+      const targetKey = inferClickTarget(instruction, context);
+      if (targetKey) {
+        const output = buildOutput("Click target page element", "click_web_element", {
+          system_id: systemId,
+          target_key: targetKey
+        });
+        this.lastTrace = buildHeuristicTrace(request, output);
+        return output;
+      }
     }
 
     if (includesAny(instruction, ["preview", "미리보기", "검토"])) {
@@ -141,7 +149,7 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
     if (includesAny(instruction, ["submit", "제출", "등록", "저장"])) {
       const output = buildOutput("Submit target form", "submit_web_form", {
         system_id: systemId,
-        expected_button: typeof context.expected_button === "string" ? context.expected_button : inferExpectedButton(systemId)
+        expected_button: typeof context.expected_button === "string" ? context.expected_button : "Submit"
       });
       this.lastTrace = buildHeuristicTrace(request, output);
       return output;
@@ -199,9 +207,14 @@ class HeuristicDebugPlanner implements DebugPlannerClient {
       return output;
     }
 
-    if (typeof context.system_id === "string" || includesAny(instruction, ["security", "보안", "dhl", "cube", "메신저", "chat"])) {
+    if (shouldOpenWebContext(context, currentObservation)) {
       const output = buildOutput("Open target system by default", "open_system", {
-        system_id: systemId
+        system_id: systemId,
+        target_url: typeof context.target_url === "string" ? context.target_url : undefined,
+        url_contains: typeof context.url_contains === "string" ? context.url_contains : undefined,
+        title_contains: typeof context.title_contains === "string" ? context.title_contains : undefined,
+        session_id: typeof context.session_id === "string" ? context.session_id : undefined,
+        open_if_missing: context.open_if_missing === true
       });
       this.lastTrace = buildHeuristicTrace(request, output);
       return output;
@@ -380,9 +393,18 @@ function planLoopContinuation(
     return buildFinishOutput("Mail send completed.");
   }
 
-  if (typeof context.system_id === "string" && !selectedTools.includes("open_system")) {
+  if (
+    Object.keys(currentObservation).length === 0 &&
+    shouldOpenWebContext(context, currentObservation) &&
+    !selectedTools.includes("open_system")
+  ) {
     return buildOutput("Open target system", "open_system", {
-      system_id: systemId
+      system_id: systemId,
+      target_url: typeof context.target_url === "string" ? context.target_url : undefined,
+      url_contains: typeof context.url_contains === "string" ? context.url_contains : undefined,
+      title_contains: typeof context.title_contains === "string" ? context.title_contains : undefined,
+      session_id: typeof context.session_id === "string" ? context.session_id : undefined,
+      open_if_missing: context.open_if_missing === true
     });
   }
 
@@ -409,7 +431,7 @@ function planLoopContinuation(
       system_id: systemId,
       session_id: currentSessionId,
       goal: instruction,
-      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+        query: typeof fieldValues.query === "string" ? fieldValues.query : ""
     });
   }
 
@@ -421,7 +443,7 @@ function planLoopContinuation(
       system_id: systemId,
       session_id: currentSessionId,
       goal: instruction,
-      query: typeof fieldValues.query === "string" ? fieldValues.query : ""
+        query: typeof fieldValues.query === "string" ? fieldValues.query : ""
     });
   }
 
@@ -440,7 +462,7 @@ function planLoopContinuation(
   ) {
     return buildOutput("Submit target form", "submit_web_form", {
       system_id: systemId,
-      expected_button: typeof context.expected_button === "string" ? context.expected_button : inferExpectedButton(systemId)
+      expected_button: typeof context.expected_button === "string" ? context.expected_button : "Submit"
     });
   }
 
@@ -474,49 +496,38 @@ function planLoopContinuation(
   return null;
 }
 
-function inferSystemId(instruction: string, context: Record<string, unknown>): string {
+function inferSystemId(context: Record<string, unknown>): string {
   if (typeof context.system_id === "string") {
     return context.system_id;
   }
-  if (includesAny(instruction, ["security", "보안"])) {
-    return "security_portal";
+  const currentObservation =
+    typeof context.current_observation === "object" && context.current_observation !== null
+      ? (context.current_observation as Record<string, unknown>)
+      : undefined;
+  if (typeof currentObservation?.systemId === "string" && currentObservation.systemId.trim().length > 0) {
+    return currentObservation.systemId;
   }
-  if (includesAny(instruction, ["naver", "네이버", "stock", "주가"])) {
-    if (includesAny(instruction, ["current page", "현재 페이지", "finance", "시세"])) {
-      return "naver_stock";
-    }
-    return typeof context.system_id === "string" ? context.system_id : "naver_search";
+  const lastToolResult =
+    typeof context.last_tool_result === "object" && context.last_tool_result !== null
+      ? (context.last_tool_result as Record<string, unknown>)
+      : undefined;
+  if (typeof lastToolResult?.system_id === "string" && lastToolResult.system_id.trim().length > 0) {
+    return lastToolResult.system_id;
   }
-  if (includesAny(instruction, ["dhl"])) {
-    return "dhl";
-  }
-  if (includesAny(instruction, ["cube", "메신저", "chat"])) {
-    return "cube";
-  }
-  return "security_portal";
+  return "web_generic";
 }
 
-function inferExpectedButton(systemId: string): string {
-  if (systemId === "security_portal") {
-    return "등록";
-  }
-  if (systemId === "cube") {
-    return "Send";
-  }
-  return "Submit";
-}
-
-function inferClickTarget(systemId: string, instruction: string, context: Record<string, unknown>): string {
+function inferClickTarget(instruction: string, context: Record<string, unknown>): string | null {
   if (typeof context.target_key === "string" && context.target_key.trim().length > 0) {
     return context.target_key;
   }
   if (includesAny(instruction, ["send", "전송"])) {
     return "send";
   }
-  if (includesAny(instruction, ["search", "검색"])) {
-    return "search";
+  if (includesAny(instruction, ["submit", "등록", "제출", "저장"])) {
+    return "submit";
   }
-  return "submit";
+  return null;
 }
 
 function collectMissingFieldValues(
@@ -602,6 +613,21 @@ function extractInstructionTokens(normalizedInstruction: string): string[] {
         .map((token) => token.trim())
         .filter((token) => token.length >= 2)
     )
+  );
+}
+
+function shouldOpenWebContext(context: Record<string, unknown>, currentObservation: Record<string, unknown>): boolean {
+  if (Object.keys(currentObservation).length > 0) {
+    return false;
+  }
+  return Boolean(
+    (typeof context.system_id === "string" && context.system_id.trim().length > 0) ||
+      (typeof context.session_id === "string" && context.session_id.trim().length > 0) ||
+      (typeof context.target_url === "string" && context.target_url.trim().length > 0) ||
+      (typeof context.url_contains === "string" && context.url_contains.trim().length > 0) ||
+      (typeof context.title_contains === "string" && context.title_contains.trim().length > 0) ||
+      context.open_if_missing === true ||
+      (typeof context.field_values === "object" && context.field_values !== null)
   );
 }
 

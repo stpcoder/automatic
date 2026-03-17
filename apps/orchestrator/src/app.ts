@@ -878,15 +878,6 @@ function inferSystemIdFromContext(context: Record<string, unknown>, instruction:
 }
 
 function inferExpectedButtonFromSystem(systemId: string): string {
-  if (systemId === "naver_search") {
-    return "search";
-  }
-  if (systemId === "security_portal") {
-    return "등록";
-  }
-  if (systemId === "cube") {
-    return "Send";
-  }
   return "Submit";
 }
 

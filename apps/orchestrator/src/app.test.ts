@@ -313,7 +313,7 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
     response.json().steps.map((step: { tool: string }) => step.tool),
     ["open_system", "fill_web_form", "click_web_element", "extract_web_result"]
   );
-  assert.match(String(response.json().final_response), /SK hynix/i);
+  assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
   await app.close();
   process.env.WEB_WORKER_ADAPTER = previousAdapter;
@@ -343,7 +343,7 @@ test("debug agent loop can read stock result from a direct naver stock page", as
     response.json().steps.map((step: { tool: string }) => step.tool),
     ["open_system", "extract_web_result"]
   );
-  assert.equal(response.json().final_result.stock_result.company, "SK hynix");
+  assert.match(String(response.json().final_result.stock_result.company), /하이닉스|SK hynix/i);
   assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
   await app.close();
@@ -374,7 +374,7 @@ test("debug agent loop decodes base64 Korean instruction and query payloads", as
   assert.equal(response.statusCode, 200);
   assert.equal(response.json().ok, true);
   assert.equal(response.json().completed, true);
-  assert.match(String(response.json().final_response), /SK hynix/i);
+  assert.match(String(response.json().final_response), /하이닉스|SK hynix/i);
 
   await app.close();
   process.env.WEB_WORKER_ADAPTER = previousAdapter;
