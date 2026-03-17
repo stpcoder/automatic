@@ -8,9 +8,6 @@ $instructionBase64 = Encode-Utf8Base64 -Value $instruction
 
 $context = @{
   keyword = "ae school 교육일정"
-  to = @("taeho.je@sk.com")
-  cc = @()
-  template_id = "mail_summary"
   approved_to_send = $false
 }
 
