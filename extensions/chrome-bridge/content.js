@@ -352,17 +352,62 @@
     }
   }
 
+  function removeOverlayElement(id) {
+    const element = document.getElementById(id);
+    if (element?.parentNode) {
+      element.parentNode.removeChild(element);
+    }
+  }
+
+  function getExistingPointerOverlay() {
+    const pointer = document.getElementById("__skh-agent-pointer__");
+    const label = document.getElementById("__skh-agent-pointer-label__");
+    const halo = document.getElementById("__skh-agent-pointer-halo__");
+    const reader = document.getElementById("__skh-agent-reader__");
+
+    if (!pointer && !label && !halo && !reader) {
+      return null;
+    }
+
+    // Old or partially mounted overlays can survive extension reloads and
+    // cause runtime errors when later code assumes every node exists.
+    if (!pointer || !label || !halo || !reader) {
+      removeOverlayElement("__skh-agent-pointer__");
+      removeOverlayElement("__skh-agent-pointer-label__");
+      removeOverlayElement("__skh-agent-pointer-halo__");
+      removeOverlayElement("__skh-agent-reader__");
+      return null;
+    }
+
+    return {
+      pointer,
+      label,
+      halo,
+      reader,
+      state: "idle",
+      homeX: 34,
+      homeY: 34,
+      idleTimer: null
+    };
+  }
+
   function createPointerOverlay() {
-    if (!showPointerOverlay || document.getElementById("__skh-agent-pointer__")) {
+    if (!showPointerOverlay) {
       return {
-        pointer: document.getElementById("__skh-agent-pointer__"),
-        label: document.getElementById("__skh-agent-pointer-label__"),
-        halo: document.getElementById("__skh-agent-pointer-halo__"),
-        reader: document.getElementById("__skh-agent-reader__"),
+        pointer: null,
+        label: null,
+        halo: null,
+        reader: null,
         state: "idle",
         homeX: 34,
-        homeY: 34
+        homeY: 34,
+        idleTimer: null
       };
+    }
+
+    const existingOverlay = getExistingPointerOverlay();
+    if (existingOverlay) {
+      return existingOverlay;
     }
 
     const pointer = document.createElement("div");
@@ -433,7 +478,7 @@
     document.documentElement.appendChild(halo);
     document.documentElement.appendChild(pointer);
     document.documentElement.appendChild(label);
-    const state = { pointer, label, halo, reader, state: "idle", homeX: 34, homeY: 34 };
+    const state = { pointer, label, halo, reader, state: "idle", homeX: 34, homeY: 34, idleTimer: null };
     positionOverlay(state, state.homeX, state.homeY);
     startIdleAnimation(state);
     return state;
@@ -444,7 +489,7 @@
   }
 
   async function animateInteraction(element, mode) {
-    if (!showPointerOverlay || !overlayState.pointer || !overlayState.label) {
+    if (!showPointerOverlay || !overlayState || !overlayState.pointer || !overlayState.label) {
       if (typeof element.scrollIntoView === "function") {
         element.scrollIntoView({ behavior: "smooth", block: "center", inline: "center" });
         await sleep(220);
@@ -566,7 +611,7 @@
   }
 
   function setAgentState(stateName, caption) {
-    if (!showPointerOverlay || !overlayState.pointer || !overlayState.label) {
+    if (!showPointerOverlay || !overlayState || !overlayState.pointer || !overlayState.label) {
       return;
     }
     overlayState.state = stateName;
@@ -582,7 +627,7 @@
   }
 
   function startIdleAnimation(state) {
-    if (!showPointerOverlay || !state.pointer || state.idleTimer) {
+    if (!showPointerOverlay || !state || !state.pointer || state.idleTimer) {
       return;
     }
     setAgentState(state.state === "typing" || state.state === "acting" ? state.state : "reading", state.label?.textContent || "reading");
@@ -634,6 +679,9 @@
   }
 
   function stopIdleAnimation(state) {
+    if (!state) {
+      return;
+    }
     if (state.idleTimer) {
       window.clearInterval(state.idleTimer);
       state.idleTimer = null;
