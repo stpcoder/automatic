@@ -121,10 +121,19 @@ npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -Con
 Naver stock prompt examples:
 
 ```bash
-npm run win:test:agent:web-naver-stock
-npm run win:test:agent:web-naver-stock-direct
-npm run win:test:agent:prompt -- -Instruction "네이버 열어서 하이닉스 주가라고 검색하고 지금 주가 알려줘" -SystemId naver_search -Query "하이닉스 주가" -MaxSteps 6
-npm run win:test:agent:prompt -- -Instruction "현재 페이지에서 하이닉스 현재 주가 알려줘" -SystemId naver_stock -MaxSteps 4
+npm run win:test:1
+npm run win:test:2
+npm run win:test:3
+
+Windows quick test aliases:
+- `npm run win:test:1`: 네이버 열어서 하이닉스 주가 검색 후 현재 주가 알려주기
+- `npm run win:test:2`: 네이버에서 SK hynix 뉴스 검색 후 핵심 결과 열기
+- `npm run win:test:3`: 구글에서 SK hynix 뉴스 검색 후 핵심 결과 열기
+- `npm run win:test:4`: 구글에서 상품 가격 검색 후 가격 확인
+- `npm run win:test:5`: 현재 페이지 핵심 내용 요약
+- `npm run win:test:6`: 현재 페이지 주요 행동 파악
+- `npm run win:test:7`: 현재 열린 상세 페이지에서 주가 직접 읽기
+- `npm run win:test:8`: 네이버 쇼핑/가격 검색 시나리오
 ```
 
 See `docs/windows-real-test-runbook.md` for the current Windows extension setup.
