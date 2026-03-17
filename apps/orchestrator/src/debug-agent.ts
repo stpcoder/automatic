@@ -130,13 +130,24 @@ class JsonDebugPlanner implements DebugPlannerClient {
       return plannerOutputSchema.parse(parsePlannerJsonText(result.text));
     } catch (error) {
       logPlannerRepairAttempt(error, result.text);
-      const repairedText = await this.repairPlannerResponse(request, result.text, error);
+      let repairedText: string;
+      try {
+        repairedText = await this.repairPlannerResponse(request, result.text, error);
+      } catch (repairError) {
+        logPlannerRepairFailure(repairError);
+        throw repairError;
+      }
       this.lastTrace = {
         ...this.lastTrace,
         repair_attempted: true,
         repaired_text: repairedText
       };
-      return plannerOutputSchema.parse(parsePlannerJsonText(repairedText));
+      try {
+        return plannerOutputSchema.parse(parsePlannerJsonText(repairedText));
+      } catch (repairParseError) {
+        logPlannerRepairOutputFailure(repairParseError, repairedText);
+        throw repairParseError;
+      }
     }
   }
 
@@ -226,16 +237,24 @@ class JsonDebugPlanner implements DebugPlannerClient {
 
 function logPlannerRepairAttempt(error: unknown, rawText: string): void {
   const message = error instanceof Error ? error.message : String(error);
-  const preview = truncateForPlannerLog(normalizeWhitespace(rawText), 220);
-  console.log(`[planner] JSON parse failed: ${truncateForPlannerLog(message, 180)}`);
-  if (preview.length > 0) {
-    console.log(`[planner] RAW  ${preview}`);
-  }
+  console.log(`[planner] JSON parse failed: ${message}`);
+  console.log("[planner] RAW BEGIN");
+  console.log(rawText);
+  console.log("[planner] RAW END");
   console.log("[planner] RETRY JSON repair");
 }
 
-function normalizeWhitespace(value: string): string {
-  return value.replace(/\s+/g, " ").trim();
+function logPlannerRepairFailure(error: unknown): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.log(`[planner] JSON repair failed: ${message}`);
+}
+
+function logPlannerRepairOutputFailure(error: unknown, repairedText: string): void {
+  const message = error instanceof Error ? error.message : String(error);
+  console.log(`[planner] JSON repair output parse failed: ${message}`);
+  console.log("[planner] REPAIRED RAW BEGIN");
+  console.log(repairedText);
+  console.log("[planner] REPAIRED RAW END");
 }
 
 function truncateForPlannerLog(value: string, maxLength: number): string {
@@ -350,13 +369,18 @@ export function parsePlannerJsonText(raw: string): unknown {
 
   try {
     return JSON.parse(normalized);
-  } catch {
+  } catch (primaryError) {
     const firstBrace = normalized.indexOf("{");
     const lastBrace = normalized.lastIndexOf("}");
     if (firstBrace >= 0 && lastBrace > firstBrace) {
-      return JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
+      const sliced = normalized.slice(firstBrace, lastBrace + 1);
+      try {
+        return JSON.parse(sliced);
+      } catch (slicedError) {
+        throw new Error(buildPlannerJsonParseError(normalized, primaryError, sliced, slicedError));
+      }
     }
-    throw new Error("Unable to parse JSON from planner response");
+    throw new Error(buildPlannerJsonParseError(normalized, primaryError));
   }
 }
 
@@ -376,6 +400,62 @@ function parseJsonSafely(raw: string): unknown {
   } catch {
     throw new Error("Unable to parse JSON from planner response");
   }
+}
+
+function buildPlannerJsonParseError(
+  rawText: string,
+  primaryError: unknown,
+  slicedText?: string,
+  slicedError?: unknown
+): string {
+  const parts = [
+    `Unable to parse JSON from planner response.`,
+    describeJsonParseFailure("raw", primaryError, rawText)
+  ];
+
+  if (slicedText && slicedError) {
+    parts.push(describeJsonParseFailure("brace-sliced", slicedError, slicedText));
+  }
+
+  return parts.join(" ");
+}
+
+function describeJsonParseFailure(label: string, error: unknown, text: string): string {
+  const baseMessage = error instanceof Error ? error.message : String(error);
+  const positionMatch = baseMessage.match(/position\s+(\d+)/i);
+  const position = positionMatch ? Number(positionMatch[1]) : undefined;
+
+  if (position === undefined || Number.isNaN(position)) {
+    return `[${label}] ${baseMessage}`;
+  }
+
+  const { line, column } = getLineAndColumn(text, position);
+  const snippet = buildErrorSnippet(text, position);
+  return `[${label}] ${baseMessage} at line ${line}, column ${column}. Around error: ${snippet}`;
+}
+
+function getLineAndColumn(text: string, position: number): { line: number; column: number } {
+  let line = 1;
+  let column = 1;
+
+  for (let index = 0; index < Math.min(position, text.length); index += 1) {
+    if (text[index] === "\n") {
+      line += 1;
+      column = 1;
+    } else {
+      column += 1;
+    }
+  }
+
+  return { line, column };
+}
+
+function buildErrorSnippet(text: string, position: number): string {
+  const start = Math.max(0, position - 80);
+  const end = Math.min(text.length, position + 80);
+  const snippet = text.slice(start, end).replace(/\n/g, "\\n");
+  const caretOffset = Math.max(0, Math.min(position - start, snippet.length));
+  return `${snippet} <<<HERE>>> ${" ".repeat(caretOffset)}`;
 }
 
 async function withTimeout<T>(promise: Promise<T>, timeoutMs: number, errorMessage: string): Promise<T> {
