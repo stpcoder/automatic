@@ -191,7 +191,39 @@
     if (isUtilityContainer(element) && !isMainContentContainer(element)) {
       return false;
     }
+    const tagName = element.tagName.toLowerCase();
+    if ((tagName === "div" || tagName === "span" || tagName === "em" || tagName === "small") && !isSemanticLeafTextElement(element, text)) {
+      return false;
+    }
     return isMainContentContainer(element) || isElementNearViewportCenter(element);
+  }
+
+  function isSemanticLeafTextElement(element, text) {
+    const normalized = normalize(text);
+    const meaningfulChildren = Array.from(element.children).filter((child) => {
+      if (!(child instanceof HTMLElement) || !isVisibleElement(child)) {
+        return false;
+      }
+      const childText = String(child.innerText || child.textContent || "").replace(/\s+/g, " ").trim();
+      return childText.length >= 2 && !isUtilityText(childText);
+    });
+
+    if (/[0-9]{1,3}(?:,[0-9]{3})+(?:\.[0-9]+)?\s*(krw|원|usd|eur|\$)?/i.test(text)) {
+      return true;
+    }
+    if (/(현재가|주가|시세|가격|price|quote|headline|뉴스|article)/i.test(normalized)) {
+      return true;
+    }
+    if (meaningfulChildren.length === 0) {
+      return text.length <= 220;
+    }
+    if (meaningfulChildren.length === 1) {
+      const childText = String(meaningfulChildren[0].innerText || meaningfulChildren[0].textContent || "").replace(/\s+/g, " ").trim();
+      if (normalize(childText) === normalized) {
+        return false;
+      }
+    }
+    return text.length <= 80 && meaningfulChildren.length <= 2;
   }
 
   function shouldIncludeInteractiveElement(element) {
@@ -369,6 +401,9 @@
     if (tagName === "label" || /:/.test(text)) {
       return "label_value";
     }
+    if (/(현재가|주가|시세|가격|price|quote)/i.test(normalized)) {
+      return "label_value";
+    }
     if (tagName === "form" || element.closest("form, [role='search']")) {
       return "form_area";
     }
@@ -389,7 +424,7 @@
       score += 0.08;
     }
     if (blockType === "heading" || blockType === "price") {
-      score += 0.2;
+      score += 0.28;
     }
     if (blockType === "result_item" || blockType === "label_value") {
       score += 0.12;
@@ -404,8 +439,8 @@
   }
 
   function collectSemanticBlocksInDomOrder() {
-    const primarySelectors = "main h1, main h2, main h3, main h4, main h5, main p, main label, main button, main a, main th, main td, main li, main strong, main b, main [role='button'], main [role='link'], article h1, article h2, article h3, article p, article a, article li, form label, form button, form p, form [role='button'], [role='main'] h1, [role='main'] h2, [role='main'] p, [role='search'] label, [role='search'] button";
-    const fallbackSelectors = "h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,[role='button'],[role='link']";
+    const primarySelectors = "main h1, main h2, main h3, main h4, main h5, main p, main label, main button, main a, main th, main td, main li, main strong, main b, main em, main span, main div, main [role='button'], main [role='link'], article h1, article h2, article h3, article p, article a, article li, article strong, article em, article span, article div, section h1, section h2, section h3, section p, section a, section li, section span, section div, form label, form button, form p, form span, form div, form [role='button'], [role='main'] h1, [role='main'] h2, [role='main'] p, [role='main'] span, [role='main'] div, [role='search'] label, [role='search'] button, [role='search'] span";
+    const fallbackSelectors = "h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,em,span,div,[role='button'],[role='link']";
     const primaryCandidates = Array.from(document.querySelectorAll(primarySelectors));
     const fallbackCandidates = primaryCandidates.length >= 8 ? [] : Array.from(document.querySelectorAll(fallbackSelectors));
     const candidates = [...primaryCandidates, ...fallbackCandidates]
@@ -436,7 +471,7 @@
       }
       seen.add(normalized);
       unique.push(candidate);
-      if (unique.length >= 40) {
+      if (unique.length >= 60) {
         break;
       }
     }
@@ -508,7 +543,7 @@
     const lines = [];
     const seenLines = new Set();
     const outlineSelectors =
-      "main h1, main h2, main h3, main p, main label, main button, main a, main li, article h1, article h2, article h3, article p, article a, article li, form label, form input, form textarea, form select, form button, [role='main'] h1, [role='main'] h2, [role='main'] p, [role='search'] input, [role='search'] textarea, [role='search'] button, [role='search'] a";
+      "main h1, main h2, main h3, main p, main label, main button, main a, main li, main span, main div, article h1, article h2, article h3, article p, article a, article li, article span, article div, section h1, section h2, section h3, section p, section a, section li, section span, section div, form label, form input, form textarea, form select, form button, form span, [role='main'] h1, [role='main'] h2, [role='main'] p, [role='main'] span, [role='main'] div, [role='search'] input, [role='search'] textarea, [role='search'] button, [role='search'] a, [role='search'] span";
 
     const controlMap = new Map(controls.map((control) => [control.element, control]));
     const outlineCandidates = Array.from(document.querySelectorAll(outlineSelectors));
@@ -550,7 +585,7 @@
         seenLines.add(line);
         lines.push(line);
       }
-      if (lines.length >= 60) {
+      if (lines.length >= 90) {
         break;
       }
     }
