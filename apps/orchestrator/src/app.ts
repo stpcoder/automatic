@@ -1,6 +1,10 @@
 import Fastify, { type FastifyInstance } from "fastify";
 
-import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
+import {
+  browserBridgeCoordinator,
+  completeExtensionBrowserTask,
+  pullPendingExtensionBrowserTasks
+} from "../../../packages/browser-bridge/src/index.js";
 import { approvalDecisionInputSchema, createCaseInputSchema, incomingEmailPayloadSchema } from "../../../packages/contracts/src/index.js";
 import { OutlookWorker } from "../../../workers/outlook-worker/src/index.js";
 import { OutlookComAdapter } from "../../../workers/outlook-worker/src/outlook-com-adapter.js";
@@ -63,12 +67,12 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
 
   app.get("/bridge/sessions", async () => browserBridgeCoordinator.listSessions());
 
-  app.get("/bridge/extension/tasks", async () => browserBridgeCoordinator.pullPendingBrowserTasks());
+  app.get("/bridge/extension/tasks", async () => pullPendingExtensionBrowserTasks());
 
   app.post("/bridge/extension/tasks/:taskId/result", async (request) => {
     const params = request.params as { taskId: string };
     const body = request.body as { success: boolean; result?: Record<string, unknown>; error?: string };
-    return browserBridgeCoordinator.completeBrowserTask(params.taskId, body);
+    return completeExtensionBrowserTask(params.taskId, body);
   });
 
   app.get("/bridge/extension-bootstrap", async (request) => {
