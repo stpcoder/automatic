@@ -24,6 +24,7 @@
   let system = null;
   let bootstrapWaitLogged = false;
   let systemWaitLogged = false;
+  let pointerStateSaveTimer = null;
 
   function normalize(value) {
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -870,6 +871,8 @@
       state: "idle",
       homeX: 34,
       homeY: 34,
+      currentX: 34,
+      currentY: 34,
       idleTimer: null
     };
   }
@@ -884,6 +887,8 @@
         state: "idle",
         homeX: 34,
         homeY: 34,
+        currentX: 34,
+        currentY: 34,
         idleTimer: null
       };
     }
@@ -961,8 +966,20 @@
     document.documentElement.appendChild(halo);
     document.documentElement.appendChild(pointer);
     document.documentElement.appendChild(label);
-    const state = { pointer, label, halo, reader, state: "idle", homeX: 34, homeY: 34, idleTimer: null };
+    const state = {
+      pointer,
+      label,
+      halo,
+      reader,
+      state: "idle",
+      homeX: 34,
+      homeY: 34,
+      currentX: 34,
+      currentY: 34,
+      idleTimer: null
+    };
     positionOverlay(state, state.homeX, state.homeY);
+    restorePointerState(state).catch(() => undefined);
     startIdleAnimation(state);
     return state;
   }
@@ -1005,7 +1022,7 @@
     }
     pointer.animate(
       [
-        { left: pointer.style.left || "32px", top: pointer.style.top || "32px" },
+        { left: `${overlayState.currentX ?? overlayState.homeX ?? 32}px`, top: `${overlayState.currentY ?? overlayState.homeY ?? 32}px` },
         { left: `${targetX}px`, top: `${targetY}px` }
       ],
       {
@@ -1014,7 +1031,7 @@
         fill: "forwards"
       }
     );
-    positionOverlay(overlayState, targetX, targetY);
+    positionOverlay(overlayState, targetX, targetY, { persist: true, makeHome: true });
     await sleep(pointerMoveDurationMs);
 
     if (mode === "click") {
@@ -1074,7 +1091,45 @@
     startIdleAnimation(overlayState);
   }
 
-  function positionOverlay(state, x, y) {
+  function persistPointerState(state) {
+    if (!showPointerOverlay || !state || typeof chrome?.storage?.local?.set !== "function") {
+      return;
+    }
+    if (pointerStateSaveTimer) {
+      window.clearTimeout(pointerStateSaveTimer);
+    }
+    pointerStateSaveTimer = window.setTimeout(() => {
+      chrome.storage.local.set({
+        [`skh-pointer-state:${sessionId}`]: {
+          x: state.currentX,
+          y: state.currentY,
+          homeX: state.homeX,
+          homeY: state.homeY,
+          updatedAt: Date.now()
+        }
+      });
+      pointerStateSaveTimer = null;
+    }, 30);
+  }
+
+  async function restorePointerState(state) {
+    if (!showPointerOverlay || !state || typeof chrome?.storage?.local?.get !== "function") {
+      return;
+    }
+    const currentKey = `skh-pointer-state:${sessionId}`;
+    const parentKey = parentSessionId ? `skh-pointer-state:${parentSessionId}` : null;
+    const stored = await chrome.storage.local.get(parentKey ? [currentKey, parentKey] : [currentKey]);
+    const snapshot = stored[currentKey] || (parentKey ? stored[parentKey] : null);
+    if (!snapshot || typeof snapshot.x !== "number" || typeof snapshot.y !== "number") {
+      return;
+    }
+    state.homeX = typeof snapshot.homeX === "number" ? snapshot.homeX : snapshot.x;
+    state.homeY = typeof snapshot.homeY === "number" ? snapshot.homeY : snapshot.y;
+    positionOverlay(state, snapshot.x, snapshot.y);
+  }
+
+  function positionOverlay(state, x, y, options = {}) {
+    const { persist = false, makeHome = false } = options;
     if (state.pointer) {
       state.pointer.style.left = `${x}px`;
       state.pointer.style.top = `${y}px`;
@@ -1090,6 +1145,15 @@
     if (state.label) {
       state.label.style.left = `${x}px`;
       state.label.style.top = `${y}px`;
+    }
+    state.currentX = x;
+    state.currentY = y;
+    if (makeHome) {
+      state.homeX = x;
+      state.homeY = y;
+    }
+    if (persist) {
+      persistPointerState(state);
     }
   }
 
@@ -1128,7 +1192,7 @@
       }
       const driftX = state.state === "reading" ? state.homeX + 2 : state.homeX;
       const driftY = state.state === "reading" ? state.homeY + 1 : state.homeY;
-      positionOverlay(state, driftX, driftY);
+      positionOverlay(state, driftX, driftY, { persist: true });
       state.pointer.animate(
         [
           { transform: "translate(-30%, -18%) scale(1)" },
