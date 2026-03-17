@@ -23,6 +23,8 @@ export class WebWorker implements ToolExecutor {
     switch (request.tool_name) {
       case "open_system":
         return this.openSystem(request);
+      case "read_web_page":
+        return this.readWebPage(request);
       case "fill_web_form":
         return this.fillWebForm(request);
       case "click_web_element":
@@ -67,6 +69,33 @@ export class WebWorker implements ToolExecutor {
         system_id: systemId,
         session_id: observation.sessionId,
         harness: this.adapter.harnessName,
+        observation
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async readWebPage(request: ToolRequest): Promise<ToolResult> {
+    const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
+    const observation = await this.adapter.observe(systemId, sessionId);
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "web_read",
+        read_id: `READ-${crypto.randomUUID()}`,
+        system_id: systemId,
+        session_id: observation.sessionId,
+        harness: this.adapter.harnessName,
+        summary: observation.summary,
+        title: observation.title,
+        url: observation.url,
+        dom_outline: observation.domOutline,
+        visible_text_blocks: observation.visibleTextBlocks ?? [],
+        semantic_blocks: observation.semanticBlocks ?? [],
+        interactive_elements: observation.interactiveElements,
         observation
       },
       memory_patch: {},

@@ -173,6 +173,39 @@ test("web worker reports extension_bridge harness when extension adapter is inje
   assert.equal(typeof openOutput.observation.domOutline, "string");
 });
 
+test("web worker can read the current page without extracting a final answer", async () => {
+  const worker = new WebWorker();
+
+  await worker.execute({
+    request_id: "TR-R-0",
+    case_id: "CASE-R",
+    step_id: "generic_search",
+    tool_name: "open_system",
+    mode: "preview",
+    input: {
+      system_id: "web_generic",
+      target_url: "https://search.example.test"
+    }
+  });
+
+  const read = await worker.execute({
+    request_id: "TR-R-1",
+    case_id: "CASE-R",
+    step_id: "generic_search",
+    tool_name: "read_web_page",
+    mode: "preview",
+    input: {
+      system_id: "web_generic"
+    }
+  });
+
+  assert.equal(read.success, true);
+  const readOutput = getOutput(read) as typeof getOutput extends (result: { output: unknown }) => infer R ? R : never;
+  assert.equal((read.output as { artifact_kind: string }).artifact_kind, "web_read");
+  assert.equal(readOutput.observation.title, "Generic Search");
+  assert.equal(typeof (read.output as { dom_outline?: string }).dom_outline, "string");
+});
+
 test("web worker can click a generic search result and extract detail text", async () => {
   const worker = new WebWorker();
 

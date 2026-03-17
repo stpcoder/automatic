@@ -129,6 +129,14 @@ export async function createApp(
     }));
   });
 
+  app.post("/debug/web/read", async (request) => {
+    const body = request.body as { system_id?: string; session_id?: string };
+    return webWorker.execute(buildDebugToolRequest("read_web_page", "preview", {
+      system_id: body.system_id ?? "web_generic",
+      session_id: body.session_id
+    }));
+  });
+
   app.post("/debug/web/click", async (request) => {
     const body = request.body as { system_id?: string; session_id?: string; target_key?: string };
     return webWorker.execute(buildDebugToolRequest("click_web_element", "preview", {
@@ -247,6 +255,11 @@ export async function createApp(
         }
       },
       {
+        name: "read_web_page",
+        description: "Read the current page DOM, visible text, semantic blocks, and interactive elements without deciding success yet.",
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
+      },
+      {
         name: "fill_web_form",
         description: "Enter text or set detected field values on the current page. Use session_id when available.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
@@ -287,7 +300,7 @@ export async function createApp(
       },
       {
         name: "extract_web_result",
-        description: "Read the updated page result and determine whether the goal has been satisfied.",
+        description: "Extract and verify the final answer from the current page when the relevant result is already visible.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
       },
       {
@@ -979,6 +992,9 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
     const fields = Object.keys(fieldValues).slice(0, 3).join(", ");
     return fields || "";
   }
+  if (toolName === "read_web_page") {
+    return "read";
+  }
   if (toolName === "click_web_element") {
     const targetHandle = stringForLog(input.target_handle);
     const targetKey = stringForLog(input.target_key);
@@ -1065,6 +1081,11 @@ function buildDebugToolSpecs() {
       }
     },
     {
+      name: "read_web_page",
+      description: "Read the current page DOM, visible text, semantic blocks, and interactive elements without deciding success yet.",
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
+    },
+    {
       name: "fill_web_form",
       description: "Enter text or set detected field values on the current page.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
@@ -1105,7 +1126,7 @@ function buildDebugToolSpecs() {
     },
     {
       name: "extract_web_result",
-      description: "Read the updated page result and determine whether the goal has been satisfied.",
+      description: "Extract and verify the final answer from the current page when the relevant result is already visible.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
     },
     {
@@ -1203,6 +1224,10 @@ function normalizeDebugToolInput(
     if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
       normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
     }
+    if (toolName === "read_web_page") {
+      delete normalized.goal;
+      delete normalized.query;
+    }
     if (toolName === "click_web_element" && (typeof normalized.target_key !== "string" || normalized.target_key.trim().length === 0)) {
       normalized.target_key = typeof context.target_key === "string" && context.target_key.trim().length > 0 ? context.target_key : "";
     }
@@ -1241,6 +1266,7 @@ function normalizeDebugToolInput(
 function isWebDebugTool(toolName: string): boolean {
   return (
     toolName === "open_system" ||
+    toolName === "read_web_page" ||
     toolName === "navigate_browser_history" ||
     toolName.includes("web")
   );
