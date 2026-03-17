@@ -212,7 +212,7 @@ function buildSingleTurnSystemPrompt(): string {
   return [
     "You are a planning agent. Read the user's instruction and context, then return exactly one JSON object.",
     "Do not emit prose outside JSON. Do not rely on fixed site-specific workflows or hidden heuristics.",
-    "Your job is to form a short global plan when needed, pick the immediate step plan, and choose exactly one next action tool.",
+    "Your job is to evaluate the previous state, update memory, choose the next goal, form a short global plan when needed, pick the immediate step plan, and choose exactly one next action tool.",
     "The next_action must move the task forward in one atomic step.",
     "Use the provided available_tools only.",
     "When no page is attached yet and the instruction references a URL or page to inspect, use open_system first.",
@@ -227,6 +227,10 @@ function buildLoopSystemPrompt(): string {
     "You are a multi-turn browser and mail planning agent.",
     "At every turn, you receive the original instruction, the current observation, the last tool result, the global plan so far, the current step plan, the plan history, and any last failure.",
     "Return exactly one JSON object and no surrounding prose.",
+    "Your response must explicitly contain: evaluation_previous_goal, memory, next_goal, global_plan, step_plan, and next_action.",
+    "evaluation_previous_goal should say whether the previous step succeeded, failed, or was insufficient.",
+    "memory should contain short durable facts learned so far that matter for later steps.",
+    "next_goal should state the immediate next milestone before the chosen action.",
     "You must explicitly maintain two planning levels:",
     "1. global_plan: the end-to-end task plan and success criteria.",
     "2. step_plan: the immediate sub-goal for the current turn.",
@@ -253,6 +257,9 @@ function buildPlannerResponseContract(): Record<string, unknown> {
   return {
     objective: "Immediate goal for this turn",
     rationale: "Why this next action is correct right now",
+    evaluation_previous_goal: "Short evaluation of the previous action or current state",
+    memory: ["Short durable facts learned so far"],
+    next_goal: "Immediate milestone to reach after this planning step",
     global_plan: {
       goal: "Overall task goal",
       success_criteria: ["What proves the task is complete"],

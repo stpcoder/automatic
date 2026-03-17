@@ -16,6 +16,9 @@ test("debug planner request includes explicit global and step planning contract"
   const userContent = request.messages.find((message) => message.role === "user")?.content ?? "";
   assert.match(systemPrompt, /global_plan/i);
   assert.match(systemPrompt, /step_plan/i);
+  assert.match(systemPrompt, /evaluation_previous_goal/i);
+  assert.match(systemPrompt, /memory/i);
+  assert.match(systemPrompt, /next_goal/i);
   assert.match(userContent, /response_contract/);
 });
 

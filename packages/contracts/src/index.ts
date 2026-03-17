@@ -200,6 +200,9 @@ export type PlannerStepPlan = z.infer<typeof plannerStepPlanSchema>;
 export const plannerOutputSchema = z.object({
   objective: z.string(),
   rationale: z.string(),
+  evaluation_previous_goal: z.string().default(""),
+  memory: z.array(z.string()).default([]),
+  next_goal: z.string().default(""),
   next_action: plannerActionSchema,
   requires_approval: z.boolean(),
   expected_transition: caseStateSchema,

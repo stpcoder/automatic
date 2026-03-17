@@ -458,10 +458,13 @@ export async function createApp(
           : currentStepPlan;
       planHistory.push({
         step: stepIndex,
-        objective: plannerOutput.objective,
-        rationale: plannerOutput.rationale,
-        global_plan: globalPlan ?? null,
-        step_plan: currentStepPlan ?? null
+          objective: plannerOutput.objective,
+          rationale: plannerOutput.rationale,
+          evaluation_previous_goal: plannerOutput.evaluation_previous_goal,
+          memory: plannerOutput.memory,
+          next_goal: plannerOutput.next_goal,
+          global_plan: globalPlan ?? null,
+          step_plan: currentStepPlan ?? null
       });
 
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
@@ -720,6 +723,24 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): string {
 
   if (typeof plannerOutput.objective === "string" && plannerOutput.objective.trim().length > 0) {
     segments.push(`objective="${truncateForLog(plannerOutput.objective, 90)}"`);
+  }
+  if (
+    typeof plannerOutput.evaluation_previous_goal === "string" &&
+    plannerOutput.evaluation_previous_goal.trim().length > 0
+  ) {
+    segments.push(`eval="${truncateForLog(plannerOutput.evaluation_previous_goal, 90)}"`);
+  }
+  if (typeof plannerOutput.next_goal === "string" && plannerOutput.next_goal.trim().length > 0) {
+    segments.push(`next="${truncateForLog(plannerOutput.next_goal, 90)}"`);
+  }
+  if (Array.isArray(plannerOutput.memory) && plannerOutput.memory.length > 0) {
+    const memorySummary = plannerOutput.memory
+      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      .slice(0, 2)
+      .join(" | ");
+    if (memorySummary) {
+      segments.push(`memory="${truncateForLog(memorySummary, 110)}"`);
+    }
   }
 
   const globalPlan =

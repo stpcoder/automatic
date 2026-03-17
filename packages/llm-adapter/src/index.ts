@@ -90,6 +90,9 @@ export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
       return plannerOutputSchema.parse({
         objective: "LLM generated tool action",
         rationale: "Parsed from legacy tool_call response",
+        evaluation_previous_goal: "No previous step evaluated",
+        memory: [],
+        next_goal: "Execute the selected tool action",
         next_action: {
           tool: toolCall.function.name,
           input: parseJsonSafely(toolCall.function.arguments ?? "{}")
@@ -163,6 +166,9 @@ export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
       return plannerOutputSchema.parse({
         objective: "LLM generated tool action",
         rationale: "Parsed from AI SDK tool call response",
+        evaluation_previous_goal: "No previous step evaluated",
+        memory: [],
+        next_goal: "Execute the selected tool action",
         next_action: {
           tool: toolCall.toolName,
           input: typeof toolCall.input === "object" && toolCall.input !== null ? toolCall.input : {}
