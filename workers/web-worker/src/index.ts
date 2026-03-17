@@ -102,7 +102,8 @@ export class WebWorker implements ToolExecutor {
     const systemId = String(request.input.system_id ?? "unknown");
     const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
     const targetKey = String(request.input.target_key ?? request.input.expected_button ?? "").trim();
-    const result = await this.adapter.clickElement(systemId, targetKey, sessionId);
+    const targetHandle = typeof request.input.target_handle === "string" ? request.input.target_handle : undefined;
+    const result = await this.adapter.clickElement(systemId, targetKey, sessionId, targetHandle);
 
     return {
       request_id: request.request_id,
@@ -113,6 +114,7 @@ export class WebWorker implements ToolExecutor {
         system_id: systemId,
         session_id: result.observation.sessionId,
         target_key: targetKey,
+        target_handle: targetHandle,
         harness: this.adapter.harnessName,
         observation: result.observation
       },

@@ -242,7 +242,7 @@ function buildLoopSystemPrompt(): string {
     "Tool semantics:",
     "- open_system: attach to an existing session or open a target URL. Use it for session attach, site access, tab attach, or URL navigation.",
     "- fill_web_form: enter text or set field values directly when the observation already exposes a semantic field key or clear input target.",
-    "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements.",
+    "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements. Prefer target_handle from domOutline when a numbered handle is visible there.",
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
     "- follow_web_navigation: follow same-tab or child-tab navigation after a page-changing action.",
     "- extract_web_result: read the current page and judge whether the goal is satisfied.",

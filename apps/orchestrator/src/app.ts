@@ -253,8 +253,8 @@ export async function createApp(
       },
       {
         name: "click_web_element",
-        description: "Click a specific button or clickable control on the active web system.",
-        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" } }
+        description: "Click a specific button or clickable control on the active web system. Prefer target_handle from domOutline when available.",
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" }, target_handle: { type: "string" } }
       },
       {
         name: "scroll_web_page",
@@ -801,7 +801,7 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
     return fields || "";
   }
   if (toolName === "click_web_element") {
-    return truncateForLog(stringForLog(input.target_key), 40);
+    return truncateForLog(stringForLog(input.target_handle) !== "-" ? stringForLog(input.target_handle) : stringForLog(input.target_key), 40);
   }
   if (toolName === "extract_web_result") {
     return truncateForLog(stringForLog(input.query), 40);
@@ -857,8 +857,8 @@ function buildDebugToolSpecs() {
     },
     {
       name: "click_web_element",
-      description: "Click a specific button or clickable control on the active web system.",
-      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" } }
+      description: "Click a specific button or clickable control on the active web system. Prefer target_handle from domOutline when available.",
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" }, target_handle: { type: "string" } }
     },
     {
       name: "scroll_web_page",

@@ -65,10 +65,12 @@ export class PageAgentDomAdapter implements WebAdapter {
     };
   }
 
-  async clickElement(systemId: string, targetKey: string): Promise<ClickResult> {
+  async clickElement(systemId: string, targetKey: string, _sessionId?: string, targetHandle?: string): Promise<ClickResult> {
     const session = this.getOrCreateSession(systemId);
     const target = session.page.interactiveElements.find(
-      (element) => (element.type === "button" || element.type === "link") && element.key === targetKey
+      (element) =>
+        (element.type === "button" || element.type === "link") &&
+        (String(element.handle ?? "") === String(targetHandle ?? "") || element.key === targetKey)
     );
     if (!target) {
       throw new Error(`No clickable element found for key ${targetKey}`);
@@ -80,6 +82,7 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
+      targetHandle,
       observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }
@@ -251,6 +254,7 @@ export class PageAgentDomAdapter implements WebAdapter {
       interactiveElements: [
         {
           index: 0,
+          handle: "1",
           type: "input",
           key: "query",
           label: "검색어",
@@ -261,6 +265,7 @@ export class PageAgentDomAdapter implements WebAdapter {
         },
         {
           index: 1,
+          handle: "2",
           type: "button",
           key: "search_action",
           label: "검색",
@@ -342,7 +347,7 @@ function buildHarnessDomOutline(page: HarnessPageDefinition, visibleTextBlocks: 
     if (element.semanticRole) {
       attrs.push(`role=${element.semanticRole}`);
     }
-    lines.push(`[${element.key}]<${element.type} ${attrs.join(" ")}>${element.label || element.key} />`);
+    lines.push(`[${element.handle ?? element.key}]<${element.type} ${attrs.join(" ")}>${element.label || element.key} />`);
     if (element.value) {
       lines.push(`  value: ${element.value}`);
     }
@@ -381,6 +386,7 @@ function buildGenericSearchResultsPage(baseUrl: string, query: string): HarnessP
     interactiveElements: [
       {
         index: 0,
+        handle: "1",
         type: "input",
         key: "query",
         label: "검색어",
@@ -391,6 +397,7 @@ function buildGenericSearchResultsPage(baseUrl: string, query: string): HarnessP
       },
       {
         index: 1,
+        handle: "2",
         type: "button",
         key: "search_action",
         label: "검색",
@@ -399,6 +406,7 @@ function buildGenericSearchResultsPage(baseUrl: string, query: string): HarnessP
       },
       ...resultLinks.map((label, index) => ({
         index: index + 2,
+        handle: String(index + 3),
         type: "link" as const,
         key: `result_${index + 1}`,
         label,
@@ -434,6 +442,7 @@ function buildGenericDetailPage(baseUrl: string, query: string, label: string, h
     interactiveElements: [
       {
         index: 0,
+        handle: "1",
         type: "link",
         key: "back_to_results",
         label: "검색 결과로 돌아가기",

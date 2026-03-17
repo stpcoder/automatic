@@ -1,5 +1,6 @@
 export interface InteractiveElement {
   index: number;
+  handle?: string;
   type: "input" | "button" | "select" | "text" | "link";
   key: string;
   label: string;
@@ -77,6 +78,7 @@ export interface SubmitResult {
 export interface ClickResult {
   clickId: string;
   targetKey: string;
+  targetHandle?: string;
   observation: PageObservation;
 }
 
@@ -108,7 +110,7 @@ export interface WebAdapter {
   openSystem(systemId: string, pageId?: string, selection?: WebOpenSelection): Promise<PageObservation>;
   observe(systemId: string, sessionId?: string): Promise<PageObservation>;
   fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
-  clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult>;
+  clickElement(systemId: string, targetKey: string, sessionId?: string, targetHandle?: string): Promise<ClickResult>;
   scrollPage?(systemId: string, direction: "up" | "down", amount?: number, sessionId?: string): Promise<ScrollResult>;
   previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult>;
   submit(systemId: string, expectedButton: string, sessionId?: string): Promise<SubmitResult>;

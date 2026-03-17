@@ -79,12 +79,13 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     };
   }
 
-  async clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult> {
+  async clickElement(systemId: string, targetKey: string, sessionId?: string, targetHandle?: string): Promise<ClickResult> {
     const command = browserBridgeCoordinator.enqueueCommand(
       systemId,
       "click",
       {
-        target_key: targetKey
+        target_key: targetKey,
+        target_handle: targetHandle
       },
       sessionId
     );
@@ -95,6 +96,7 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
+      targetHandle,
       observation: await this.observe(systemId, sessionId)
     };
   }

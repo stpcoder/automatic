@@ -427,6 +427,7 @@
         return {
           element,
           index,
+          handle: String(index + 1),
           type,
           key: resolveSemanticKey(element),
           label,
@@ -481,7 +482,7 @@
         if (control.semanticRole && control.semanticRole !== "unknown") {
           attrs.push(`role=${control.semanticRole}`);
         }
-        const line = `[${control.key}]<${control.type} ${attrs.join(" ")}>${control.label || control.key} />`;
+        const line = `[${control.handle}]<${control.type} ${attrs.join(" ")}>${control.label || control.key} />`;
         if (!seenLines.has(line)) {
           seenLines.add(line);
           lines.push(line);
@@ -608,11 +609,12 @@
     return matched ? [matched.label].concat(matched.aliases || []).map(normalize) : [normalizedTarget];
   }
 
-  function clickTarget(targetKey) {
+  function clickTarget(targetKey, targetHandle) {
     const candidates = resolveButtonCandidates(targetKey);
     const normalizedTargetKey = normalize(targetKey);
     const buttons = buildInteractiveCandidates().filter((candidate) => candidate.type === "button" || candidate.type === "link");
     const target =
+      buttons.find((candidate) => String(candidate.handle) === String(targetHandle || ""))?.element ||
       buttons.find((candidate) => normalize(candidate.key) === normalizedTargetKey)?.element ||
       buttons.find((candidate) => candidates.includes(normalize(candidate.label)))?.element;
     if (!target) {
@@ -668,12 +670,14 @@
         command.type === "submit"
           ? String(command.payload.expected_button || system?.final_action_button || "submit")
           : String(command.payload.target_key || "");
+      const targetHandle = String(command.payload.target_handle || "");
       const previousSignature = observationSignature();
       await completeCommand(command.command_id, true, {
         accepted: true,
-        target_key: targetKey
+        target_key: targetKey,
+        target_handle: targetHandle
       });
-      await clickTarget(targetKey);
+      await clickTarget(targetKey, targetHandle);
       await waitForObservationChange(previousSignature);
       return;
     }
