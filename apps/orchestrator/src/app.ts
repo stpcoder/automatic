@@ -267,11 +267,6 @@ export async function createApp(
         }
       },
       {
-        name: "follow_web_navigation",
-        description: "Follow same-tab or new-tab navigation only when the last click or submit likely changed pages but the click result did not capture the new page yet.",
-        input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
-      },
-      {
         name: "preview_web_submission",
         description: "Preview the current web submission state.",
         input_schema: { system_id: { type: "string" } }
@@ -869,11 +864,6 @@ function buildDebugToolSpecs() {
         direction: { type: "string" },
         amount: { type: "number" }
       }
-    },
-    {
-      name: "follow_web_navigation",
-      description: "Follow same-tab or new-tab navigation only when the last click or submit likely changed pages but the click result did not capture the new page yet.",
-      input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
     },
     {
       name: "preview_web_submission",

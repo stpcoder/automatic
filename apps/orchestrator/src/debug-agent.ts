@@ -244,7 +244,6 @@ function buildLoopSystemPrompt(): string {
     "- fill_web_form: enter text or set field values directly when the observation already exposes a semantic field key or clear input target.",
     "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements. Prefer target_handle from domOutline when a numbered handle is visible there.",
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
-    "- follow_web_navigation: only use this when the last action likely opened or switched pages but the latest click/submit observation still did not capture the new page. Most ordinary navigation should already be reflected by click_web_element or submit_web_form.",
     "- extract_web_result: read the current page and judge whether the goal is satisfied.",
     "- finish_task: only when the goal is truly satisfied and you can summarize the answer.",
     "Your step_plan should be rich enough to show intended attach/open, page verification, interaction, and result verification steps, even though you may execute only one tool now.",

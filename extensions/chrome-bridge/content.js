@@ -525,7 +525,7 @@
     const domOutline = buildDomOutline(controls, orderedBlocks);
     return {
       channel: "web",
-      summary: `${document.title} observed through chrome extension. ${orderedBlocks
+      summary: `${document.title}. ${orderedBlocks
         .slice(0, 5)
         .map((block) => block.text)
         .join(" | ")
