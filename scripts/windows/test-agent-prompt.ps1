@@ -9,6 +9,7 @@ param(
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
+$instructionBase64 = Encode-Utf8Base64 -Value $Instruction
 $context = @{}
 if ($SystemId) {
   Write-Host "[skh-agent] checking extension session for $SystemId..."
@@ -17,11 +18,12 @@ if ($SystemId) {
   $context.system_id = $SystemId
 }
 if ($Query) {
+  $queryBase64 = Encode-Utf8Base64 -Value $Query
   $fieldValues = @{
-    query = $Query
+    query_base64 = $queryBase64
   }
   $context.field_values = $fieldValues
-  $context.query = $Query
+  $context.query_base64 = $queryBase64
   if ($SystemId -eq "naver_search") {
     $context.target_key = "search"
   }
@@ -29,7 +31,7 @@ if ($Query) {
 
 Write-Host "[skh-agent] running prompt-driven agent loop..."
 $body = @{
-  instruction = $Instruction
+  instruction_base64 = $instructionBase64
   context = $context
   max_steps = $MaxSteps
 }

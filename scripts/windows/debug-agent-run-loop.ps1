@@ -15,10 +15,12 @@ if ($context.system_id) {
   Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 }
 Write-Host "[skh-agent] running debug agent loop..."
-$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
-  instruction = $Instruction
+$body = @{
+  instruction_base64 = Encode-Utf8Base64 -Value $Instruction
   context = $context
   max_steps = $MaxSteps
 }
+
+$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body $body
 
 Format-AgentRunResult -Result $result

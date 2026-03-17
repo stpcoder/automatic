@@ -7,6 +7,19 @@ function Set-AgentEnvironment {
     $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
   }
 
+  try {
+    [Console]::InputEncoding = [System.Text.UTF8Encoding]::new($false)
+    [Console]::OutputEncoding = [System.Text.UTF8Encoding]::new($false)
+  }
+  catch {
+  }
+
+  try {
+    & chcp.com 65001 | Out-Null
+  }
+  catch {
+  }
+
   $env:ORCHESTRATOR_PORT = if ($env:ORCHESTRATOR_PORT) { $env:ORCHESTRATOR_PORT } else { "43117" }
   $env:WEB_WORKER_ADAPTER = if ($env:WEB_WORKER_ADAPTER) { $env:WEB_WORKER_ADAPTER } else { "extension_bridge" }
   $env:OUTLOOK_WORKER_ADAPTER = if ($env:OUTLOOK_WORKER_ADAPTER) { $env:OUTLOOK_WORKER_ADAPTER } else { "outlook_com" }
@@ -75,6 +88,15 @@ function Decode-Utf8Base64 {
   )
 
   return [System.Text.Encoding]::UTF8.GetString([System.Convert]::FromBase64String($Value))
+}
+
+function Encode-Utf8Base64 {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$Value
+  )
+
+  return [System.Convert]::ToBase64String([System.Text.Encoding]::UTF8.GetBytes($Value))
 }
 
 function Get-AgentUrl {

@@ -610,27 +610,35 @@
     }
   }
 
-  function setAgentState(stateName, caption) {
-    if (!showPointerOverlay || !overlayState || !overlayState.pointer || !overlayState.label) {
+  function setOverlayState(state, stateName, caption) {
+    if (!showPointerOverlay || !state || !state.pointer || !state.label) {
       return;
     }
-    overlayState.state = stateName;
-    overlayState.label.textContent = caption;
-    overlayState.label.style.opacity = "0.92";
-    overlayState.pointer.style.opacity = "0.96";
-    if (overlayState.halo) {
-      overlayState.halo.style.opacity = stateName === "reading" ? "0.72" : "0.9";
+    state.state = stateName;
+    state.label.textContent = caption;
+    state.label.style.opacity = "0.92";
+    state.pointer.style.opacity = "0.96";
+    if (state.halo) {
+      state.halo.style.opacity = stateName === "reading" ? "0.72" : "0.9";
     }
-    if (overlayState.reader) {
-      overlayState.reader.style.opacity = stateName === "reading" ? "0.35" : "0";
+    if (state.reader) {
+      state.reader.style.opacity = stateName === "reading" ? "0.35" : "0";
     }
+  }
+
+  function setAgentState(stateName, caption) {
+    setOverlayState(overlayState, stateName, caption);
   }
 
   function startIdleAnimation(state) {
     if (!showPointerOverlay || !state || !state.pointer || state.idleTimer) {
       return;
     }
-    setAgentState(state.state === "typing" || state.state === "acting" ? state.state : "reading", state.label?.textContent || "reading");
+    setOverlayState(
+      state,
+      state.state === "typing" || state.state === "acting" ? state.state : "reading",
+      state.label?.textContent || "reading"
+    );
     state.idleTimer = window.setInterval(() => {
       if (!state.pointer) {
         return;
