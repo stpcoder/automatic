@@ -784,7 +784,7 @@ function logDebugToolResult(
   if (sessionId && sessionId !== "-") {
     console.log(`[${step}] SESSION ${sessionId}`);
   }
-  console.log(`[${step}] TIME  planner=${timing.planner_ms ?? 0}ms tool=${timing.tool_ms ?? 0}ms`);
+  console.log(`[${step}] TIME  llm_api=${timing.planner_ms ?? 0}ms action=${timing.tool_ms ?? 0}ms`);
 }
 
 function logDebugAgentFinish(
