@@ -570,6 +570,37 @@ export async function createApp(
           continue;
         }
 
+        if (
+          plannerOutput.next_action.tool === "extract_web_result" &&
+          toolResult.output.goal_satisfied === true
+        ) {
+          const finalSummary =
+            typeof toolResult.output.summary === "string" && toolResult.output.summary.trim().length > 0
+              ? toolResult.output.summary
+              : "Task completed.";
+          logDebugAgentFinish("run-loop", stepIndex, finalSummary, {
+            total_ms: Date.now() - startedAt
+          });
+          return {
+            ok: true,
+            completed: true,
+            final_response: finalSummary,
+            final_result: toolResult.output,
+            global_plan: globalPlan ?? null,
+            current_step_plan: currentStepPlan ?? null,
+            steps,
+            timing: {
+              total_ms: Date.now() - startedAt
+            },
+            debug_trace: {
+              planner_request: plannerRequest,
+              planner_trace: debugPlanner.getTrace(),
+              planner_output: plannerOutput,
+              normalized_input: normalizedInput
+            }
+          };
+        }
+
         lastFailure = undefined;
       } catch (error) {
         lastFailure = {
