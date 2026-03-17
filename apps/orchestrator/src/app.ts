@@ -253,6 +253,16 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" } }
       },
       {
+        name: "scroll_web_page",
+        description: "Scroll the current page up or down to reveal more content.",
+        input_schema: {
+          system_id: { type: "string" },
+          session_id: { type: "string" },
+          direction: { type: "string" },
+          amount: { type: "number" }
+        }
+      },
+      {
         name: "follow_web_navigation",
         description: "Follow same-tab or new-tab navigation after a click and observe the resulting page.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
@@ -712,6 +722,16 @@ function buildDebugToolSpecs() {
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" } }
     },
     {
+      name: "scroll_web_page",
+      description: "Scroll the current page up or down to reveal more content.",
+      input_schema: {
+        system_id: { type: "string" },
+        session_id: { type: "string" },
+        direction: { type: "string" },
+        amount: { type: "number" }
+      }
+    },
+    {
       name: "follow_web_navigation",
       description: "Follow same-tab or new-tab navigation after a click and observe the resulting page.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
@@ -792,22 +812,27 @@ function normalizeDebugToolInput(
       normalized.session_id = inferSessionIdFromContext(context);
     }
     if (typeof normalized.system_id !== "string" || normalized.system_id.trim().length === 0) {
-      normalized.system_id = inferSystemIdFromContext(context, instruction);
+      const inferredSystemId = inferSystemIdFromContext(context, instruction);
+      if (inferredSystemId) {
+        normalized.system_id = inferredSystemId;
+      }
     }
     if (toolName === "submit_web_form" && (typeof normalized.expected_button !== "string" || normalized.expected_button.trim().length === 0)) {
-      normalized.expected_button =
-        typeof context.expected_button === "string" && context.expected_button.trim().length > 0
-          ? context.expected_button
-          : inferExpectedButtonFromSystem(String(normalized.system_id));
+      normalized.expected_button = typeof context.expected_button === "string" && context.expected_button.trim().length > 0 ? context.expected_button : "Submit";
     }
     if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
       normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
     }
     if (toolName === "click_web_element" && (typeof normalized.target_key !== "string" || normalized.target_key.trim().length === 0)) {
-      normalized.target_key =
-        typeof context.target_key === "string" && context.target_key.trim().length > 0
-          ? context.target_key
-          : inferExpectedButtonFromSystem(String(normalized.system_id));
+      normalized.target_key = typeof context.target_key === "string" && context.target_key.trim().length > 0 ? context.target_key : "";
+    }
+    if (toolName === "scroll_web_page") {
+      if (typeof normalized.direction !== "string" || normalized.direction.trim().length === 0) {
+        normalized.direction = typeof context.direction === "string" ? context.direction : "down";
+      }
+      if (typeof normalized.amount !== "number") {
+        normalized.amount = typeof context.amount === "number" ? context.amount : 0.75;
+      }
     }
     if (toolName === "extract_web_result") {
       if (typeof normalized.goal !== "string" || normalized.goal.trim().length === 0) {
@@ -854,7 +879,7 @@ function inferSessionIdFromContext(context: Record<string, unknown>): string | u
   return undefined;
 }
 
-function inferSystemIdFromContext(context: Record<string, unknown>, instruction: string): string {
+function inferSystemIdFromContext(context: Record<string, unknown>, instruction: string): string | undefined {
   if (typeof context.system_id === "string" && context.system_id.trim().length > 0) {
     return context.system_id;
   }
@@ -873,12 +898,7 @@ function inferSystemIdFromContext(context: Record<string, unknown>, instruction:
   if (typeof lastToolResult?.system_id === "string" && lastToolResult.system_id.trim().length > 0) {
     return lastToolResult.system_id;
   }
-
-  return "web_generic";
-}
-
-function inferExpectedButtonFromSystem(systemId: string): string {
-  return "Submit";
+  return undefined;
 }
 
 function decodePayloadStrings(value: unknown): unknown {

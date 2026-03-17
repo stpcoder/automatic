@@ -1,5 +1,15 @@
 import { buildHarnessPage } from "./system-definitions.js";
-import type { ClickResult, FillResult, HarnessPageDefinition, PageObservation, PreviewResult, SubmitResult, WebAdapter, WebOpenSelection } from "./types.js";
+import type {
+  ClickResult,
+  FillResult,
+  HarnessPageDefinition,
+  PageObservation,
+  PreviewResult,
+  ScrollResult,
+  SubmitResult,
+  WebAdapter,
+  WebOpenSelection
+} from "./types.js";
 
 interface SessionState {
   sessionId: string;
@@ -75,6 +85,14 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
+      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+    };
+  }
+
+  async scrollPage(systemId: string): Promise<ScrollResult> {
+    const session = this.getOrCreateSession(systemId);
+    return {
+      scrollId: `WEBSCROLL-${crypto.randomUUID()}`,
       observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }

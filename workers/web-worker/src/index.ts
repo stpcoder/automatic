@@ -28,6 +28,8 @@ export class WebWorker implements ToolExecutor {
         return this.fillWebForm(request);
       case "click_web_element":
         return this.clickWebElement(request);
+      case "scroll_web_page":
+        return this.scrollWebPage(request);
       case "follow_web_navigation":
         return this.followWebNavigation(request);
       case "preview_web_submission":
@@ -113,6 +115,33 @@ export class WebWorker implements ToolExecutor {
         session_id: result.observation.sessionId,
         target_key: targetKey,
         harness: this.adapter.harnessName,
+        observation: result.observation
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async scrollWebPage(request: ToolRequest): Promise<ToolResult> {
+    const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
+    const direction = request.input.direction === "up" ? "up" : "down";
+    const amount = typeof request.input.amount === "number" ? request.input.amount : 0.75;
+    if (!this.adapter.scrollPage) {
+      throw new Error(`${this.adapter.harnessName} does not support scroll_web_page`);
+    }
+    const result = await this.adapter.scrollPage(systemId, direction, amount, sessionId);
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "web_scroll",
+        scroll_id: result.scrollId,
+        system_id: systemId,
+        session_id: result.observation.sessionId,
+        harness: this.adapter.harnessName,
+        direction,
+        amount,
         observation: result.observation
       },
       memory_patch: {},

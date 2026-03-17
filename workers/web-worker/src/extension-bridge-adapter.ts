@@ -1,17 +1,18 @@
 import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 
 import { getWebSystemDefinition } from "./system-definitions.js";
-import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter, WebOpenSelection } from "./types.js";
+import type { ClickResult, FillResult, PageObservation, PreviewResult, ScrollResult, SubmitResult, WebAdapter, WebOpenSelection } from "./types.js";
 
 export class ExtensionBridgeAdapter implements WebAdapter {
   readonly harnessName = "extension_bridge";
 
   async openSystem(systemId: string, _pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {
     const resolvedSelection = selection ?? {};
+    const selectorSystemId = systemId === "web_generic" || systemId === "unknown" ? undefined : systemId;
     if (resolvedSelection.targetUrl && resolvedSelection.openIfMissing) {
       const existing = browserBridgeCoordinator.getObservationBySelector({
         sessionId: resolvedSelection.sessionId,
-        systemId,
+        systemId: selectorSystemId,
         urlContains: resolvedSelection.urlContains ?? resolvedSelection.targetUrl,
         titleContains: resolvedSelection.titleContains
       });
@@ -24,18 +25,29 @@ export class ExtensionBridgeAdapter implements WebAdapter {
       resolvedSelection.sessionId || resolvedSelection.urlContains || resolvedSelection.titleContains || resolvedSelection.targetUrl
         ? await browserBridgeCoordinator.waitForObservationBySelector({
             sessionId: resolvedSelection.sessionId,
-            systemId,
+            systemId: selectorSystemId,
             urlContains: resolvedSelection.urlContains ?? resolvedSelection.targetUrl,
             titleContains: resolvedSelection.titleContains
           })
         : await browserBridgeCoordinator.waitForObservation(systemId);
 
-    return this.toPageObservation(systemId, observation, resolvedSelection.sessionId);
+    return this.toPageObservation(
+      typeof observation.payload.systemId === "string" ? String(observation.payload.systemId) : systemId,
+      observation,
+      resolvedSelection.sessionId
+    );
   }
 
   async observe(systemId: string, sessionId?: string): Promise<PageObservation> {
-    const observation = await browserBridgeCoordinator.waitForObservation(systemId, undefined, sessionId);
-    return this.toPageObservation(systemId, observation, sessionId);
+    const resolvedSystemId = systemId === "web_generic" || systemId === "unknown" ? undefined : systemId;
+    const observation = resolvedSystemId
+      ? await browserBridgeCoordinator.waitForObservation(resolvedSystemId, undefined, sessionId)
+      : await browserBridgeCoordinator.waitForObservationBySelector({ sessionId });
+    return this.toPageObservation(
+      typeof observation.payload.systemId === "string" ? String(observation.payload.systemId) : systemId,
+      observation,
+      sessionId
+    );
   }
 
   async fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult> {
@@ -74,6 +86,26 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
+      observation: await this.observe(systemId, sessionId)
+    };
+  }
+
+  async scrollPage(systemId: string, direction: "up" | "down", amount = 0.75, sessionId?: string): Promise<ScrollResult> {
+    const command = browserBridgeCoordinator.enqueueCommand(
+      systemId,
+      "scroll",
+      {
+        direction,
+        amount
+      },
+      sessionId
+    );
+    const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id, undefined, sessionId);
+    if (result.status === "failed") {
+      throw new Error(result.error ?? `Extension bridge scroll failed for ${systemId}`);
+    }
+    return {
+      scrollId: `WEBSCROLL-${crypto.randomUUID()}`,
       observation: await this.observe(systemId, sessionId)
     };
   }

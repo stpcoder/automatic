@@ -3,14 +3,13 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-Write-Host "[skh-agent] checking extension session for naver_stock..."
-$sessions = Assert-AgentSessionForSystem -SystemId "naver_stock"
-Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
-Write-Host "[skh-agent] running direct stock extraction loop..."
+Write-Host "[skh-agent] running generic direct stock extraction loop..."
 
 $instructionTextBase64 = "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
 $context = @{
-  system_id = "naver_stock"
+  target_url = "https://finance.naver.com/item/main.naver?code=000660"
+  url_contains = "finance.naver.com/item/main.naver"
+  open_if_missing = $true
 }
 $body = @{
   instruction_base64 = $instructionTextBase64

@@ -5,7 +5,7 @@ import { observationSchema } from "../../contracts/src/index.js";
 export const bridgeCommandSchema = z.object({
   command_id: z.string(),
   system_id: z.string(),
-  type: z.enum(["fill", "submit", "click"]),
+  type: z.enum(["fill", "submit", "click", "scroll"]),
   payload: z.record(z.string(), z.unknown()).default({}),
   status: z.enum(["pending", "completed", "failed"]).default("pending"),
   created_at: z.string(),

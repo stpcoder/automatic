@@ -53,6 +53,11 @@ export interface ClickResult {
   observation: PageObservation;
 }
 
+export interface ScrollResult {
+  scrollId: string;
+  observation: PageObservation;
+}
+
 export interface ExtractResult {
   extractionId: string;
   observation: PageObservation;
@@ -77,6 +82,7 @@ export interface WebAdapter {
   observe(systemId: string, sessionId?: string): Promise<PageObservation>;
   fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
   clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult>;
+  scrollPage?(systemId: string, direction: "up" | "down", amount?: number, sessionId?: string): Promise<ScrollResult>;
   previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult>;
   submit(systemId: string, expectedButton: string, sessionId?: string): Promise<SubmitResult>;
   followNavigation?(systemId: string, sessionId?: string): Promise<PageObservation>;

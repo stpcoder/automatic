@@ -336,6 +336,17 @@
       return;
     }
 
+    if (command.type === "scroll") {
+      const direction = command.payload.direction === "up" ? "up" : "down";
+      const amount = typeof command.payload.amount === "number" ? command.payload.amount : 0.75;
+      setAgentState("reading", "scroll");
+      const delta = Math.max(120, Math.floor(window.innerHeight * amount)) * (direction === "up" ? -1 : 1);
+      window.scrollBy({ top: delta, behavior: "smooth" });
+      await sleep(450);
+      await completeCommand(command.command_id, true, { observation: buildObservation().payload, direction, amount });
+      return;
+    }
+
     if (command.type === "click" || command.type === "submit") {
       const targetKey =
         command.type === "submit"
