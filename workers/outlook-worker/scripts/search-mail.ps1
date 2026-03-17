@@ -138,81 +138,105 @@ $namespace = $outlook.GetNamespace("MAPI")
 
 $matches = @()
 $escapedKeyword = [regex]::Escape($keyword)
-$foldersToSearch = @(
+$folderSpecs = @(
   @{ label = "inbox"; folderId = 6; timeProperty = "ReceivedTime" },
   @{ label = "sent"; folderId = 5; timeProperty = "SentOn" }
 )
 
-$maxScanPerFolder = [Math]::Max($maxResults * 25, 100)
+$maxScanPerFolder = [Math]::Min([Math]::Max($maxResults * 200, 500), 5000)
+$stores = @()
+try {
+  $stores = @($namespace.Stores)
+} catch {
+  $stores = @()
+}
 
-foreach ($folderSpec in $foldersToSearch) {
+if ($stores.Count -eq 0) {
+  $stores = @($namespace)
+}
+
+foreach ($store in $stores) {
+  $storeName = ""
   try {
-    $folder = $namespace.GetDefaultFolder([int]$folderSpec.folderId)
-    if ($null -eq $folder) {
-      continue
-    }
-    $items = $folder.Items
-    if ($null -eq $items) {
-      continue
-    }
+    $storeName = Get-SafeString -Value $store.DisplayName
+  } catch {
+    $storeName = ""
+  }
+
+  foreach ($folderSpec in $folderSpecs) {
     try {
-      $items.Sort("[$($folderSpec.timeProperty)]", $true)
-    } catch {
-    }
-
-    $maxScan = [Math]::Min($items.Count, $maxScanPerFolder)
-    for ($index = 1; $index -le $maxScan; $index++) {
-      try {
-        $item = $items.Item($index)
-        if ($null -eq $item) {
-          continue
-        }
-
-        $itemClass = 0
-        try {
-          $itemClass = [int]$item.Class
-        } catch {
-          $itemClass = 0
-        }
-
-        if ($itemClass -ne 43) {
-          continue
-        }
-
-        $subject = Get-SafeString -Value $item.Subject
-        $bodyFull = Get-MailBodyForSearch -Item $item
-        $bodySnippet = if ([string]::IsNullOrWhiteSpace($bodyFull)) { "" } elseif ($bodyFull.Length -gt 500) { $bodyFull.Substring(0, 500) } else { $bodyFull }
-        $sender = Get-MailSenderAddress -Item $item
-        $recipients = Get-MailRecipients -Item $item
-        $haystack = "$subject`n$bodyFull`n$sender`n$recipients"
-
-        if ([string]::IsNullOrWhiteSpace($keyword) -or $haystack -match $escapedKeyword) {
-          $timestampInfo = Get-MailTimestamp -Item $item -PrimaryProperty ([string]$folderSpec.timeProperty)
-          $conversationId = ""
-          try {
-            $conversationId = [string]$item.ConversationID
-          } catch {
-            $conversationId = ""
-          }
-
-          $matches += @{
-            entry_id = Get-SafeString -Value $item.EntryID
-            subject = $subject
-            sender = $sender
-            recipients = $recipients
-            received_time = [string]$timestampInfo.raw
-            conversation_id = $conversationId
-            body_snippet = $bodySnippet
-            folder = [string]$folderSpec.label
-            sort_ticks = [int64]$timestampInfo.ticks
-          }
-        }
-      } catch {
+      if ($store -is [Microsoft.Office.Interop.Outlook.NameSpace]) {
+        $folder = $store.GetDefaultFolder([int]$folderSpec.folderId)
+      } else {
+        $folder = $store.GetDefaultFolder([int]$folderSpec.folderId)
+      }
+      if ($null -eq $folder) {
         continue
       }
+      $items = $folder.Items
+      if ($null -eq $items) {
+        continue
+      }
+      try {
+        $items.Sort("[$($folderSpec.timeProperty)]", $true)
+      } catch {
+      }
+
+      $maxScan = [Math]::Min($items.Count, $maxScanPerFolder)
+      for ($index = 1; $index -le $maxScan; $index++) {
+        try {
+          $item = $items.Item($index)
+          if ($null -eq $item) {
+            continue
+          }
+
+          $itemClass = 0
+          try {
+            $itemClass = [int]$item.Class
+          } catch {
+            $itemClass = 0
+          }
+
+          if ($itemClass -ne 43) {
+            continue
+          }
+
+          $subject = Get-SafeString -Value $item.Subject
+          $bodyFull = Get-MailBodyForSearch -Item $item
+          $bodySnippet = if ([string]::IsNullOrWhiteSpace($bodyFull)) { "" } elseif ($bodyFull.Length -gt 500) { $bodyFull.Substring(0, 500) } else { $bodyFull }
+          $sender = Get-MailSenderAddress -Item $item
+          $recipients = Get-MailRecipients -Item $item
+          $haystack = "$subject`n$bodyFull`n$sender`n$recipients"
+
+          if ([string]::IsNullOrWhiteSpace($keyword) -or $haystack -match $escapedKeyword) {
+            $timestampInfo = Get-MailTimestamp -Item $item -PrimaryProperty ([string]$folderSpec.timeProperty)
+            $conversationId = ""
+            try {
+              $conversationId = [string]$item.ConversationID
+            } catch {
+              $conversationId = ""
+            }
+
+            $matches += @{
+              entry_id = Get-SafeString -Value $item.EntryID
+              subject = $subject
+              sender = $sender
+              recipients = $recipients
+              received_time = [string]$timestampInfo.raw
+              conversation_id = $conversationId
+              body_snippet = $bodySnippet
+              folder = [string]$folderSpec.label
+              store = $storeName
+              sort_ticks = [int64]$timestampInfo.ticks
+            }
+          }
+        } catch {
+          continue
+        }
+      }
+    } catch {
+      continue
     }
-  } catch {
-    continue
   }
 }
 
@@ -230,6 +254,7 @@ $matches =
         conversation_id = $_.conversation_id
         body_snippet = $_.body_snippet
         folder = $_.folder
+        store = $_.store
       }
     })
 
