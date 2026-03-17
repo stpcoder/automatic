@@ -111,6 +111,10 @@ export class BrowserBridgeCoordinator {
     }));
   }
 
+  getSessionInfo(sessionId: string): BridgeSession | undefined {
+    return this.sessions.get(sessionId)?.session;
+  }
+
   listBrowserTasks(): BridgeBrowserTask[] {
     return [...this.browserTasks];
   }
@@ -307,6 +311,27 @@ export class BrowserBridgeCoordinator {
     }
 
     throw new Error(`Timed out waiting for navigation follow from session ${sessionId}`);
+  }
+
+  async waitForUpdatedObservation(
+    sessionId: string,
+    sinceUpdatedAt: string,
+    timeoutMs = this.observationTimeoutMs
+  ): Promise<{ session: BridgeSession; observation: z.infer<typeof observationSchema> }> {
+    const started = Date.now();
+
+    while (Date.now() - started < timeoutMs) {
+      const current = this.sessions.get(sessionId);
+      if (current?.latestObservation && current.session.updated_at > sinceUpdatedAt) {
+        return {
+          session: current.session,
+          observation: current.latestObservation
+        };
+      }
+      await sleep(150);
+    }
+
+    throw new Error(`Timed out waiting for updated observation on session ${sessionId}`);
   }
 
   private requireSession(sessionId: string): BridgeSessionState {

@@ -15,6 +15,7 @@ import type {
 export class ExtensionBridgeAdapter implements WebAdapter {
   readonly harnessName = "extension_bridge";
   private readonly clickNavigationTimeoutMs = Number(process.env.BRIDGE_CLICK_NAVIGATION_TIMEOUT_MS ?? "1800");
+  private readonly clickObservationTimeoutMs = Number(process.env.BRIDGE_CLICK_OBSERVATION_TIMEOUT_MS ?? "3500");
 
   async openSystem(systemId: string, _pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {
     const resolvedSelection = selection ?? {};
@@ -81,6 +82,8 @@ export class ExtensionBridgeAdapter implements WebAdapter {
   }
 
   async clickElement(systemId: string, targetKey: string, sessionId?: string, targetHandle?: string): Promise<ClickResult> {
+    const baselineUpdatedAt =
+      sessionId ? browserBridgeCoordinator.getSessionInfo(sessionId)?.updated_at : undefined;
     const command = browserBridgeCoordinator.enqueueCommand(
       systemId,
       "click",
@@ -96,7 +99,7 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     }
     const observation =
       sessionId
-        ? await this.observeAfterClick(systemId, sessionId)
+        ? await this.observeAfterClick(systemId, sessionId, baselineUpdatedAt)
         : await this.observe(systemId, sessionId);
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
@@ -197,7 +200,7 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     };
   }
 
-  private async observeAfterClick(systemId: string, sessionId: string): Promise<PageObservation> {
+  private async observeAfterClick(systemId: string, sessionId: string, baselineUpdatedAt?: string): Promise<PageObservation> {
     try {
       const followed = await browserBridgeCoordinator.waitForNavigation(sessionId, this.clickNavigationTimeoutMs);
       return this.toPageObservation(
@@ -207,6 +210,23 @@ export class ExtensionBridgeAdapter implements WebAdapter {
         followed.session.parent_session_id
       );
     } catch {
+      if (baselineUpdatedAt) {
+        try {
+          const updated = await browserBridgeCoordinator.waitForUpdatedObservation(
+            sessionId,
+            baselineUpdatedAt,
+            this.clickObservationTimeoutMs
+          );
+          return this.toPageObservation(
+            typeof updated.observation.payload.systemId === "string" ? String(updated.observation.payload.systemId) : systemId,
+            updated.observation,
+            updated.session.session_id,
+            updated.session.parent_session_id
+          );
+        } catch {
+          // Fall through to the latest visible observation.
+        }
+      }
       return this.observe(systemId, sessionId);
     }
   }
