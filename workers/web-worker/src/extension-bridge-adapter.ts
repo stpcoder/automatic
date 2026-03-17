@@ -15,7 +15,7 @@ import type {
 
 export class ExtensionBridgeAdapter implements WebAdapter {
   readonly harnessName = "extension_bridge";
-  private readonly clickNavigationTimeoutMs = Number(process.env.BRIDGE_CLICK_NAVIGATION_TIMEOUT_MS ?? "1800");
+  private readonly clickNavigationTimeoutMs = Number(process.env.BRIDGE_CLICK_NAVIGATION_TIMEOUT_MS ?? "3500");
   private readonly clickObservationTimeoutMs = Number(process.env.BRIDGE_CLICK_OBSERVATION_TIMEOUT_MS ?? "3500");
 
   async openSystem(systemId: string, _pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {

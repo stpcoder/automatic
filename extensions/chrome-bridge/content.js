@@ -120,6 +120,26 @@
     );
   }
 
+  function getLinkHost(element) {
+    const href = element instanceof HTMLAnchorElement ? element.href : "";
+    if (!href) {
+      return "";
+    }
+    try {
+      return new URL(href, location.href).host.toLowerCase();
+    } catch {
+      return "";
+    }
+  }
+
+  function isSocialOrVideoHost(host) {
+    return /(youtube\.com|youtu\.be|instagram\.com|facebook\.com|x\.com|twitter\.com|tiktok\.com|linkedin\.com|threads\.net)/i.test(host);
+  }
+
+  function hasResultLikeContext(text) {
+    return /검색 결과|result|article|headline|뉴스|기사|주가|가격|시세|product|quote|detail/i.test(normalize(text));
+  }
+
   function isMainContentContainer(element) {
     return Boolean(
       element.closest("main, article, section, form, [role='main'], [role='search'], [role='dialog'], #content, #container, #wrap")
@@ -185,6 +205,7 @@
 
     const tagName = element.tagName.toLowerCase();
     const text = String(getElementTextForKey(element)).replace(/\s+/g, " ").trim();
+    const nearbyText = extractNearbyText(element);
     const structuralContainer = element.closest("form, [role='search'], [role='dialog'], main, article, section");
     const utilityOnly = isUtilityContainer(element) && !isMainContentContainer(element);
 
@@ -206,6 +227,16 @@
     }
     if (isUtilityText(text)) {
       return false;
+    }
+    if (tagName === "a") {
+      const host = getLinkHost(element);
+      const iconLike = text.length <= 3 && !/[가-힣a-z0-9]{2,}/i.test(text);
+      if (isSocialOrVideoHost(host) && !hasResultLikeContext(nearbyText)) {
+        return false;
+      }
+      if (iconLike && !hasResultLikeContext(nearbyText)) {
+        return false;
+      }
     }
     return Boolean(structuralContainer || isElementNearViewportCenter(element));
   }
@@ -252,6 +283,7 @@
   function inferInteractiveSemanticRole(element, type, label, nearbyText) {
     const normalizedLabel = normalize(label);
     const normalizedNearby = normalize(nearbyText);
+    const host = getLinkHost(element);
 
     if (type === "input" || type === "select") {
       if (/search|검색|찾기|query/.test(normalizedLabel) || /search|검색/.test(normalizedNearby)) {
@@ -261,6 +293,9 @@
     }
 
     if (type === "link") {
+      if (isSocialOrVideoHost(host)) {
+        return "navigation_link";
+      }
       if (/result|article|detail|상세|기사|바로가기|go to|read more/.test(normalizedLabel) || /검색 결과|result/.test(normalizedNearby)) {
         return "result_link";
       }
@@ -284,6 +319,7 @@
     const normalizedLabel = normalize(label);
     const normalizedNearby = normalize(nearbyText);
     const region = inferRegion(element);
+    const host = getLinkHost(element);
 
     if (region === "main") {
       score += 0.22;
@@ -305,6 +341,12 @@
     }
     if (/search|검색 결과|price|가격|주가|headline|뉴스|result|상품|article/.test(normalizedNearby)) {
       score += 0.06;
+    }
+    if (type === "link" && isSocialOrVideoHost(host)) {
+      score -= 0.28;
+    }
+    if (type === "link" && !hasResultLikeContext(normalizedNearby) && /instagram|youtube|facebook|x|twitter|tiktok/i.test(normalizedLabel)) {
+      score -= 0.2;
     }
     if (isUtilityContainer(element) && !isMainContentContainer(element)) {
       score -= 0.3;
