@@ -130,11 +130,61 @@ class JsonDebugPlanner implements DebugPlannerClient {
       throw new Error("Debug planner returned empty content");
     }
 
-    return plannerOutputSchema.parse(parseJsonSafely(result.text));
+    try {
+      return plannerOutputSchema.parse(parsePlannerJsonText(result.text));
+    } catch (error) {
+      const repairedText = await this.repairPlannerResponse(request, result.text, error);
+      this.lastTrace = {
+        ...this.lastTrace,
+        repair_attempted: true,
+        repaired_text: repairedText
+      };
+      return plannerOutputSchema.parse(parsePlannerJsonText(repairedText));
+    }
   }
 
   getTrace(): Record<string, unknown> | undefined {
     return this.lastTrace;
+  }
+
+  private async repairPlannerResponse(
+    request: PlannerRequest,
+    rawText: string,
+    cause: unknown
+  ): Promise<string> {
+    const provider = createOpenAICompatible({
+      name: "skhynix-debug-planner",
+      baseURL: this.config.baseUrl,
+      apiKey: this.config.apiKey
+    });
+    const repairTimeoutMs = Math.min(this.config.timeoutMs, 20000);
+    const repairPrompt = [
+      "Rewrite the malformed planner response into one valid JSON object.",
+      "Return JSON only. No prose. No markdown fences.",
+      "The JSON must follow this contract:",
+      JSON.stringify(buildPlannerResponseContract()),
+      "Original malformed response:",
+      rawText,
+      "Parser error:",
+      cause instanceof Error ? cause.message : String(cause)
+    ].join("\n\n");
+
+    const repairResult = await withTimeout(
+      generateText({
+        model: provider.chatModel(request.model ?? this.config.model),
+        system:
+          "You repair malformed planner JSON. Output exactly one valid JSON object that matches the requested contract.",
+        prompt: repairPrompt
+      }),
+      repairTimeoutMs,
+      `Debug planner JSON repair timed out after ${repairTimeoutMs}ms`
+    );
+
+    if (!repairResult.text || repairResult.text.trim().length === 0) {
+      throw new Error("Debug planner JSON repair returned empty content");
+    }
+
+    return repairResult.text;
   }
 }
 
@@ -234,15 +284,35 @@ function buildPlannerResponseContract(): Record<string, unknown> {
   };
 }
 
+export function parsePlannerJsonText(raw: string): unknown {
+  const normalized = normalizePlannerResponseText(raw);
+
+  try {
+    return JSON.parse(normalized);
+  } catch {
+    const firstBrace = normalized.indexOf("{");
+    const lastBrace = normalized.lastIndexOf("}");
+    if (firstBrace >= 0 && lastBrace > firstBrace) {
+      return JSON.parse(normalized.slice(firstBrace, lastBrace + 1));
+    }
+    throw new Error("Unable to parse JSON from planner response");
+  }
+}
+
+function normalizePlannerResponseText(raw: string): string {
+  const trimmed = raw.trim();
+  const fencedMatch = trimmed.match(/```(?:json)?\s*([\s\S]*?)\s*```/i);
+  const unfenced = fencedMatch ? fencedMatch[1] : trimmed;
+  return unfenced
+    .replace(/[\u201c\u201d]/g, "\"")
+    .replace(/[\u2018\u2019]/g, "'")
+    .trim();
+}
+
 function parseJsonSafely(raw: string): unknown {
   try {
-    return JSON.parse(raw);
+    return parsePlannerJsonText(raw);
   } catch {
-    const firstBrace = raw.indexOf("{");
-    const lastBrace = raw.lastIndexOf("}");
-    if (firstBrace >= 0 && lastBrace > firstBrace) {
-      return JSON.parse(raw.slice(firstBrace, lastBrace + 1));
-    }
     throw new Error("Unable to parse JSON from planner response");
   }
 }
