@@ -46,6 +46,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "skh:process-tasks") {
+    processPendingTasks()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      );
+    return true;
+  }
+
   return false;
 });
 
@@ -54,6 +66,12 @@ chrome.alarms.onAlarm.addListener(async (alarm) => {
     return;
   }
   await processPendingTasks();
+});
+
+chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo) => {
+  if (changeInfo.status === "complete") {
+    await processPendingTasks().catch(() => null);
+  }
 });
 
 async function processPendingTasks() {

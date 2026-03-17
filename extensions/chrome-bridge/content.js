@@ -1189,6 +1189,7 @@
 
   while (true) {
     try {
+      await chrome.runtime.sendMessage({ type: "skh:process-tasks" }).catch(() => null);
       system = await ensureActiveSystem();
       await registerSession();
       setAgentState("reading", "reading");
