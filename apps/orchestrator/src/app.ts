@@ -1189,6 +1189,14 @@ function normalizeDebugToolInput(
       } catch {
       }
     }
+    if (
+      toolName === "open_system" &&
+      typeof normalized.target_url === "string" &&
+      normalized.target_url.trim().length > 0 &&
+      typeof normalized.open_if_missing !== "boolean"
+    ) {
+      normalized.open_if_missing = true;
+    }
     if (toolName === "submit_web_form" && (typeof normalized.expected_button !== "string" || normalized.expected_button.trim().length === 0)) {
       normalized.expected_button = typeof context.expected_button === "string" && context.expected_button.trim().length > 0 ? context.expected_button : "Submit";
     }
