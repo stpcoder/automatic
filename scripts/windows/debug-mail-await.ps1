@@ -4,7 +4,7 @@ param(
   [string[]]$ExpectedFrom = @(),
   [string[]]$RequiredFields = @(),
   [string[]]$KeywordContains = @(),
-  [int]$TimeoutSeconds = 1800,
+  [int]$TimeoutSeconds = 86400,
   [int]$PollIntervalMs = 10000
 )
 

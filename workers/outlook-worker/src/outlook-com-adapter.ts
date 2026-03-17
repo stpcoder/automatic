@@ -103,7 +103,7 @@ export class OutlookComAdapter {
     const timeoutSeconds =
       typeof input.timeout_seconds === "number" && Number.isFinite(input.timeout_seconds) && input.timeout_seconds > 0
         ? input.timeout_seconds
-        : Number(process.env.OUTLOOK_WAIT_TIMEOUT_SECONDS ?? "1800");
+        : Number(process.env.OUTLOOK_WAIT_TIMEOUT_SECONDS ?? "86400");
     const pollIntervalMs =
       typeof input.poll_interval_ms === "number" && Number.isFinite(input.poll_interval_ms) && input.poll_interval_ms > 0
         ? input.poll_interval_ms
