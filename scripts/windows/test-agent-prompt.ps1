@@ -17,9 +17,10 @@ if ($SystemId) {
   $context.system_id = $SystemId
 }
 if ($Query) {
-  $context.field_values = @{
+  $fieldValues = @{
     query = $Query
   }
+  $context.field_values = $fieldValues
   $context.query = $Query
   if ($SystemId -eq "naver_search") {
     $context.target_key = "search"
@@ -27,10 +28,11 @@ if ($Query) {
 }
 
 Write-Host "[skh-agent] running prompt-driven agent loop..."
-$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
+$body = @{
   instruction = $Instruction
   context = $context
   max_steps = $MaxSteps
 }
 
+$result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body $body
 Format-AgentRunResult -Result $result

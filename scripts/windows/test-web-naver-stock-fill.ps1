@@ -3,9 +3,13 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/fill") -Body @{
+$fieldValues = @{
+  query = "하이닉스 주가"
+}
+
+$body = @{
   system_id = "naver_search"
-  field_values = @{
-    query = "SK hynix stock price"
-  }
-} | ConvertTo-Json -Depth 20
+  field_values = $fieldValues
+}
+
+Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/web/fill") -Body $body | ConvertTo-Json -Depth 20
