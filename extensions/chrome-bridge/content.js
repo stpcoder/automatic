@@ -1273,6 +1273,11 @@
       bootstrapWaitLogged = false;
       const matchedSystem = matchSystem(location.href, bootstrap.systems ?? []);
       if (!matchedSystem) {
+        const genericSystem = findGenericSystem(bootstrap.systems ?? []);
+        if (genericSystem) {
+          systemWaitLogged = false;
+          return genericSystem;
+        }
         if (!systemWaitLogged) {
           systemWaitLogged = true;
           console.info("[skh-agent-extension] waiting for supported page", location.href);
@@ -1313,6 +1318,20 @@
 
 function matchSystem(url, systems) {
   return systems.find((system) => (system.url_patterns || []).some((pattern) => matchesUrlPattern(url, pattern)));
+}
+
+function findGenericSystem(systems) {
+  return (
+    systems.find((system) => system.system_id === "web_generic") || {
+      system_id: "web_generic",
+      title: "Generic Web Page",
+      url_patterns: [],
+      final_action_button: "Submit",
+      fields: [],
+      buttons: [],
+      result_indicators: []
+    }
+  );
 }
 
 function matchesUrlPattern(url, pattern) {

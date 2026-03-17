@@ -19,9 +19,15 @@
 
 ## 동작
 
-- 현재 탭 URL이 `/bridge/extension-bootstrap`에 정의된 시스템 패턴과 맞으면 자동 활성화된다.
+- 일반 웹페이지에서는 자동 활성화된다.
+- 시스템 패턴과 맞는 정의가 있으면 그 시스템으로 붙고, 없으면 `web_generic`으로 붙는다.
 - 세션은 `ext-tab-<tabId>` 형태로 등록된다.
 - 페이지 이동 후에도 새 content script가 같은 탭에서 다시 붙는다.
+
+## 예외
+
+- `chrome://`, Chrome Web Store 같은 브라우저 내부 페이지는 Chrome 정책상 content script를 강제로 주입할 수 없다.
+- Chrome 확장 설정에서 site access가 `On click`으로 바뀌어 있으면, 코드와 무관하게 자동 동작하지 않는다. 이 경우 `On all sites`로 바꿔야 한다.
 
 ## 장점
 
