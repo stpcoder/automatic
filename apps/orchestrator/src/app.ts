@@ -267,6 +267,15 @@ export async function createApp(
         }
       },
       {
+        name: "navigate_browser_history",
+        description: "Go back or forward in the current browser tab history when you need to return to the previous page.",
+        input_schema: {
+          system_id: { type: "string" },
+          session_id: { type: "string" },
+          direction: { type: "string" }
+        }
+      },
+      {
         name: "preview_web_submission",
         description: "Preview the current web submission state.",
         input_schema: { system_id: { type: "string" } }
@@ -326,7 +335,7 @@ export async function createApp(
 
       const toolStartedAt = Date.now();
       const toolResult =
-        plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
+        isWebDebugTool(plannerOutput.next_action.tool)
           ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "preview", normalizedInput))
           : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, "draft", normalizedInput));
       timing.tool_ms = Date.now() - toolStartedAt;
@@ -505,7 +514,7 @@ export async function createApp(
       try {
         const toolStartedAt = Date.now();
         const toolResult =
-          plannerOutput.next_action.tool.includes("web") || plannerOutput.next_action.tool === "open_system"
+          isWebDebugTool(plannerOutput.next_action.tool)
             ? await webWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput))
             : await outlookWorker.execute(buildDebugToolRequest(plannerOutput.next_action.tool, selectDebugToolMode(plannerOutput.next_action.tool), normalizedInput));
         stepTiming.tool_ms = Date.now() - toolStartedAt;
@@ -975,6 +984,9 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
     const targetKey = stringForLog(input.target_key);
     return truncateForLog(targetHandle !== "-" ? `#${targetHandle}` : targetKey, 40);
   }
+  if (toolName === "navigate_browser_history") {
+    return truncateForLog(stringForLog(input.direction), 20);
+  }
   if (toolName === "extract_web_result") {
     return truncateForLog(stringForLog(input.query), 40);
   }
@@ -1073,6 +1085,15 @@ function buildDebugToolSpecs() {
       }
     },
     {
+      name: "navigate_browser_history",
+      description: "Go back or forward in the current browser tab history to return to a previous page state or result list.",
+      input_schema: {
+        system_id: { type: "string" },
+        session_id: { type: "string" },
+        direction: { type: "string" }
+      }
+    },
+    {
       name: "preview_web_submission",
       description: "Preview the current web submission state.",
       input_schema: { system_id: { type: "string" } }
@@ -1143,7 +1164,7 @@ function normalizeDebugToolInput(
 ): Record<string, unknown> {
   const normalized = { ...input };
 
-  if (toolName === "open_system" || toolName.includes("web")) {
+  if (isWebDebugTool(toolName)) {
     if (typeof normalized.session_id !== "string" || normalized.session_id.trim().length === 0) {
       normalized.session_id = inferSessionIdFromContext(context);
     }
@@ -1207,6 +1228,14 @@ function normalizeDebugToolInput(
   }
 
   return normalized;
+}
+
+function isWebDebugTool(toolName: string): boolean {
+  return (
+    toolName === "open_system" ||
+    toolName === "navigate_browser_history" ||
+    toolName.includes("web")
+  );
 }
 
 function inferSessionIdFromContext(context: Record<string, unknown>): string | undefined {

@@ -3,6 +3,7 @@ import type {
   ClickResult,
   FillResult,
   HarnessPageDefinition,
+  HistoryNavigationResult,
   PageObservation,
   PreviewResult,
   SemanticBlock,
@@ -17,6 +18,8 @@ interface SessionState {
   parentSessionId?: string;
   systemId: string;
   page: HarnessPageDefinition;
+  history: HarnessPageDefinition[];
+  historyIndex: number;
 }
 
 export class PageAgentDomAdapter implements WebAdapter {
@@ -25,7 +28,13 @@ export class PageAgentDomAdapter implements WebAdapter {
 
   async openSystem(systemId: string, pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {
     const page = this.buildDefaultPage(systemId, pageId, selection);
-    this.sessions.set(systemId, { sessionId: `page-agent-${crypto.randomUUID()}`, systemId, page });
+    this.sessions.set(systemId, {
+      sessionId: `page-agent-${crypto.randomUUID()}`,
+      systemId,
+      page,
+      history: [page],
+      historyIndex: 0
+    });
     const session = this.getSession(systemId);
     return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
   }
@@ -77,6 +86,7 @@ export class PageAgentDomAdapter implements WebAdapter {
     }
 
     session.page = this.advanceGenericPage(session.page, targetKey);
+    this.pushHistory(session, session.page);
     this.sessions.set(systemId, session);
 
     return {
@@ -98,6 +108,23 @@ export class PageAgentDomAdapter implements WebAdapter {
     const session = this.getOrCreateSession(systemId);
     return {
       scrollId: `WEBSCROLL-${crypto.randomUUID()}`,
+      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+    };
+  }
+
+  async navigateHistory(systemId: string, direction: "back" | "forward"): Promise<HistoryNavigationResult> {
+    const session = this.getOrCreateSession(systemId);
+    if (direction === "back" && session.historyIndex > 0) {
+      session.historyIndex -= 1;
+      session.page = session.history[session.historyIndex];
+    } else if (direction === "forward" && session.historyIndex < session.history.length - 1) {
+      session.historyIndex += 1;
+      session.page = session.history[session.historyIndex];
+    }
+    this.sessions.set(systemId, session);
+    return {
+      navigationId: `WEBNAV-${crypto.randomUUID()}`,
+      direction,
       observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }
@@ -126,6 +153,7 @@ export class PageAgentDomAdapter implements WebAdapter {
     }
 
     session.page = this.advanceGenericPage(session.page, expectedButton, true);
+    this.pushHistory(session, session.page);
     this.sessions.set(systemId, session);
 
     return {
@@ -153,9 +181,22 @@ export class PageAgentDomAdapter implements WebAdapter {
       return existing;
     }
     const page = this.buildDefaultPage(systemId);
-    const created = { sessionId: `page-agent-${crypto.randomUUID()}`, systemId, page };
+    const created: SessionState = {
+      sessionId: `page-agent-${crypto.randomUUID()}`,
+      systemId,
+      page,
+      history: [page],
+      historyIndex: 0
+    };
     this.sessions.set(systemId, created);
     return created;
+  }
+
+  private pushHistory(session: SessionState, nextPage: HarnessPageDefinition): void {
+    const truncated = session.history.slice(0, session.historyIndex + 1);
+    truncated.push(nextPage);
+    session.history = truncated.slice(-10);
+    session.historyIndex = session.history.length - 1;
   }
 
   private toObservation(

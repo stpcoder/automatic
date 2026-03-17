@@ -29,6 +29,8 @@ export class WebWorker implements ToolExecutor {
         return this.clickWebElement(request);
       case "scroll_web_page":
         return this.scrollWebPage(request);
+      case "navigate_browser_history":
+        return this.navigateBrowserHistory(request);
       case "follow_web_navigation":
         return this.followWebNavigation(request);
       case "preview_web_submission":
@@ -144,6 +146,31 @@ export class WebWorker implements ToolExecutor {
         harness: this.adapter.harnessName,
         direction,
         amount,
+        observation: result.observation
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async navigateBrowserHistory(request: ToolRequest): Promise<ToolResult> {
+    const systemId = String(request.input.system_id ?? "unknown");
+    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
+    const direction = request.input.direction === "forward" ? "forward" : "back";
+    if (!this.adapter.navigateHistory) {
+      throw new Error(`${this.adapter.harnessName} does not support navigate_browser_history`);
+    }
+    const result = await this.adapter.navigateHistory(systemId, direction, sessionId);
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "web_history_navigation",
+        navigation_id: result.navigationId,
+        direction,
+        system_id: systemId,
+        session_id: result.observation.sessionId,
+        harness: this.adapter.harnessName,
         observation: result.observation
       },
       memory_patch: {},

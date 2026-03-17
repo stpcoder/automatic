@@ -94,6 +94,12 @@ export interface ScrollResult {
   observation: PageObservation;
 }
 
+export interface HistoryNavigationResult {
+  navigationId: string;
+  direction: "back" | "forward";
+  observation: PageObservation;
+}
+
 export interface ExtractResult {
   extractionId: string;
   observation: PageObservation;
@@ -119,6 +125,7 @@ export interface WebAdapter {
   fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
   clickElement(systemId: string, targetKey: string, sessionId?: string, targetHandle?: string): Promise<ClickResult>;
   scrollPage?(systemId: string, direction: "up" | "down", amount?: number, sessionId?: string): Promise<ScrollResult>;
+  navigateHistory?(systemId: string, direction: "back" | "forward", sessionId?: string): Promise<HistoryNavigationResult>;
   previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult>;
   submit(systemId: string, expectedButton: string, sessionId?: string): Promise<SubmitResult>;
   followNavigation?(systemId: string, sessionId?: string): Promise<PageObservation>;

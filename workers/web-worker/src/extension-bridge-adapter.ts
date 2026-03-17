@@ -4,6 +4,7 @@ import { getWebSystemDefinition } from "./system-definitions.js";
 import type {
   ClickResult,
   FillResult,
+  HistoryNavigationResult,
   PageObservation,
   PreviewResult,
   ScrollResult,
@@ -139,6 +140,35 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     return {
       scrollId: `WEBSCROLL-${crypto.randomUUID()}`,
       observation: await this.observe(systemId, sessionId)
+    };
+  }
+
+  async navigateHistory(
+    systemId: string,
+    direction: "back" | "forward",
+    sessionId?: string
+  ): Promise<HistoryNavigationResult> {
+    if (!sessionId) {
+      throw new Error("navigateHistory requires session_id for extension-backed sessions");
+    }
+    const baselineUpdatedAt = browserBridgeCoordinator.getSessionInfo(sessionId)?.updated_at;
+    const command = browserBridgeCoordinator.enqueueCommand(
+      systemId,
+      "history",
+      {
+        direction
+      },
+      sessionId
+    );
+    const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id, undefined, sessionId);
+    if (result.status === "failed") {
+      throw new Error(result.error ?? `Extension bridge history navigation failed for ${systemId}`);
+    }
+    const observation = await this.observeAfterClick(systemId, sessionId, baselineUpdatedAt);
+    return {
+      navigationId: `WEBNAV-${crypto.randomUUID()}`,
+      direction,
+      observation
     };
   }
 

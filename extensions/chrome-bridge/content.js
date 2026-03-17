@@ -715,6 +715,23 @@
       return;
     }
 
+    if (command.type === "history") {
+      const direction = command.payload.direction === "forward" ? "forward" : "back";
+      const previousSignature = observationSignature();
+      await completeCommand(command.command_id, true, {
+        accepted: true,
+        direction
+      });
+      setAgentState("reading", direction === "back" ? "back" : "forward");
+      if (direction === "forward") {
+        window.history.forward();
+      } else {
+        window.history.back();
+      }
+      await waitForObservationChange(previousSignature);
+      return;
+    }
+
     if (command.type === "click" || command.type === "submit") {
       const targetKey =
         command.type === "submit"
