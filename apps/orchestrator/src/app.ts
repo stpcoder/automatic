@@ -350,19 +350,22 @@ export async function createApp(
         debug_trace: debugTrace
       };
     } catch (error) {
+      const classifiedError = classifyDebugError(error);
       timing.total_ms = Date.now() - startedAt;
-      logDebugAgentFailure("run", 1, error, timing);
+      logDebugAgentFailure("run", 1, classifiedError, timing);
       const debugTrace = {
         planner_request: plannerRequest,
         planner_trace: debugPlanner.getTrace(),
         normalized_input: normalizeDebugToolInput("unknown", {}, context, instruction),
-        error_message: error instanceof Error ? error.message : String(error),
+        error_code: classifiedError.code,
+        error_message: classifiedError.message,
         timing
       };
       return {
         ok: false,
         error_stage: "debug_agent_run",
-        error_message: error instanceof Error ? error.message : String(error),
+        error_code: classifiedError.code,
+        error_message: classifiedError.message,
         timing,
         debug_trace: debugTrace,
         llm: {
@@ -429,20 +432,23 @@ export async function createApp(
         plannerOutput = await debugPlanner.plan(plannerRequest);
         stepTiming.planner_ms = Date.now() - plannerStartedAt;
       } catch (error) {
-        logDebugAgentFailure("run-loop", stepIndex, error, {
+        const classifiedError = classifyDebugError(error);
+        logDebugAgentFailure("run-loop", stepIndex, classifiedError, {
           total_ms: Date.now() - startedAt
         });
         return {
           ok: false,
           completed: false,
           error_stage: "planner_execution",
-          error_message: error instanceof Error ? error.message : String(error),
+          error_code: classifiedError.code,
+          error_message: classifiedError.message,
           steps,
           timing: {
             total_ms: Date.now() - startedAt
           },
           debug_trace: {
-            planner_trace: debugPlanner.getTrace()
+            planner_trace: debugPlanner.getTrace(),
+            error_code: classifiedError.code
           }
         };
       }
@@ -803,9 +809,75 @@ function logDebugAgentFailure(
   error: unknown,
   timing: { total_ms?: number }
 ): void {
-  const message = error instanceof Error ? error.message : String(error);
-  console.log(`[${step}] FAIL  ${truncateForLog(message, 180)}`);
+  const classified = isClassifiedDebugError(error) ? error : classifyDebugError(error);
+  console.log(`[${step}] FAIL  ${classified.code} ${truncateForLog(classified.message, 180)}`);
   console.log(`[${step}] TIME  total=${timing.total_ms ?? 0}ms`);
+}
+
+type ClassifiedDebugError = {
+  code: "timeout" | "unauthorized" | "rate_limit" | "network_error" | "provider_error" | "unknown_error";
+  message: string;
+};
+
+function isClassifiedDebugError(value: unknown): value is ClassifiedDebugError {
+  return Boolean(
+    value &&
+      typeof value === "object" &&
+      "code" in value &&
+      "message" in value &&
+      typeof (value as { code?: unknown }).code === "string" &&
+      typeof (value as { message?: unknown }).message === "string"
+  );
+}
+
+function classifyDebugError(error: unknown): ClassifiedDebugError {
+  const message = error instanceof Error ? error.message : String(error);
+  const normalized = message.toLowerCase();
+
+  if (normalized.includes("timed out") || normalized.includes("timeout") || normalized.includes("aborterror")) {
+    return { code: "timeout", message };
+  }
+  if (
+    normalized.includes("401") ||
+    normalized.includes("403") ||
+    normalized.includes("unauthorized") ||
+    normalized.includes("forbidden") ||
+    normalized.includes("invalid api key") ||
+    normalized.includes("authentication")
+  ) {
+    return { code: "unauthorized", message };
+  }
+  if (
+    normalized.includes("429") ||
+    normalized.includes("rate limit") ||
+    normalized.includes("too many requests") ||
+    normalized.includes("quota")
+  ) {
+    return { code: "rate_limit", message };
+  }
+  if (
+    normalized.includes("econnrefused") ||
+    normalized.includes("enotfound") ||
+    normalized.includes("eai_again") ||
+    normalized.includes("network") ||
+    normalized.includes("socket hang up") ||
+    normalized.includes("fetch failed") ||
+    normalized.includes("connect")
+  ) {
+    return { code: "network_error", message };
+  }
+  if (
+    normalized.includes("500") ||
+    normalized.includes("502") ||
+    normalized.includes("503") ||
+    normalized.includes("504") ||
+    normalized.includes("bad gateway") ||
+    normalized.includes("service unavailable") ||
+    normalized.includes("internal server error")
+  ) {
+    return { code: "provider_error", message };
+  }
+  return { code: "unknown_error", message };
 }
 
 function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; details: string[] } {
