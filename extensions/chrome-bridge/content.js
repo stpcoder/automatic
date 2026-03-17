@@ -50,6 +50,19 @@
     return element.getAttribute("placeholder") || element.name || element.id || "";
   }
 
+  function getElementTextForKey(element) {
+    return (
+      getLabelText(element) ||
+      element.getAttribute("title") ||
+      element.innerText ||
+      element.textContent ||
+      ("value" in element ? element.value : "") ||
+      element.name ||
+      element.id ||
+      ""
+    );
+  }
+
   function resolveSemanticKey(element) {
     const candidates = [
       getLabelText(element),
@@ -68,7 +81,7 @@
       }
     }
 
-    return slugify(getLabelText(element));
+    return slugify(getElementTextForKey(element));
   }
 
   function getPageText() {
@@ -166,22 +179,59 @@
       return false;
     }
 
-    const tagName = element.tagName.toLowerCase();
-    if (tagName === "input" || tagName === "textarea" || tagName === "select" || tagName === "button") {
-      return true;
+    if (element.hasAttribute("disabled") || element.getAttribute("aria-disabled") === "true") {
+      return false;
     }
 
-    const text = String(getLabelText(element) || element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+    const tagName = element.tagName.toLowerCase();
+    const text = String(getElementTextForKey(element)).replace(/\s+/g, " ").trim();
+    const structuralContainer = element.closest("form, [role='search'], [role='dialog'], main, article, section");
+    const utilityOnly = isUtilityContainer(element) && !isMainContentContainer(element);
+
+    if (utilityOnly) {
+      return false;
+    }
+
+    if (tagName === "input" || tagName === "textarea" || tagName === "select") {
+      return Boolean(structuralContainer || isElementNearViewportCenter(element));
+    }
+
+    if (tagName === "button" && !text) {
+      const ariaLabel = String(element.getAttribute("aria-label") || "").trim();
+      return Boolean(ariaLabel) && (Boolean(structuralContainer) || isElementNearViewportCenter(element));
+    }
+
     if (!text || text.length < 2) {
       return false;
     }
     if (isUtilityText(text)) {
       return false;
     }
-    if (isUtilityContainer(element) && !isMainContentContainer(element)) {
-      return false;
+    return Boolean(structuralContainer || isElementNearViewportCenter(element));
+  }
+
+  function buildDomPath(element) {
+    const parts = [];
+    let current = element;
+    let depth = 0;
+    while (current && current.nodeType === Node.ELEMENT_NODE && depth < 5) {
+      const tag = current.tagName.toLowerCase();
+      if (current.id) {
+        parts.unshift(`${tag}#${current.id}`);
+        break;
+      }
+      const parent = current.parentElement;
+      if (!parent) {
+        parts.unshift(tag);
+        break;
+      }
+      const siblings = Array.from(parent.children).filter((child) => child.tagName === current.tagName);
+      const index = siblings.indexOf(current) + 1;
+      parts.unshift(`${tag}:nth-of-type(${index})`);
+      current = parent;
+      depth += 1;
     }
-    return isMainContentContainer(element) || isElementNearViewportCenter(element);
+    return parts.join(" > ").slice(0, 180);
   }
 
   function extractNearbyText(element) {
@@ -355,7 +405,7 @@
     return collectSemanticBlocks().map((block) => block.text);
   }
 
-  function buildObservation() {
+  function buildInteractiveCandidates() {
     const controls = Array.from(document.querySelectorAll("input, textarea, select, button, a[href], [role='button'], [role='link']"))
       .filter((element) => shouldIncludeInteractiveElement(element))
       .map((element, index) => {
@@ -368,9 +418,10 @@
             : tagName === "select"
             ? "select"
             : "input";
-        const label = getLabelText(element) || element.innerText || element.textContent || "Field";
+        const label = getElementTextForKey(element) || "Field";
         const nearbyText = extractNearbyText(element);
         return {
+          element,
           index,
           type,
           key: resolveSemanticKey(element),
@@ -382,11 +433,25 @@
           region: inferRegion(element),
           semanticRole: inferInteractiveSemanticRole(element, type, label, nearbyText),
           importance: computeInteractiveImportance(element, type, label, nearbyText),
-          nearbyText
+          nearbyText,
+          domPath: buildDomPath(element)
         };
       })
       .sort((left, right) => (right.importance || 0) - (left.importance || 0));
 
+    const seen = new Map();
+    for (const control of controls) {
+      const currentCount = seen.get(control.key) || 0;
+      seen.set(control.key, currentCount + 1);
+      if (currentCount > 0) {
+        control.key = `${control.key}_${currentCount + 1}`;
+      }
+    }
+    return controls;
+  }
+
+  function buildObservation() {
+    const controls = buildInteractiveCandidates();
     const semanticBlocks = collectSemanticBlocks();
     const visibleTextBlocks = semanticBlocks.map((block) => block.text);
     const pageText = semanticBlocks.map((block) => block.text).join(" ").slice(0, 4000);
@@ -407,7 +472,7 @@
         pageText,
         visibleTextBlocks,
         semanticBlocks,
-        interactiveElements: controls,
+        interactiveElements: controls.map(({ element, ...control }) => control),
         finalActionButton: system?.final_action_button ?? "Submit"
       }
     };
@@ -453,9 +518,9 @@
   }
 
   function findControlForKey(key) {
-    return Array.from(document.querySelectorAll("input, textarea, select")).find(
-      (control) => resolveSemanticKey(control) === key
-    );
+    return buildInteractiveCandidates().find(
+      (candidate) => (candidate.type === "input" || candidate.type === "select") && candidate.key === key
+    )?.element;
   }
 
   function setControlValue(control, value) {
@@ -477,13 +542,17 @@
 
   function clickTarget(targetKey) {
     const candidates = resolveButtonCandidates(targetKey);
-    const buttons = Array.from(document.querySelectorAll("button, input[type='submit'], input[type='button'], a"));
-    const target = buttons.find((button) => {
-      const text = normalize(button.innerText || button.textContent || button.value);
-      return candidates.includes(text) || normalize(resolveSemanticKey(button)) === normalize(targetKey);
-    });
+    const normalizedTargetKey = normalize(targetKey);
+    const buttons = buildInteractiveCandidates().filter((candidate) => candidate.type === "button" || candidate.type === "link");
+    const target =
+      buttons.find((candidate) => normalize(candidate.key) === normalizedTargetKey)?.element ||
+      buttons.find((candidate) => candidates.includes(normalize(candidate.label)))?.element;
     if (!target) {
-      throw new Error(`Clickable element not found: ${targetKey}`);
+      const available = buttons
+        .slice(0, 8)
+        .map((candidate) => `${candidate.key}:${candidate.label}`)
+        .join(" | ");
+      throw new Error(`Clickable element not found: ${targetKey}. Available clickable candidates: ${available}`);
     }
     setAgentState("acting", "click");
     return animateInteraction(target, "click").then(() => {

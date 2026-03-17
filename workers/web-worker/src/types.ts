@@ -19,6 +19,7 @@ export interface InteractiveElement {
     | "unknown";
   importance?: number;
   nearbyText?: string;
+  domPath?: string;
 }
 
 export interface SemanticBlock {
