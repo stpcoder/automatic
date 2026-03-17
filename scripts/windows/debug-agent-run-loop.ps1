@@ -1,8 +1,7 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$Instruction,
-  [string]$ContextJson = "{}",
-  [int]$MaxSteps = 6
+  [string]$ContextJson = "{}"
 )
 
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -18,7 +17,6 @@ Write-Host "[skh-agent] running debug agent loop..."
 $body = @{
   instruction_base64 = Encode-Utf8Base64 -Value $Instruction
   context = $context
-  max_steps = $MaxSteps
 }
 
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body $body

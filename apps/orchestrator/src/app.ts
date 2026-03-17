@@ -244,8 +244,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       },
       {
         name: "fill_web_form",
-        description: "Fill known fields on the active web system.",
-        input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
+        description: "Fill detected fields on the current page. Use session_id when available.",
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
       },
       {
         name: "click_web_element",
@@ -280,7 +280,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
       {
         name: "extract_web_result",
         description: "Read the updated page result and determine whether the goal has been satisfied.",
-        input_schema: { system_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
       },
       {
         name: "draft_outlook_mail",
@@ -379,16 +379,17 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/debug/agent/run-loop", async (request) => {
-    const rawBody = request.body as { instruction?: string; context?: Record<string, unknown>; max_steps?: number };
-    const body = decodePayloadStrings(rawBody) as { instruction?: string; context?: Record<string, unknown>; max_steps?: number };
+    const rawBody = request.body as { instruction?: string; context?: Record<string, unknown> };
+    const body = decodePayloadStrings(rawBody) as { instruction?: string; context?: Record<string, unknown> };
     const instruction = typeof body.instruction === "string" ? body.instruction : "";
     const context = typeof body.context === "object" && body.context !== null ? body.context : {};
-    const maxSteps = typeof body.max_steps === "number" && body.max_steps > 0 ? Math.min(body.max_steps, 12) : 6;
+    const maxSteps = Number(process.env.DEBUG_AGENT_INTERNAL_MAX_STEPS ?? "24");
     const tools = buildDebugToolSpecs();
     let currentObservation: Record<string, unknown> | undefined;
     let previousObservation: Record<string, unknown> | undefined;
     let lastToolResult: Record<string, unknown> | undefined;
     const steps: Array<Record<string, unknown>> = [];
+    const planHistory: Array<Record<string, unknown>> = [];
     const startedAt = Date.now();
     logDebugAgentStart("run-loop", instruction, context);
 
@@ -398,6 +399,7 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         current_observation: currentObservation ?? null,
         previous_observation: previousObservation ?? null,
         last_tool_result: lastToolResult ?? null,
+        plan_history: planHistory,
         step_history: steps.map((step) => ({
           step: step.step,
           tool: step.tool,
@@ -414,6 +416,11 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
         const plannerStartedAt = Date.now();
         const plannerOutput = await debugPlanner.plan(plannerRequest);
         stepTiming.planner_ms = Date.now() - plannerStartedAt;
+        planHistory.push({
+          step: stepIndex,
+          objective: plannerOutput.objective,
+          rationale: plannerOutput.rationale
+        });
         const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
         logDebugPlannerDecision("run-loop", stepIndex, plannerOutput.next_action.tool, normalizedInput);
 
@@ -509,8 +516,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
     return {
       ok: false,
       completed: false,
-      error_stage: "max_steps_exceeded",
-      error_message: `Agent loop exceeded ${maxSteps} steps`,
+      error_stage: "internal_loop_safety_stop",
+      error_message: `Agent loop reached the internal safety limit after ${maxSteps} steps`,
       steps,
       timing: {
         total_ms: Date.now() - startedAt
@@ -658,7 +665,7 @@ function logDebugAgentFailure(
 
 function formatToolTarget(toolName: string, input: Record<string, unknown>): string {
   if (toolName === "open_system") {
-    return `system=${stringForLog(input.system_id)} page=${stringForLog(input.page_id)}`;
+    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} url=${truncateForLog(stringForLog(input.target_url), 80)} url_contains=${truncateForLog(stringForLog(input.url_contains), 60)} title=${truncateForLog(stringForLog(input.title_contains), 60)}`;
   }
   if (toolName === "fill_web_form") {
     const fieldValues =
@@ -708,13 +715,21 @@ function buildDebugToolSpecs() {
   return [
     {
       name: "open_system",
-      description: "Open a known web system and observe it.",
-      input_schema: { system_id: { type: "string" }, page_id: { type: "string" } }
+      description: "Open or attach to a page using url/title/session hints.",
+      input_schema: {
+        system_id: { type: "string" },
+        page_id: { type: "string" },
+        target_url: { type: "string" },
+        url_contains: { type: "string" },
+        title_contains: { type: "string" },
+        session_id: { type: "string" },
+        open_if_missing: { type: "boolean" }
+      }
     },
     {
       name: "fill_web_form",
-      description: "Fill known fields on the active web system.",
-      input_schema: { system_id: { type: "string" }, field_values: { type: "object" } }
+      description: "Fill detected fields on the current page.",
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
     },
     {
       name: "click_web_element",
@@ -749,7 +764,7 @@ function buildDebugToolSpecs() {
     {
       name: "extract_web_result",
       description: "Read the updated page result and determine whether the goal has been satisfied.",
-      input_schema: { system_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, goal: { type: "string" }, query: { type: "string" } }
     },
     {
       name: "draft_outlook_mail",
@@ -813,8 +828,23 @@ function normalizeDebugToolInput(
     }
     if (typeof normalized.system_id !== "string" || normalized.system_id.trim().length === 0) {
       const inferredSystemId = inferSystemIdFromContext(context, instruction);
-      if (inferredSystemId) {
-        normalized.system_id = inferredSystemId;
+      normalized.system_id = inferredSystemId ?? "web_generic";
+    }
+    if (toolName === "open_system" && (typeof normalized.target_url !== "string" || normalized.target_url.trim().length === 0)) {
+      const extractedUrl = extractFirstUrlFromText(instruction);
+      if (extractedUrl) {
+        normalized.target_url = extractedUrl;
+      }
+    }
+    if (
+      toolName === "open_system" &&
+      (typeof normalized.url_contains !== "string" || normalized.url_contains.trim().length === 0) &&
+      typeof normalized.target_url === "string" &&
+      normalized.target_url.trim().length > 0
+    ) {
+      try {
+        normalized.url_contains = new URL(normalized.target_url).host;
+      } catch {
       }
     }
     if (toolName === "submit_web_form" && (typeof normalized.expected_button !== "string" || normalized.expected_button.trim().length === 0)) {
@@ -899,6 +929,11 @@ function inferSystemIdFromContext(context: Record<string, unknown>, instruction:
     return lastToolResult.system_id;
   }
   return undefined;
+}
+
+function extractFirstUrlFromText(text: string): string | undefined {
+  const match = text.match(/https?:\/\/[^\s"'<>]+/i);
+  return match ? match[0] : undefined;
 }
 
 function decodePayloadStrings(value: unknown): unknown {

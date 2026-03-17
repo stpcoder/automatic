@@ -300,8 +300,7 @@ test("debug agent loop can complete a multi-step web interaction", async () => {
           query: "하이닉스 주가"
         },
         expected_button: "search"
-      },
-      max_steps: 6
+      }
     }
   });
 
@@ -331,8 +330,7 @@ test("debug agent loop can read stock result from a direct naver stock page", as
       instruction: "현재 페이지에서 하이닉스 현재 주가 알려줘",
       context: {
         system_id: "naver_stock"
-      },
-      max_steps: 4
+      }
     }
   });
 
@@ -366,8 +364,7 @@ test("debug agent loop decodes base64 Korean instruction and query payloads", as
           query_base64: "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
         },
         target_key: "search"
-      },
-      max_steps: 6
+      }
     }
   });
 

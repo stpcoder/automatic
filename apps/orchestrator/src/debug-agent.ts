@@ -49,7 +49,7 @@ export function buildDebugPlannerRequest(instruction: string, context: Record<st
       {
         role: "system",
         content:
-          "Choose exactly one tool to satisfy the user's instruction. Prefer open_system, fill_web_form, click_web_element, follow_web_navigation, preview_web_submission, submit_web_form, extract_web_result, draft_outlook_mail, send_outlook_mail, watch_email_reply. Use only the provided context and do not assume any site-specific fixed workflow. Return one tool call only."
+          "Choose exactly one tool to satisfy the user's instruction. Use only the provided context and do not assume any site-specific fixed workflow. If the instruction contains a URL or a page identity, use open_system to open or attach first. Prefer ordinary page interaction tools such as fill_web_form, click_web_element, scroll_web_page, follow_web_navigation, preview_web_submission, submit_web_form, or extract_web_result based on the current goal. Put the immediate sub-goal in objective and a short concrete plan in rationale. Return one tool call only."
       },
       {
         role: "user",
@@ -70,7 +70,7 @@ export function buildDebugLoopPlannerRequest(
       {
         role: "system",
         content:
-          "You are an agent loop. Choose exactly one next action. Use only the current observation, the last tool result, the step history, and the available tools. Do not rely on site-specific fixed sequences or site-name keyword shortcuts. First open or attach to a page when there is no current observation. Then inspect interactive elements and visible text to decide whether to type, click, follow navigation, preview, submit, or extract results. Prefer click_web_element for ordinary page interactions like links, tabs, search buttons, and menu entries. Use follow_web_navigation only after an action that can change the page or open a new tab. Reserve submit_web_form for final commits. When the goal is satisfied, call finish_task with a short summary."
+          "You are an agent loop. Choose exactly one next action. Use only the current observation, the last tool result, the step history, the plan history, and the available tools. Do not rely on site-specific fixed sequences or keyword shortcuts tied to one site. First form a concrete short plan for the current turn: identify the current page state, state the immediate sub-goal, then choose one tool that moves toward the overall goal. Put the immediate sub-goal in objective and a short 2-4 step plan in rationale. When there is no current observation, open or attach to a page first. Then inspect interactive elements and visible text to decide whether to type, click, scroll, follow navigation, preview, submit, or extract results. Prefer click_web_element for ordinary page interactions like links, tabs, search buttons, menu entries, and result cards. Use scroll_web_page when the needed content is not yet visible. Use follow_web_navigation only after an action that can change the page or open a new tab. Reserve submit_web_form for final commits. When the goal is satisfied, call finish_task with a short summary."
       },
       {
         role: "user",
@@ -520,12 +520,6 @@ function inferSystemId(context: Record<string, unknown>): string {
 function inferClickTarget(instruction: string, context: Record<string, unknown>): string | null {
   if (typeof context.target_key === "string" && context.target_key.trim().length > 0) {
     return context.target_key;
-  }
-  if (includesAny(instruction, ["send", "전송"])) {
-    return "send";
-  }
-  if (includesAny(instruction, ["submit", "등록", "제출", "저장"])) {
-    return "submit";
   }
   return null;
 }

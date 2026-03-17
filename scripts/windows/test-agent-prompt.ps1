@@ -1,9 +1,11 @@
 param(
   [Parameter(Mandatory = $true)]
   [string]$Instruction,
-  [string]$SystemId = "",
+  [string]$TargetUrl = "",
+  [string]$UrlContains = "",
+  [string]$TitleContains = "",
   [string]$Query = "",
-  [int]$MaxSteps = 6
+  [switch]$OpenIfMissing
 )
 
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -11,11 +13,17 @@ Set-AgentEnvironment | Out-Null
 
 $instructionBase64 = Encode-Utf8Base64 -Value $Instruction
 $context = @{}
-if ($SystemId) {
-  Write-Host "[skh-agent] checking extension session for $SystemId..."
-  $sessions = Assert-AgentSessionForSystem -SystemId $SystemId
-  Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
-  $context.system_id = $SystemId
+if ($TargetUrl) {
+  $context.target_url = $TargetUrl
+}
+if ($UrlContains) {
+  $context.url_contains = $UrlContains
+}
+if ($TitleContains) {
+  $context.title_contains = $TitleContains
+}
+if ($OpenIfMissing.IsPresent) {
+  $context.open_if_missing = $true
 }
 if ($Query) {
   $queryBase64 = Encode-Utf8Base64 -Value $Query
@@ -24,16 +32,12 @@ if ($Query) {
   }
   $context.field_values = $fieldValues
   $context.query_base64 = $queryBase64
-  if ($SystemId -eq "naver_search") {
-    $context.target_key = "search"
-  }
 }
 
 Write-Host "[skh-agent] running prompt-driven agent loop..."
 $body = @{
   instruction_base64 = $instructionBase64
   context = $context
-  max_steps = $MaxSteps
 }
 
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body $body
