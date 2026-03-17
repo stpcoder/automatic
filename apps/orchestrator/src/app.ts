@@ -656,8 +656,9 @@ function logDebugPlannerDecision(
   if (planSummary.length > 0) {
     console.log(`[debug-agent:${mode}] step=${step} plan ${planSummary}`);
   }
+  const toolHint = formatToolHint(toolName, normalizedInput);
   console.log(
-    `[debug-agent:${mode}] step=${step} tool=${toolName} target=${formatToolTarget(toolName, normalizedInput)}`
+    `[debug-agent:${mode}] step=${step} tool=${toolName}${toolHint ? ` hint=${toolHint}` : ""}`
   );
 }
 
@@ -762,32 +763,35 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): string {
   return segments.join(" ");
 }
 
-function formatToolTarget(toolName: string, input: Record<string, unknown>): string {
+function formatToolHint(toolName: string, input: Record<string, unknown>): string {
   if (toolName === "open_system") {
-    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} url=${truncateForLog(stringForLog(input.target_url), 80)} url_contains=${truncateForLog(stringForLog(input.url_contains), 60)} title=${truncateForLog(stringForLog(input.title_contains), 60)}`;
+    const targetUrl = stringForLog(input.target_url);
+    const urlContains = stringForLog(input.url_contains);
+    const titleContains = stringForLog(input.title_contains);
+    return truncateForLog(
+      targetUrl !== "-" ? targetUrl : urlContains !== "-" ? urlContains : titleContains,
+      60
+    );
   }
   if (toolName === "fill_web_form") {
     const fieldValues =
       typeof input.field_values === "object" && input.field_values !== null ? (input.field_values as Record<string, unknown>) : {};
-    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} fields=${Object.keys(fieldValues).join(",") || "-"}`;
+    const fields = Object.keys(fieldValues).slice(0, 3).join(",");
+    return fields || "";
   }
   if (toolName === "click_web_element") {
-    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} target=${stringForLog(input.target_key)}`;
-  }
-  if (toolName === "follow_web_navigation") {
-    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)}`;
+    return truncateForLog(stringForLog(input.target_key), 40);
   }
   if (toolName === "extract_web_result") {
-    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} query=${truncateForLog(stringForLog(input.query), 60)}`;
+    return truncateForLog(stringForLog(input.query), 40);
   }
   if (toolName === "draft_outlook_mail") {
-    const to = Array.isArray(input.to) ? input.to.join(",") : "-";
-    return `to=${truncateForLog(to, 80)} template=${stringForLog(input.template_id)}`;
+    return truncateForLog(stringForLog(input.template_id), 40);
   }
   if (toolName === "search_outlook_mail") {
-    return `keyword=${truncateForLog(stringForLog(input.keyword), 80)}`;
+    return truncateForLog(stringForLog(input.keyword), 40);
   }
-  return `input=${truncateForLog(JSON.stringify(input), 120)}`;
+  return "";
 }
 
 function stringForLog(value: unknown): string {
