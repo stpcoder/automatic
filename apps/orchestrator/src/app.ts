@@ -129,18 +129,6 @@ export async function createApp(
     }));
   });
 
-  app.post("/debug/web/type", async (request) => {
-    const rawBody = request.body as { system_id?: string; session_id?: string; text?: string; target_key?: string; submit_key?: string };
-    const body = decodePayloadStrings(rawBody) as { system_id?: string; session_id?: string; text?: string; target_key?: string; submit_key?: string };
-    return webWorker.execute(buildDebugToolRequest("type_text_on_page", "draft", {
-      system_id: body.system_id ?? "web_generic",
-      session_id: body.session_id,
-      text: body.text ?? "",
-      target_key: body.target_key,
-      submit_key: body.submit_key
-    }));
-  });
-
   app.post("/debug/web/click", async (request) => {
     const body = request.body as { system_id?: string; session_id?: string; target_key?: string };
     return webWorker.execute(buildDebugToolRequest("click_web_element", "preview", {
@@ -262,17 +250,6 @@ export async function createApp(
         name: "fill_web_form",
         description: "Fill detected fields on the current page. Use session_id when available.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
-      },
-      {
-        name: "type_text_on_page",
-        description: "Type text into the active or target input using keyboard-like interaction. Use for search boxes and free text entry.",
-        input_schema: {
-          system_id: { type: "string" },
-          session_id: { type: "string" },
-          text: { type: "string" },
-          target_key: { type: "string" },
-          submit_key: { type: "string" }
-        }
       },
       {
         name: "click_web_element",
@@ -741,9 +718,6 @@ function formatToolTarget(toolName: string, input: Record<string, unknown>): str
       typeof input.field_values === "object" && input.field_values !== null ? (input.field_values as Record<string, unknown>) : {};
     return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} fields=${Object.keys(fieldValues).join(",") || "-"}`;
   }
-  if (toolName === "type_text_on_page") {
-    return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} target=${stringForLog(input.target_key)} text=${truncateForLog(stringForLog(input.text), 40)}`;
-  }
   if (toolName === "click_web_element") {
     return `system=${stringForLog(input.system_id)} session=${stringForLog(input.session_id)} target=${stringForLog(input.target_key)}`;
   }
@@ -802,17 +776,6 @@ function buildDebugToolSpecs() {
       name: "fill_web_form",
       description: "Fill detected fields on the current page.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
-    },
-    {
-      name: "type_text_on_page",
-      description: "Type text into the active or target input using keyboard-like interaction.",
-      input_schema: {
-        system_id: { type: "string" },
-        session_id: { type: "string" },
-        text: { type: "string" },
-        target_key: { type: "string" },
-        submit_key: { type: "string" }
-      }
     },
     {
       name: "click_web_element",
@@ -891,7 +854,7 @@ function selectDebugToolMode(toolName: string): "draft" | "preview" | "commit" {
   if (toolName === "submit_web_form" || toolName === "send_outlook_mail") {
     return "commit";
   }
-  if (toolName === "fill_web_form" || toolName === "type_text_on_page" || toolName === "draft_outlook_mail") {
+  if (toolName === "fill_web_form" || toolName === "draft_outlook_mail") {
     return "draft";
   }
   return "preview";
@@ -935,17 +898,6 @@ function normalizeDebugToolInput(
     }
     if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
       normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
-    }
-    if (toolName === "type_text_on_page") {
-      if (typeof normalized.text !== "string" || normalized.text.trim().length === 0) {
-        normalized.text = typeof context.text === "string" ? context.text : "";
-      }
-      if (typeof normalized.target_key !== "string" || normalized.target_key.trim().length === 0) {
-        normalized.target_key = typeof context.target_key === "string" ? context.target_key : "";
-      }
-      if (typeof normalized.submit_key !== "string" || normalized.submit_key.trim().length === 0) {
-        normalized.submit_key = typeof context.submit_key === "string" ? context.submit_key : "";
-      }
     }
     if (toolName === "click_web_element" && (typeof normalized.target_key !== "string" || normalized.target_key.trim().length === 0)) {
       normalized.target_key = typeof context.target_key === "string" && context.target_key.trim().length > 0 ? context.target_key : "";

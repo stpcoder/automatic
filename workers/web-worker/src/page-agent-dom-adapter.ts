@@ -8,7 +8,6 @@ import type {
   SemanticBlock,
   ScrollResult,
   SubmitResult,
-  TypeTextResult,
   WebAdapter,
   WebOpenSelection
 } from "./types.js";
@@ -62,41 +61,6 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields: values,
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
-    };
-  }
-
-  async typeText(systemId: string, text: string, _sessionId?: string, targetKey?: string): Promise<TypeTextResult> {
-    const session = this.getOrCreateSession(systemId);
-    const inputTarget =
-      (targetKey
-        ? session.page.interactiveElements.find((element) => (element.type === "input" || element.type === "select") && element.key === targetKey)
-        : session.page.interactiveElements.find((element) => element.type === "input" || element.type === "select")) ?? null;
-
-    if (!inputTarget) {
-      throw new Error(`No text input available for ${systemId}`);
-    }
-
-    const updatedElements = session.page.interactiveElements.map((element) =>
-      element.key === inputTarget.key
-        ? {
-            ...element,
-            value: text
-          }
-        : element
-    );
-
-    session.page = {
-      ...session.page,
-      interactiveElements: updatedElements,
-      summary: `${session.page.title} typed text into ${inputTarget.key}.`
-    };
-    this.sessions.set(systemId, session);
-
-    return {
-      typingId: `WEBTYPE-${crypto.randomUUID()}`,
-      text,
-      targetKey: inputTarget.key,
       observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }

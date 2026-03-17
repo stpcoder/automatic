@@ -25,8 +25,6 @@ export class WebWorker implements ToolExecutor {
         return this.openSystem(request);
       case "fill_web_form":
         return this.fillWebForm(request);
-      case "type_text_on_page":
-        return this.typeTextOnPage(request);
       case "click_web_element":
         return this.clickWebElement(request);
       case "scroll_web_page":
@@ -93,35 +91,6 @@ export class WebWorker implements ToolExecutor {
         session_id: result.observation.sessionId,
         harness: this.adapter.harnessName,
         filled_fields: result.filledFields,
-        observation: result.observation
-      },
-      memory_patch: {},
-      emitted_events: []
-    };
-  }
-
-  private async typeTextOnPage(request: ToolRequest): Promise<ToolResult> {
-    const systemId = String(request.input.system_id ?? "unknown");
-    const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
-    const text = String(request.input.text ?? "");
-    const targetKey = typeof request.input.target_key === "string" ? request.input.target_key : undefined;
-    const submitKey = typeof request.input.submit_key === "string" ? request.input.submit_key : undefined;
-    if (!this.adapter.typeText) {
-      throw new Error(`${this.adapter.harnessName} does not support type_text_on_page`);
-    }
-    const result = await this.adapter.typeText(systemId, text, sessionId, targetKey, submitKey);
-
-    return {
-      request_id: request.request_id,
-      success: true,
-      output: {
-        artifact_kind: "web_typing",
-        typing_id: result.typingId,
-        system_id: systemId,
-        session_id: result.observation.sessionId,
-        harness: this.adapter.harnessName,
-        text,
-        target_key: result.targetKey,
         observation: result.observation
       },
       memory_patch: {},

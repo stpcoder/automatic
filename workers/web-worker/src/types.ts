@@ -83,13 +83,6 @@ export interface ScrollResult {
   observation: PageObservation;
 }
 
-export interface TypeTextResult {
-  typingId: string;
-  observation: PageObservation;
-  text: string;
-  targetKey?: string;
-}
-
 export interface ExtractResult {
   extractionId: string;
   observation: PageObservation;
@@ -113,13 +106,6 @@ export interface WebAdapter {
   openSystem(systemId: string, pageId?: string, selection?: WebOpenSelection): Promise<PageObservation>;
   observe(systemId: string, sessionId?: string): Promise<PageObservation>;
   fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
-  typeText?(
-    systemId: string,
-    text: string,
-    sessionId?: string,
-    targetKey?: string,
-    submitKey?: string
-  ): Promise<TypeTextResult>;
   clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult>;
   scrollPage?(systemId: string, direction: "up" | "down", amount?: number, sessionId?: string): Promise<ScrollResult>;
   previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult>;

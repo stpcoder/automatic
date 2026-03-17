@@ -188,7 +188,6 @@ function buildLoopSystemPrompt(): string {
     "Tool semantics:",
     "- open_system: attach to an existing session or open a target URL. Use it for session attach, site access, tab attach, or URL navigation.",
     "- fill_web_form: set known field values directly when the observation already exposes a semantic field key.",
-    "- type_text_on_page: perform keyboard-like typing into the active or target input. Prefer this for search boxes and free-form text entry.",
     "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements.",
     "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
     "- follow_web_navigation: follow same-tab or child-tab navigation after a page-changing action.",

@@ -8,7 +8,6 @@ import type {
   PreviewResult,
   ScrollResult,
   SubmitResult,
-  TypeTextResult,
   WebAdapter,
   WebOpenSelection
 } from "./types.js";
@@ -76,35 +75,6 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields: values,
-      observation: await this.observe(systemId, sessionId)
-    };
-  }
-
-  async typeText(
-    systemId: string,
-    text: string,
-    sessionId?: string,
-    targetKey?: string,
-    submitKey?: string
-  ): Promise<TypeTextResult> {
-    const command = browserBridgeCoordinator.enqueueCommand(
-      systemId,
-      "type_text",
-      {
-        text,
-        target_key: targetKey,
-        submit_key: submitKey
-      },
-      sessionId
-    );
-    const result = await browserBridgeCoordinator.waitForCommandResult(systemId, command.command_id, undefined, sessionId);
-    if (result.status === "failed") {
-      throw new Error(result.error ?? `Extension bridge type_text failed for ${systemId}`);
-    }
-    return {
-      typingId: `WEBTYPE-${crypto.randomUUID()}`,
-      text,
-      targetKey,
       observation: await this.observe(systemId, sessionId)
     };
   }
