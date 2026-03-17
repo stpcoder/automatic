@@ -193,6 +193,65 @@ export async function createApp(
     }));
   });
 
+  app.post("/debug/mail/read", async (request) => {
+    const body = request.body as { entry_id?: string; conversation_id?: string };
+    return outlookWorker.execute(buildDebugToolRequest("read_outlook_mail", "preview", {
+      entry_id: body.entry_id ?? "",
+      conversation_id: body.conversation_id ?? ""
+    }));
+  });
+
+  app.post("/debug/mail/conversation", async (request) => {
+    const body = request.body as { conversation_id?: string; max_messages?: number };
+    return outlookWorker.execute(buildDebugToolRequest("read_outlook_conversation", "preview", {
+      conversation_id: body.conversation_id ?? "",
+      max_messages: body.max_messages ?? 20
+    }));
+  });
+
+  app.post("/debug/mail/reply", async (request) => {
+    const body = request.body as {
+      entry_id?: string;
+      conversation_id?: string;
+      body_text?: string;
+      body_html?: string;
+      reply_all?: boolean;
+    };
+    return outlookWorker.execute(buildDebugToolRequest("reply_outlook_mail", "draft", {
+      entry_id: body.entry_id ?? "",
+      conversation_id: body.conversation_id ?? "",
+      body_text: body.body_text ?? "",
+      body_html: body.body_html ?? "",
+      reply_all: body.reply_all === true
+    }));
+  });
+
+  app.post("/debug/mail/update-draft", async (request) => {
+    const body = request.body as {
+      draft_id?: string;
+      subject?: string;
+      to?: string[];
+      cc?: string[];
+      body_text?: string;
+      body_html?: string;
+    };
+    return outlookWorker.execute(buildDebugToolRequest("update_outlook_draft", "draft", {
+      draft_id: body.draft_id ?? "",
+      subject: body.subject ?? "",
+      to: body.to ?? [],
+      cc: body.cc ?? [],
+      body_text: body.body_text ?? "",
+      body_html: body.body_html ?? ""
+    }));
+  });
+
+  app.post("/debug/mail/preview-draft", async (request) => {
+    const body = request.body as { draft_id?: string };
+    return outlookWorker.execute(buildDebugToolRequest("preview_outlook_draft", "preview", {
+      draft_id: body.draft_id ?? ""
+    }));
+  });
+
   app.post("/debug/mail/watch", async (request) => {
     const body = request.body as {
       case_id?: string;
@@ -295,6 +354,44 @@ export async function createApp(
       {
         name: "send_outlook_mail",
         description: "Send a drafted Outlook mail.",
+        input_schema: { draft_id: { type: "string" } }
+      },
+      {
+        name: "read_outlook_mail",
+        description: "Read a specific Outlook mail by entry_id or latest message from a conversation_id.",
+        input_schema: { entry_id: { type: "string" }, conversation_id: { type: "string" } }
+      },
+      {
+        name: "read_outlook_conversation",
+        description: "Read the messages in an Outlook conversation thread.",
+        input_schema: { conversation_id: { type: "string" }, max_messages: { type: "number" } }
+      },
+      {
+        name: "reply_outlook_mail",
+        description: "Create a reply draft for an Outlook mail or conversation.",
+        input_schema: {
+          entry_id: { type: "string" },
+          conversation_id: { type: "string" },
+          body_text: { type: "string" },
+          body_html: { type: "string" },
+          reply_all: { type: "boolean" }
+        }
+      },
+      {
+        name: "update_outlook_draft",
+        description: "Update an Outlook draft's subject, recipients, or body.",
+        input_schema: {
+          draft_id: { type: "string" },
+          subject: { type: "string" },
+          to: { type: "array" },
+          cc: { type: "array" },
+          body_text: { type: "string" },
+          body_html: { type: "string" }
+        }
+      },
+      {
+        name: "preview_outlook_draft",
+        description: "Preview an Outlook draft before sending it.",
         input_schema: { draft_id: { type: "string" } }
       },
       {
@@ -1009,6 +1106,18 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
   if (toolName === "draft_outlook_mail") {
     return truncateForLog(stringForLog(input.template_id), 40);
   }
+  if (toolName === "read_outlook_mail") {
+    return truncateForLog(stringForLog(input.entry_id) !== "-" ? stringForLog(input.entry_id) : stringForLog(input.conversation_id), 40);
+  }
+  if (toolName === "read_outlook_conversation") {
+    return truncateForLog(stringForLog(input.conversation_id), 40);
+  }
+  if (toolName === "reply_outlook_mail") {
+    return truncateForLog(stringForLog(input.entry_id) !== "-" ? stringForLog(input.entry_id) : stringForLog(input.conversation_id), 40);
+  }
+  if (toolName === "update_outlook_draft" || toolName === "preview_outlook_draft") {
+    return truncateForLog(stringForLog(input.draft_id), 40);
+  }
   if (toolName === "search_outlook_mail") {
     return truncateForLog(stringForLog(input.keyword), 40);
   }
@@ -1135,6 +1244,44 @@ function buildDebugToolSpecs() {
       input_schema: { draft_id: { type: "string" } }
     },
     {
+      name: "read_outlook_mail",
+      description: "Read a specific Outlook mail or latest mail in a conversation.",
+      input_schema: { entry_id: { type: "string" }, conversation_id: { type: "string" } }
+    },
+    {
+      name: "read_outlook_conversation",
+      description: "Read an Outlook conversation thread.",
+      input_schema: { conversation_id: { type: "string" }, max_messages: { type: "number" } }
+    },
+    {
+      name: "reply_outlook_mail",
+      description: "Create a reply draft to an Outlook mail or conversation.",
+      input_schema: {
+        entry_id: { type: "string" },
+        conversation_id: { type: "string" },
+        body_text: { type: "string" },
+        body_html: { type: "string" },
+        reply_all: { type: "boolean" }
+      }
+    },
+    {
+      name: "update_outlook_draft",
+      description: "Update an Outlook draft's recipients, subject, or body.",
+      input_schema: {
+        draft_id: { type: "string" },
+        subject: { type: "string" },
+        to: { type: "array" },
+        cc: { type: "array" },
+        body_text: { type: "string" },
+        body_html: { type: "string" }
+      }
+    },
+    {
+      name: "preview_outlook_draft",
+      description: "Preview an Outlook draft before sending.",
+      input_schema: { draft_id: { type: "string" } }
+    },
+    {
       name: "watch_email_reply",
       description: "Watch for a matching reply in Outlook.",
       input_schema: {
@@ -1166,7 +1313,7 @@ function selectDebugToolMode(toolName: string): "draft" | "preview" | "commit" {
   if (toolName === "submit_web_form" || toolName === "send_outlook_mail") {
     return "commit";
   }
-  if (toolName === "fill_web_form" || toolName === "draft_outlook_mail") {
+  if (toolName === "fill_web_form" || toolName === "draft_outlook_mail" || toolName === "reply_outlook_mail" || toolName === "update_outlook_draft") {
     return "draft";
   }
   return "preview";
@@ -1242,6 +1389,69 @@ function normalizeDebugToolInput(
     }
     if (typeof normalized.max_results !== "number") {
       normalized.max_results = typeof context.max_results === "number" ? context.max_results : 10;
+    }
+  }
+
+  if (toolName === "read_outlook_mail") {
+    if (typeof normalized.entry_id !== "string") {
+      normalized.entry_id = typeof context.entry_id === "string" ? context.entry_id : "";
+    }
+    if (typeof normalized.conversation_id !== "string") {
+      normalized.conversation_id = typeof context.conversation_id === "string" ? context.conversation_id : "";
+    }
+  }
+
+  if (toolName === "read_outlook_conversation") {
+    if (typeof normalized.conversation_id !== "string" || normalized.conversation_id.trim().length === 0) {
+      normalized.conversation_id = typeof context.conversation_id === "string" ? context.conversation_id : "";
+    }
+    if (typeof normalized.max_messages !== "number") {
+      normalized.max_messages = typeof context.max_messages === "number" ? context.max_messages : 20;
+    }
+  }
+
+  if (toolName === "reply_outlook_mail") {
+    if (typeof normalized.entry_id !== "string") {
+      normalized.entry_id = typeof context.entry_id === "string" ? context.entry_id : "";
+    }
+    if (typeof normalized.conversation_id !== "string") {
+      normalized.conversation_id = typeof context.conversation_id === "string" ? context.conversation_id : "";
+    }
+    if (typeof normalized.body_text !== "string" && typeof context.body_text === "string") {
+      normalized.body_text = context.body_text;
+    }
+    if (typeof normalized.body_html !== "string" && typeof context.body_html === "string") {
+      normalized.body_html = context.body_html;
+    }
+    if (typeof normalized.reply_all !== "boolean") {
+      normalized.reply_all = context.reply_all === true;
+    }
+  }
+
+  if (toolName === "update_outlook_draft") {
+    if (typeof normalized.draft_id !== "string" || normalized.draft_id.trim().length === 0) {
+      normalized.draft_id = typeof context.draft_id === "string" ? context.draft_id : "";
+    }
+    if (typeof normalized.subject !== "string" && typeof context.subject === "string") {
+      normalized.subject = context.subject;
+    }
+    if (!Array.isArray(normalized.to) && Array.isArray(context.to)) {
+      normalized.to = context.to;
+    }
+    if (!Array.isArray(normalized.cc) && Array.isArray(context.cc)) {
+      normalized.cc = context.cc;
+    }
+    if (typeof normalized.body_text !== "string" && typeof context.body_text === "string") {
+      normalized.body_text = context.body_text;
+    }
+    if (typeof normalized.body_html !== "string" && typeof context.body_html === "string") {
+      normalized.body_html = context.body_html;
+    }
+  }
+
+  if (toolName === "preview_outlook_draft") {
+    if (typeof normalized.draft_id !== "string" || normalized.draft_id.trim().length === 0) {
+      normalized.draft_id = typeof context.draft_id === "string" ? context.draft_id : "";
     }
   }
 

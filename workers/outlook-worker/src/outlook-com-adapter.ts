@@ -42,6 +42,39 @@ export class OutlookComAdapter {
     return runScript("send-mail.ps1", input);
   }
 
+  async readMail(input: { entry_id?: string; conversation_id?: string }): Promise<Record<string, unknown>> {
+    return runScript("read-mail.ps1", input);
+  }
+
+  async readConversation(input: { conversation_id: string; max_messages?: number }): Promise<Record<string, unknown>> {
+    return runScript("read-conversation.ps1", input);
+  }
+
+  async replyMail(input: {
+    entry_id?: string;
+    conversation_id?: string;
+    body_text?: string;
+    body_html?: string;
+    reply_all?: boolean;
+  }): Promise<Record<string, unknown>> {
+    return runScript("reply-mail.ps1", input);
+  }
+
+  async updateDraft(input: {
+    draft_id: string;
+    subject?: string;
+    to?: string[];
+    cc?: string[];
+    body_text?: string;
+    body_html?: string;
+  }): Promise<Record<string, unknown>> {
+    return runScript("update-draft.ps1", input);
+  }
+
+  async previewDraft(input: { draft_id: string }): Promise<Record<string, unknown>> {
+    return runScript("preview-draft.ps1", input);
+  }
+
   async watchReply(input: {
     case_id?: string;
     conversation_id: string;

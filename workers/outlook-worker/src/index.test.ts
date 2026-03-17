@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 
 import { OutlookWorker } from "./index.js";
 
-test("outlook worker drafts, sends, and watches replies", async () => {
+test("outlook worker drafts, sends, reads, replies, previews, and watches replies", async () => {
   const worker = new OutlookWorker();
 
   const draft = await worker.execute({
@@ -36,6 +36,84 @@ test("outlook worker drafts, sends, and watches replies", async () => {
 
   assert.equal(send.success, true);
   assert.ok(send.output.conversation_id);
+  assert.ok(send.output.message_id);
+
+  const readMail = await worker.execute({
+    request_id: "TR-READ-1",
+    case_id: "CASE-1",
+    step_id: "read_mail",
+    tool_name: "read_outlook_mail",
+    mode: "preview",
+    input: {
+      entry_id: send.output.message_id
+    }
+  });
+
+  assert.equal(readMail.success, true);
+  assert.equal(readMail.output.artifact_kind, "mail_detail");
+  assert.equal(readMail.output.entry_id, send.output.message_id);
+
+  const readConversation = await worker.execute({
+    request_id: "TR-CONV-1",
+    case_id: "CASE-1",
+    step_id: "read_conversation",
+    tool_name: "read_outlook_conversation",
+    mode: "preview",
+    input: {
+      conversation_id: send.output.conversation_id
+    }
+  });
+
+  assert.equal(readConversation.success, true);
+  assert.equal(readConversation.output.artifact_kind, "mail_conversation");
+  assert.ok(Array.isArray(readConversation.output.messages));
+
+  const reply = await worker.execute({
+    request_id: "TR-REPLY-1",
+    case_id: "CASE-1",
+    step_id: "reply_mail",
+    tool_name: "reply_outlook_mail",
+    mode: "draft",
+    input: {
+      conversation_id: send.output.conversation_id,
+      body_text: "확인했습니다."
+    }
+  });
+
+  assert.equal(reply.success, true);
+  assert.equal(reply.output.artifact_kind, "mail_draft");
+  assert.ok(reply.output.draft_id);
+
+  const updateDraft = await worker.execute({
+    request_id: "TR-UPD-1",
+    case_id: "CASE-1",
+    step_id: "update_draft",
+    tool_name: "update_outlook_draft",
+    mode: "draft",
+    input: {
+      draft_id: reply.output.draft_id,
+      subject: "Re: updated",
+      body_text: "본문 수정"
+    }
+  });
+
+  assert.equal(updateDraft.success, true);
+  assert.equal(updateDraft.output.subject, "Re: updated");
+
+  const previewDraft = await worker.execute({
+    request_id: "TR-PREV-1",
+    case_id: "CASE-1",
+    step_id: "preview_draft",
+    tool_name: "preview_outlook_draft",
+    mode: "preview",
+    input: {
+      draft_id: reply.output.draft_id
+    }
+  });
+
+  assert.equal(previewDraft.success, true);
+  assert.equal(previewDraft.output.artifact_kind, "mail_draft_preview");
+  assert.equal(previewDraft.output.subject, "Re: updated");
 
   const watch = await worker.execute({
     request_id: "TR-3",

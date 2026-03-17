@@ -7,12 +7,28 @@ interface MailDraft {
   cc: string[];
   templateId: string;
   variables: Record<string, unknown>;
+  subject?: string;
+  bodyHtml?: string;
+}
+
+interface MailMessage {
+  entry_id: string;
+  subject: string;
+  sender: string;
+  recipients: string[];
+  received_time: string;
+  conversation_id: string;
+  body: string;
+  body_snippet: string;
+  folder: string;
+  store?: string;
 }
 
 export class OutlookWorker implements ToolExecutor {
   private readonly drafts = new Map<string, MailDraft>();
   private readonly watchedConversations = new Set<string>();
   private readonly useRealAdapter: boolean;
+  private readonly messages = new Map<string, MailMessage>();
 
   constructor() {
     this.useRealAdapter = process.env.OUTLOOK_WORKER_ADAPTER === "outlook_com";
@@ -24,6 +40,16 @@ export class OutlookWorker implements ToolExecutor {
         return this.draftMail(request);
       case "send_outlook_mail":
         return this.sendMail(request);
+      case "read_outlook_mail":
+        return this.readMail(request);
+      case "read_outlook_conversation":
+        return this.readConversation(request);
+      case "reply_outlook_mail":
+        return this.replyMail(request);
+      case "update_outlook_draft":
+        return this.updateDraft(request);
+      case "preview_outlook_draft":
+        return this.previewDraft(request);
       case "watch_email_reply":
         return this.watchReply(request);
       case "search_outlook_mail":
@@ -62,7 +88,15 @@ export class OutlookWorker implements ToolExecutor {
       variables:
         typeof request.input.variables === "object" && request.input.variables !== null
           ? (request.input.variables as Record<string, unknown>)
-          : {}
+          : {},
+      subject: `[${String(request.input.template_id ?? "unknown")}] Automated Draft`,
+      bodyHtml: `<pre>${JSON.stringify(
+        typeof request.input.variables === "object" && request.input.variables !== null
+          ? (request.input.variables as Record<string, unknown>)
+          : {},
+        null,
+        2
+      )}</pre>`
     };
     this.drafts.set(draftId, draft);
 
@@ -72,7 +106,10 @@ export class OutlookWorker implements ToolExecutor {
       output: {
         artifact_kind: "mail_draft",
         draft_id: draftId,
-        preview_summary: `Drafted ${draft.templateId} for ${draft.to.join(", ")}`
+        preview_summary: `Drafted ${draft.templateId} for ${draft.to.join(", ")}`,
+        subject: draft.subject,
+        to: draft.to,
+        cc: draft.cc
       },
       memory_patch: {},
       emitted_events: []
@@ -100,15 +137,258 @@ export class OutlookWorker implements ToolExecutor {
     }
 
     const conversationId = `CONV-${crypto.randomUUID()}`;
+    const messageId = `MSG-${crypto.randomUUID()}`;
+    const body = draft.bodyHtml ?? "";
+    this.messages.set(messageId, {
+      entry_id: messageId,
+      subject: draft.subject ?? `[${draft.templateId}] Automated Draft`,
+      sender: "taeho.je@sk.com",
+      recipients: draft.to,
+      received_time: new Date().toISOString(),
+      conversation_id: conversationId,
+      body,
+      body_snippet: body.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 500),
+      folder: "sent",
+      store: "fake"
+    });
     return {
       request_id: request.request_id,
       success: true,
       output: {
         artifact_kind: "sent_mail",
-        message_id: `MSG-${crypto.randomUUID()}`,
+        message_id: messageId,
         conversation_id: conversationId,
         recipients: draft.to,
         template_id: draft.templateId
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async readMail(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().readMail({
+        entry_id: typeof request.input.entry_id === "string" ? request.input.entry_id : undefined,
+        conversation_id: typeof request.input.conversation_id === "string" ? request.input.conversation_id : undefined
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const entryId = typeof request.input.entry_id === "string" ? request.input.entry_id : "";
+    const conversationId = typeof request.input.conversation_id === "string" ? request.input.conversation_id : "";
+    const message =
+      (entryId ? this.messages.get(entryId) : undefined) ??
+      [...this.messages.values()].find((item) => item.conversation_id === conversationId);
+
+    if (!message) {
+      return this.fail(request, "Mail not found");
+    }
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "mail_detail",
+        ...message
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async readConversation(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().readConversation({
+        conversation_id: String(request.input.conversation_id ?? ""),
+        max_messages: typeof request.input.max_messages === "number" ? request.input.max_messages : undefined
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const conversationId = String(request.input.conversation_id ?? "");
+    const maxMessages = typeof request.input.max_messages === "number" ? request.input.max_messages : 20;
+    const messages = [...this.messages.values()]
+      .filter((item) => item.conversation_id === conversationId)
+      .sort((a, b) => a.received_time.localeCompare(b.received_time))
+      .slice(0, maxMessages);
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "mail_conversation",
+        conversation_id: conversationId,
+        count: messages.length,
+        messages
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async replyMail(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().replyMail({
+        entry_id: typeof request.input.entry_id === "string" ? request.input.entry_id : undefined,
+        conversation_id: typeof request.input.conversation_id === "string" ? request.input.conversation_id : undefined,
+        body_text: typeof request.input.body_text === "string" ? request.input.body_text : undefined,
+        body_html: typeof request.input.body_html === "string" ? request.input.body_html : undefined,
+        reply_all: request.input.reply_all === true
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const entryId = typeof request.input.entry_id === "string" ? request.input.entry_id : "";
+    const conversationId = typeof request.input.conversation_id === "string" ? request.input.conversation_id : "";
+    const baseMessage =
+      (entryId ? this.messages.get(entryId) : undefined) ??
+      [...this.messages.values()].find((item) => item.conversation_id === conversationId);
+
+    if (!baseMessage) {
+      return this.fail(request, "Base message not found for reply");
+    }
+
+    const draftId = `DRAFT-${crypto.randomUUID()}`;
+    const replyBody =
+      typeof request.input.body_html === "string" && request.input.body_html.trim().length > 0
+        ? request.input.body_html
+        : typeof request.input.body_text === "string"
+          ? `<div>${request.input.body_text}</div>`
+          : "<div></div>";
+    const draft: MailDraft = {
+      draftId,
+      to: [baseMessage.sender],
+      cc: [],
+      templateId: "reply",
+      variables: {},
+      subject: baseMessage.subject.startsWith("Re:") ? baseMessage.subject : `Re: ${baseMessage.subject}`,
+      bodyHtml: `${replyBody}<hr/><div>${baseMessage.body}</div>`
+    };
+    this.drafts.set(draftId, draft);
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "mail_draft",
+        draft_id: draftId,
+        conversation_id: baseMessage.conversation_id,
+        preview_summary: `Reply draft for ${baseMessage.subject}`,
+        subject: draft.subject,
+        to: draft.to,
+        cc: draft.cc
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async updateDraft(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().updateDraft({
+        draft_id: String(request.input.draft_id ?? ""),
+        subject: typeof request.input.subject === "string" ? request.input.subject : undefined,
+        to: Array.isArray(request.input.to) ? (request.input.to as string[]) : undefined,
+        cc: Array.isArray(request.input.cc) ? (request.input.cc as string[]) : undefined,
+        body_text: typeof request.input.body_text === "string" ? request.input.body_text : undefined,
+        body_html: typeof request.input.body_html === "string" ? request.input.body_html : undefined
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const draftId = String(request.input.draft_id ?? "");
+    const draft = this.drafts.get(draftId);
+    if (!draft) {
+      return this.fail(request, `Draft ${draftId} not found`);
+    }
+    if (typeof request.input.subject === "string") {
+      draft.subject = request.input.subject;
+    }
+    if (Array.isArray(request.input.to)) {
+      draft.to = request.input.to as string[];
+    }
+    if (Array.isArray(request.input.cc)) {
+      draft.cc = request.input.cc as string[];
+    }
+    if (typeof request.input.body_html === "string") {
+      draft.bodyHtml = request.input.body_html;
+    } else if (typeof request.input.body_text === "string") {
+      draft.bodyHtml = `<div>${request.input.body_text}</div>`;
+    }
+    this.drafts.set(draftId, draft);
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "mail_draft",
+        draft_id: draftId,
+        preview_summary: `Updated draft for ${draft.to.join(", ")}`,
+        subject: draft.subject,
+        to: draft.to,
+        cc: draft.cc
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async previewDraft(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().previewDraft({
+        draft_id: String(request.input.draft_id ?? "")
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const draftId = String(request.input.draft_id ?? "");
+    const draft = this.drafts.get(draftId);
+    if (!draft) {
+      return this.fail(request, `Draft ${draftId} not found`);
+    }
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "mail_draft_preview",
+        draft_id: draftId,
+        subject: draft.subject ?? `[${draft.templateId}] Automated Draft`,
+        to: draft.to,
+        cc: draft.cc,
+        body_html: draft.bodyHtml ?? "",
+        preview_summary: `Draft preview for ${draft.to.join(", ")}`
       },
       memory_patch: {},
       emitted_events: []
