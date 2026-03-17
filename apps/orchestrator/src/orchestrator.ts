@@ -299,7 +299,8 @@ export class OrchestratorService {
       matcher: {
         expected_from: (waiting.expected_from ?? []).map((value) => this.interpolateValue(value, record.facts)),
         conversation_id: conversationId,
-        required_fields: waiting.required_fields
+        required_fields: waiting.required_fields,
+        keyword_contains: []
       },
       remind_at: new Date(now + waiting.remind_after_minutes * 60_000).toISOString(),
       escalate_at: new Date(now + waiting.escalate_after_minutes * 60_000).toISOString()
@@ -328,12 +329,19 @@ export class OrchestratorService {
   }
 
   private matchesIncomingEmail(expectation: Expectation, payload: IncomingEmailPayload): boolean {
+    const keywordFilters = expectation.matcher.keyword_contains ?? [];
     const senderMatches =
       expectation.matcher.expected_from.length === 0 || expectation.matcher.expected_from.includes(payload.sender);
     const conversationMatches =
       !expectation.matcher.conversation_id || expectation.matcher.conversation_id === payload.conversation_id;
     const requiredFieldsPresent = expectation.matcher.required_fields.every((field) => payload.extracted_fields[field] !== undefined);
-    return senderMatches && conversationMatches && requiredFieldsPresent;
+    const keywordMatches =
+      keywordFilters.length === 0 ||
+      keywordFilters.some((keyword) => {
+        const haystack = `${payload.subject}\n${payload.body ?? ""}`;
+        return haystack.includes(keyword);
+      });
+    return senderMatches && conversationMatches && requiredFieldsPresent && keywordMatches;
   }
 
   private mapDecisionToStatus(input: ApprovalDecisionInput): Approval["status"] {

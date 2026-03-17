@@ -401,7 +401,8 @@ export class OutlookWorker implements ToolExecutor {
         case_id: typeof request.input.case_id === "string" ? request.input.case_id : undefined,
         conversation_id: String(request.input.conversation_id ?? ""),
         expected_from: Array.isArray(request.input.expected_from) ? (request.input.expected_from as string[]) : [],
-        required_fields: Array.isArray(request.input.required_fields) ? (request.input.required_fields as string[]) : []
+        required_fields: Array.isArray(request.input.required_fields) ? (request.input.required_fields as string[]) : [],
+        keyword_contains: Array.isArray(request.input.keyword_contains) ? (request.input.keyword_contains as string[]) : []
       });
       return {
         request_id: request.request_id,
@@ -423,7 +424,8 @@ export class OutlookWorker implements ToolExecutor {
       output: {
         watcher: "email",
         expectation_registered: true,
-        conversation_id: conversationId
+        conversation_id: conversationId,
+        keyword_contains: Array.isArray(request.input.keyword_contains) ? (request.input.keyword_contains as string[]) : []
       },
       memory_patch: {},
       emitted_events: []

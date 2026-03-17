@@ -30,6 +30,26 @@ function Get-FieldValue {
   return $null
 }
 
+function Matches-KeywordFilters {
+  param(
+    [string]$Text,
+    $Keywords
+  )
+
+  $normalizedKeywords = @($Keywords) | ForEach-Object { [string]$_ } | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+  if ($normalizedKeywords.Count -eq 0) {
+    return $true
+  }
+
+  foreach ($keyword in $normalizedKeywords) {
+    if ($Text -match [regex]::Escape($keyword)) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
 Get-ChildItem -Path $watchDir -Filter "*.json" | ForEach-Object {
   $watch = ConvertFrom-AgentJson -Json (Get-Content $_.FullName -Raw)
   if ($watch.completed -eq $true) {
@@ -54,11 +74,13 @@ Get-ChildItem -Path $watchDir -Filter "*.json" | ForEach-Object {
       $senderAddress = ""
     }
     $senderMatches = (@($watch.expected_from).Count -eq 0) -or (@($watch.expected_from) -contains $senderAddress)
-    if (-not $conversationMatches -or -not $senderMatches) {
+    $subject = [string]$item.Subject
+    $body = [string]$item.Body
+    $keywordMatches = Matches-KeywordFilters -Text "$subject`n$body" -Keywords $watch.keyword_contains
+    if (-not $conversationMatches -or -not $senderMatches -or -not $keywordMatches) {
       continue
     }
 
-    $body = [string]$item.Body
     $extracted = @{}
     $allFieldsPresent = $true
     foreach ($field in @($watch.required_fields)) {

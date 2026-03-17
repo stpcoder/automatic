@@ -80,6 +80,7 @@ export class OutlookComAdapter {
     conversation_id: string;
     expected_from: string[];
     required_fields: string[];
+    keyword_contains?: string[];
   }): Promise<Record<string, unknown>> {
     return runScript("watch-reply.ps1", input);
   }

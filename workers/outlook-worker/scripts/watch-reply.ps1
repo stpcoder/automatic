@@ -17,6 +17,7 @@ $watchFile = Join-Path $watchDir "$watchId.json"
   conversation_id = [string]$payload.conversation_id
   expected_from = @($payload.expected_from)
   required_fields = @($payload.required_fields)
+  keyword_contains = @($payload.keyword_contains)
   processed_entry_ids = @()
   completed = $false
   created_at = (Get-Date).ToString("o")

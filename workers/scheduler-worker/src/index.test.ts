@@ -15,7 +15,8 @@ test("scheduler emits remind and escalate signals", () => {
         status: "waiting",
         matcher: {
           expected_from: ["vendor@example.com"],
-          required_fields: ["customs_number"]
+          required_fields: ["customs_number"],
+          keyword_contains: []
         },
         remind_at: "2026-03-15T00:00:00.000Z",
         escalate_at: "2026-03-15T01:00:00.000Z"

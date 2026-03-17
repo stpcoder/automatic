@@ -258,12 +258,14 @@ export async function createApp(
       conversation_id?: string;
       expected_from?: string[];
       required_fields?: string[];
+      keyword_contains?: string[];
     };
     return outlookWorker.execute(buildDebugToolRequest("watch_email_reply", "preview", {
       case_id: body.case_id ?? "DEBUG-CASE",
       conversation_id: body.conversation_id ?? "",
       expected_from: body.expected_from ?? [],
-      required_fields: body.required_fields ?? []
+      required_fields: body.required_fields ?? [],
+      keyword_contains: body.keyword_contains ?? []
     }));
   });
 
@@ -394,16 +396,17 @@ export async function createApp(
         description: "Preview an Outlook draft before sending it.",
         input_schema: { draft_id: { type: "string" } }
       },
-      {
-        name: "watch_email_reply",
-        description: "Watch for a matching reply in Outlook.",
-        input_schema: {
-          case_id: { type: "string" },
-          conversation_id: { type: "string" },
-          expected_from: { type: "array" },
-          required_fields: { type: "array" }
-        }
-      },
+    {
+      name: "watch_email_reply",
+      description: "Watch for a matching reply in Outlook.",
+      input_schema: {
+        case_id: { type: "string" },
+        conversation_id: { type: "string" },
+        expected_from: { type: "array" },
+        required_fields: { type: "array" },
+        keyword_contains: { type: "array" }
+      }
+    },
       {
         name: "search_outlook_mail",
         description: "Search Outlook mail by keyword.",
@@ -711,6 +714,38 @@ export async function createApp(
           };
           replanHistory.push(lastFailure);
           continue;
+        }
+
+        if (plannerOutput.next_action.tool === "watch_email_reply" && plannerOutput.expected_transition === "WAITING_EMAIL") {
+          lastFailure = undefined;
+          const pendingSummary =
+            typeof normalizedInput.conversation_id === "string" && normalizedInput.conversation_id.trim().length > 0
+              ? `Waiting for a matching email reply in conversation ${normalizedInput.conversation_id}.`
+              : "Waiting for a matching email reply.";
+          logDebugAgentFinish("run-loop", stepIndex, pendingSummary, {
+            total_ms: Date.now() - startedAt
+          });
+          return {
+            ok: true,
+            completed: false,
+            pending: true,
+            pending_state: "WAITING_EMAIL",
+            final_response: pendingSummary,
+            final_result: toolResult.output,
+            global_plan: globalPlan ?? null,
+            current_step_plan: currentStepPlan ?? null,
+            steps,
+            timing: {
+              total_ms: Date.now() - startedAt
+            },
+            debug_trace: {
+              planner_request: plannerRequest,
+              planner_trace: debugPlanner.getTrace(),
+              planner_output: plannerOutput,
+              normalized_input: normalizedInput,
+              tool_result: toolResult
+            }
+          };
         }
 
         if (navigationLikelyTool && currentObservation && previousObservation && !observationChanged) {
@@ -1163,6 +1198,11 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
   if (toolName === "update_outlook_draft" || toolName === "preview_outlook_draft") {
     return truncateForLog(stringForLog(input.draft_id), 40);
   }
+  if (toolName === "watch_email_reply") {
+    const conversationId = stringForLog(input.conversation_id);
+    const expectedFrom = Array.isArray(input.expected_from) ? String(input.expected_from[0] ?? "") : "";
+    return truncateForLog(conversationId !== "-" ? conversationId : expectedFrom, 40);
+  }
   if (toolName === "search_outlook_mail") {
     return truncateForLog(stringForLog(input.keyword), 40);
   }
@@ -1333,7 +1373,8 @@ function buildDebugToolSpecs() {
         case_id: { type: "string" },
         conversation_id: { type: "string" },
         expected_from: { type: "array" },
-        required_fields: { type: "array" }
+        required_fields: { type: "array" },
+        keyword_contains: { type: "array" }
       }
     },
     {
@@ -1533,6 +1574,9 @@ function normalizeDebugToolInput(
     }
     if (!Array.isArray(normalized.required_fields) && Array.isArray(context.required_fields)) {
       normalized.required_fields = context.required_fields;
+    }
+    if (!Array.isArray(normalized.keyword_contains) && Array.isArray(context.keyword_contains)) {
+      normalized.keyword_contains = context.keyword_contains;
     }
   }
 

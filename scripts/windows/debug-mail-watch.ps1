@@ -3,7 +3,8 @@ param(
   [Parameter(Mandatory = $true)]
   [string]$ConversationId,
   [string[]]$ExpectedFrom = @(),
-  [string[]]$RequiredFields = @()
+  [string[]]$RequiredFields = @(),
+  [string[]]$KeywordContains = @()
 )
 
 . (Join-Path $PSScriptRoot "common.ps1")
@@ -14,4 +15,5 @@ Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/watch") -Body @{
   conversation_id = $ConversationId
   expected_from = @($ExpectedFrom)
   required_fields = @($RequiredFields)
+  keyword_contains = @($KeywordContains)
 } | ConvertTo-Json -Depth 20

@@ -72,7 +72,8 @@ export type WorkflowDefinition = z.infer<typeof workflowDefinitionSchema>;
 export const expectationMatcherSchema = z.object({
   expected_from: z.array(z.string()).default([]),
   conversation_id: z.string().optional(),
-  required_fields: z.array(z.string()).default([])
+  required_fields: z.array(z.string()).default([]),
+  keyword_contains: z.array(z.string()).default([])
 });
 export type ExpectationMatcher = z.infer<typeof expectationMatcherSchema>;
 
