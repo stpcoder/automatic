@@ -43,6 +43,7 @@
     "win:debug:mail:update-draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-update-draft.ps1",
     "win:debug:mail:preview-draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-preview-draft.ps1",
     "win:debug:mail:watch": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-watch.ps1",
+    "win:debug:mail:await": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-await.ps1",
     "win:debug:mail:poll-once": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-poll-once.ps1",
     "win:debug:agent:run": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-agent-run.ps1",
     "win:debug:agent:run-loop": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-agent-run-loop.ps1",

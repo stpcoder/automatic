@@ -52,6 +52,8 @@ export class OutlookWorker implements ToolExecutor {
         return this.previewDraft(request);
       case "watch_email_reply":
         return this.watchReply(request);
+      case "await_email_reply":
+        return this.awaitReply(request);
       case "search_outlook_mail":
         return this.searchMail(request);
       default:
@@ -430,6 +432,30 @@ export class OutlookWorker implements ToolExecutor {
       memory_patch: {},
       emitted_events: []
     };
+  }
+
+  private async awaitReply(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().awaitReply({
+        case_id: typeof request.input.case_id === "string" ? request.input.case_id : undefined,
+        conversation_id: typeof request.input.conversation_id === "string" ? request.input.conversation_id : undefined,
+        expected_from: Array.isArray(request.input.expected_from) ? (request.input.expected_from as string[]) : [],
+        required_fields: Array.isArray(request.input.required_fields) ? (request.input.required_fields as string[]) : [],
+        keyword_contains: Array.isArray(request.input.keyword_contains) ? (request.input.keyword_contains as string[]) : [],
+        watch_directory: typeof request.input.watch_directory === "string" ? request.input.watch_directory : undefined,
+        timeout_seconds: typeof request.input.timeout_seconds === "number" ? request.input.timeout_seconds : undefined,
+        poll_interval_ms: typeof request.input.poll_interval_ms === "number" ? request.input.poll_interval_ms : undefined
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    return this.fail(request, "await_email_reply is only supported with the outlook_com adapter");
   }
 
   private async searchMail(request: ToolRequest): Promise<ToolResult> {

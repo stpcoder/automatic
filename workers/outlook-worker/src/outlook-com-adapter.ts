@@ -1,5 +1,6 @@
 import { execFile } from "node:child_process";
 import path from "node:path";
+import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
 
 const execFileAsync = promisify(execFile);
@@ -83,6 +84,64 @@ export class OutlookComAdapter {
     keyword_contains?: string[];
   }): Promise<Record<string, unknown>> {
     return runScript("watch-reply.ps1", input);
+  }
+
+  async awaitReply(input: {
+    case_id?: string;
+    conversation_id?: string;
+    expected_from?: string[];
+    required_fields?: string[];
+    keyword_contains?: string[];
+    watch_directory?: string;
+    timeout_seconds?: number;
+    poll_interval_ms?: number;
+  }): Promise<Record<string, unknown>> {
+    const caseId =
+      typeof input.case_id === "string" && input.case_id.trim().length > 0
+        ? input.case_id
+        : `DEBUG-WAIT-${crypto.randomUUID()}`;
+    const timeoutSeconds =
+      typeof input.timeout_seconds === "number" && Number.isFinite(input.timeout_seconds) && input.timeout_seconds > 0
+        ? input.timeout_seconds
+        : Number(process.env.OUTLOOK_WAIT_TIMEOUT_SECONDS ?? "1800");
+    const pollIntervalMs =
+      typeof input.poll_interval_ms === "number" && Number.isFinite(input.poll_interval_ms) && input.poll_interval_ms > 0
+        ? input.poll_interval_ms
+        : Number(process.env.OUTLOOK_WAIT_POLL_INTERVAL_MS ?? "10000");
+
+    await this.watchReply({
+      case_id: caseId,
+      conversation_id: input.conversation_id ?? "",
+      expected_from: input.expected_from ?? [],
+      required_fields: input.required_fields ?? [],
+      keyword_contains: input.keyword_contains ?? []
+    });
+
+    const deadline = Date.now() + timeoutSeconds * 1000;
+    for (;;) {
+      const result = await this.pollReplies({
+        watch_directory: input.watch_directory
+      });
+      const match = result.matches.find((candidate) => candidate.case_id === caseId);
+      if (match) {
+        return {
+          artifact_kind: "incoming_mail_reply",
+          waiting: false,
+          case_id: caseId,
+          sender: match.sender,
+          subject: match.subject,
+          conversation_id: match.conversation_id,
+          body: match.body,
+          extracted_fields: match.extracted_fields
+        };
+      }
+
+      if (Date.now() >= deadline) {
+        throw new Error(`Timed out waiting for matching email reply after ${timeoutSeconds}s`);
+      }
+
+      await sleep(pollIntervalMs);
+    }
   }
 
   async searchMail(input: {

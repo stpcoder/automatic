@@ -269,6 +269,29 @@ export async function createApp(
     }));
   });
 
+  app.post("/debug/mail/await", async (request) => {
+    const body = request.body as {
+      case_id?: string;
+      conversation_id?: string;
+      expected_from?: string[];
+      required_fields?: string[];
+      keyword_contains?: string[];
+      watch_directory?: string;
+      timeout_seconds?: number;
+      poll_interval_ms?: number;
+    };
+    return outlookWorker.execute(buildDebugToolRequest("await_email_reply", "preview", {
+      case_id: body.case_id ?? "DEBUG-CASE",
+      conversation_id: body.conversation_id ?? "",
+      expected_from: body.expected_from ?? [],
+      required_fields: body.required_fields ?? [],
+      keyword_contains: body.keyword_contains ?? [],
+      watch_directory: body.watch_directory ?? "",
+      timeout_seconds: body.timeout_seconds,
+      poll_interval_ms: body.poll_interval_ms
+    }));
+  });
+
   app.post("/debug/mail/search", async (request) => {
     const body = request.body as { keyword?: string; max_results?: number };
     return outlookWorker.execute(buildDebugToolRequest("search_outlook_mail", "preview", {
@@ -405,6 +428,19 @@ export async function createApp(
         expected_from: { type: "array" },
         required_fields: { type: "array" },
         keyword_contains: { type: "array" }
+      }
+    },
+    {
+      name: "await_email_reply",
+      description: "Wait for a matching Outlook reply and return it when it arrives.",
+      input_schema: {
+        case_id: { type: "string" },
+        conversation_id: { type: "string" },
+        expected_from: { type: "array" },
+        required_fields: { type: "array" },
+        keyword_contains: { type: "array" },
+        timeout_seconds: { type: "number" },
+        poll_interval_ms: { type: "number" }
       }
     },
       {
@@ -1203,6 +1239,11 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
     const expectedFrom = Array.isArray(input.expected_from) ? String(input.expected_from[0] ?? "") : "";
     return truncateForLog(conversationId !== "-" ? conversationId : expectedFrom, 40);
   }
+  if (toolName === "await_email_reply") {
+    const conversationId = stringForLog(input.conversation_id);
+    const expectedFrom = Array.isArray(input.expected_from) ? String(input.expected_from[0] ?? "") : "";
+    return truncateForLog(conversationId !== "-" ? conversationId : expectedFrom, 40);
+  }
   if (toolName === "search_outlook_mail") {
     return truncateForLog(stringForLog(input.keyword), 40);
   }
@@ -1375,6 +1416,19 @@ function buildDebugToolSpecs() {
         expected_from: { type: "array" },
         required_fields: { type: "array" },
         keyword_contains: { type: "array" }
+      }
+    },
+    {
+      name: "await_email_reply",
+      description: "Wait for a matching Outlook reply and return it when it arrives.",
+      input_schema: {
+        case_id: { type: "string" },
+        conversation_id: { type: "string" },
+        expected_from: { type: "array" },
+        required_fields: { type: "array" },
+        keyword_contains: { type: "array" },
+        timeout_seconds: { type: "number" },
+        poll_interval_ms: { type: "number" }
       }
     },
     {
@@ -1577,6 +1631,30 @@ function normalizeDebugToolInput(
     }
     if (!Array.isArray(normalized.keyword_contains) && Array.isArray(context.keyword_contains)) {
       normalized.keyword_contains = context.keyword_contains;
+    }
+  }
+
+  if (toolName === "await_email_reply") {
+    if (typeof normalized.case_id !== "string" || normalized.case_id.trim().length === 0) {
+      normalized.case_id = typeof context.case_id === "string" ? context.case_id : "DEBUG-CASE";
+    }
+    if (typeof normalized.conversation_id !== "string" || normalized.conversation_id.trim().length === 0) {
+      normalized.conversation_id = typeof context.conversation_id === "string" ? context.conversation_id : "";
+    }
+    if (!Array.isArray(normalized.expected_from) && Array.isArray(context.expected_from)) {
+      normalized.expected_from = context.expected_from;
+    }
+    if (!Array.isArray(normalized.required_fields) && Array.isArray(context.required_fields)) {
+      normalized.required_fields = context.required_fields;
+    }
+    if (!Array.isArray(normalized.keyword_contains) && Array.isArray(context.keyword_contains)) {
+      normalized.keyword_contains = context.keyword_contains;
+    }
+    if (typeof normalized.timeout_seconds !== "number" && typeof context.timeout_seconds === "number") {
+      normalized.timeout_seconds = context.timeout_seconds;
+    }
+    if (typeof normalized.poll_interval_ms !== "number" && typeof context.poll_interval_ms === "number") {
+      normalized.poll_interval_ms = context.poll_interval_ms;
     }
   }
 
