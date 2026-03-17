@@ -709,7 +709,10 @@ export async function createApp(
 function logDebugAgentStart(mode: "run" | "run-loop", instruction: string, context: Record<string, unknown>): void {
   const systemId = typeof context.system_id === "string" ? context.system_id : "-";
   const sessionId = typeof context.session_id === "string" ? context.session_id : "-";
-  console.log(`[debug-agent:${mode}] instruction="${truncateForLog(instruction, 140)}" system=${systemId} session=${sessionId}`);
+  console.log(`[agent] ${mode === "run-loop" ? "LOOP" : "RUN"} ${truncateForLog(instruction, 140)}`);
+  if (systemId !== "-" || sessionId !== "-") {
+    console.log(`[agent] CONTEXT system=${systemId} session=${sessionId}`);
+  }
 }
 
 function logDebugPlannerDecision(
@@ -720,13 +723,14 @@ function logDebugPlannerDecision(
   normalizedInput: Record<string, unknown>
 ): void {
   const planSummary = formatPlannerSummary(plannerOutput);
-  if (planSummary.length > 0) {
-    console.log(`[debug-agent:${mode}] step=${step} plan ${planSummary}`);
+  if (planSummary.primary) {
+    console.log(`[${step}] PLAN  ${planSummary.primary}`);
+  }
+  for (const detail of planSummary.details) {
+    console.log(`[${step}] NOTE  ${detail}`);
   }
   const toolHint = formatToolHint(toolName, normalizedInput);
-  console.log(
-    `[debug-agent:${mode}] step=${step} tool=${toolName}${toolHint ? ` hint=${toolHint}` : ""}`
-  );
+  console.log(`[${step}] TOOL  ${toolName}${toolHint ? ` -> ${toolHint}` : ""}`);
 }
 
 function logDebugToolResult(
@@ -768,9 +772,19 @@ function logDebugToolResult(
         })
       : "";
 
-  console.log(
-    `[debug-agent:${mode}] step=${step} result=${toolResult.success ? "ok" : "fail"}${clickTargetSummary ? ` click=${clickTargetSummary}` : ""} session=${sessionId ?? "-"} title="${truncateForLog(title, 80)}" url="${truncateForLog(url, 120)}" summary="${truncateForLog(summary, 120)}" planner_ms=${timing.planner_ms ?? 0} tool_ms=${timing.tool_ms ?? 0}`
-  );
+  const status = toolResult.success ? "OK" : "FAIL";
+  const pageSummary = [truncateForLog(title, 80), truncateForLog(url, 120)].filter((value) => value && value !== "-").join(" | ");
+  console.log(`[${step}] ${status}${clickTargetSummary ? ` ${clickTargetSummary}` : ""}`);
+  if (pageSummary) {
+    console.log(`[${step}] PAGE  ${pageSummary}`);
+  }
+  if (summary && summary !== "-") {
+    console.log(`[${step}] INFO  ${truncateForLog(summary, 140)}`);
+  }
+  if (sessionId && sessionId !== "-") {
+    console.log(`[${step}] SESSION ${sessionId}`);
+  }
+  console.log(`[${step}] TIME  planner=${timing.planner_ms ?? 0}ms tool=${timing.tool_ms ?? 0}ms`);
 }
 
 function logDebugAgentFinish(
@@ -779,9 +793,8 @@ function logDebugAgentFinish(
   summary: string,
   timing: { total_ms?: number }
 ): void {
-  console.log(
-    `[debug-agent:${mode}] step=${step} finish summary="${truncateForLog(summary, 140)}" total_ms=${timing.total_ms ?? 0}`
-  );
+  console.log(`[${step}] DONE  ${truncateForLog(summary, 140)}`);
+  console.log(`[${step}] TIME  total=${timing.total_ms ?? 0}ms`);
 }
 
 function logDebugAgentFailure(
@@ -791,25 +804,25 @@ function logDebugAgentFailure(
   timing: { total_ms?: number }
 ): void {
   const message = error instanceof Error ? error.message : String(error);
-  console.log(
-    `[debug-agent:${mode}] step=${step} error="${truncateForLog(message, 180)}" total_ms=${timing.total_ms ?? 0}`
-  );
+  console.log(`[${step}] FAIL  ${truncateForLog(message, 180)}`);
+  console.log(`[${step}] TIME  total=${timing.total_ms ?? 0}ms`);
 }
 
-function formatPlannerSummary(plannerOutput: PlannerOutput): string {
-  const segments: string[] = [];
+function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; details: string[] } {
+  const details: string[] = [];
+  let primary = "";
 
   if (typeof plannerOutput.objective === "string" && plannerOutput.objective.trim().length > 0) {
-    segments.push(`objective="${truncateForLog(plannerOutput.objective, 90)}"`);
+    primary = truncateForLog(plannerOutput.objective, 100);
   }
   if (
     typeof plannerOutput.evaluation_previous_goal === "string" &&
     plannerOutput.evaluation_previous_goal.trim().length > 0
   ) {
-    segments.push(`eval="${truncateForLog(plannerOutput.evaluation_previous_goal, 90)}"`);
+    details.push(`Eval: ${truncateForLog(plannerOutput.evaluation_previous_goal, 100)}`);
   }
   if (typeof plannerOutput.next_goal === "string" && plannerOutput.next_goal.trim().length > 0) {
-    segments.push(`next="${truncateForLog(plannerOutput.next_goal, 90)}"`);
+    details.push(`Next: ${truncateForLog(plannerOutput.next_goal, 100)}`);
   }
   if (Array.isArray(plannerOutput.memory) && plannerOutput.memory.length > 0) {
     const memorySummary = plannerOutput.memory
@@ -817,7 +830,7 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): string {
       .slice(0, 2)
       .join(" | ");
     if (memorySummary) {
-      segments.push(`memory="${truncateForLog(memorySummary, 110)}"`);
+      details.push(`Memory: ${truncateForLog(memorySummary, 110)}`);
     }
   }
 
@@ -829,10 +842,10 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): string {
     const currentStepId = typeof globalPlan.current_step_id === "string" ? globalPlan.current_step_id : "";
     const progressSummary = typeof globalPlan.progress_summary === "string" ? globalPlan.progress_summary : "";
     if (currentStepId) {
-      segments.push(`current_step=${currentStepId}`);
+      details.push(`Current step: ${currentStepId}`);
     }
     if (progressSummary) {
-      segments.push(`progress="${truncateForLog(progressSummary, 100)}"`);
+      details.push(`Progress: ${truncateForLog(progressSummary, 100)}`);
     }
   }
 
@@ -848,18 +861,25 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): string {
           .slice(0, 2)
       : [];
     if (currentGoal) {
-      segments.push(`step_goal="${truncateForLog(currentGoal, 90)}"`);
+      if (!primary) {
+        primary = truncateForLog(currentGoal, 100);
+      } else {
+        details.push(`Step goal: ${truncateForLog(currentGoal, 100)}`);
+      }
     }
     if (actionPlan.length > 0) {
-      segments.push(`actions="${truncateForLog(actionPlan.join(" | "), 120)}"`);
+      details.push(`Actions: ${truncateForLog(actionPlan.join(" | "), 120)}`);
     }
   }
 
   if (typeof plannerOutput.rationale === "string" && plannerOutput.rationale.trim().length > 0) {
-    segments.push(`why="${truncateForLog(plannerOutput.rationale, 110)}"`);
+    details.push(`Why: ${truncateForLog(plannerOutput.rationale, 110)}`);
   }
 
-  return segments.join(" ");
+  return {
+    primary: primary || "Continue the task",
+    details
+  };
 }
 
 function formatToolHint(toolName: string, input: Record<string, unknown>): string {
@@ -875,11 +895,13 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
   if (toolName === "fill_web_form") {
     const fieldValues =
       typeof input.field_values === "object" && input.field_values !== null ? (input.field_values as Record<string, unknown>) : {};
-    const fields = Object.keys(fieldValues).slice(0, 3).join(",");
+    const fields = Object.keys(fieldValues).slice(0, 3).join(", ");
     return fields || "";
   }
   if (toolName === "click_web_element") {
-    return truncateForLog(stringForLog(input.target_handle) !== "-" ? stringForLog(input.target_handle) : stringForLog(input.target_key), 40);
+    const targetHandle = stringForLog(input.target_handle);
+    const targetKey = stringForLog(input.target_key);
+    return truncateForLog(targetHandle !== "-" ? `#${targetHandle}` : targetKey, 40);
   }
   if (toolName === "extract_web_result") {
     return truncateForLog(stringForLog(input.query), 40);
@@ -911,19 +933,19 @@ function formatClickTargetSummary(target: {
 }): string {
   const parts: string[] = [];
   if (target.label) {
-    parts.push(`"${truncateForLog(target.label, 40)}"`);
+    parts.push(`CLICK "${truncateForLog(target.label, 40)}"`);
   }
   if (target.handle) {
     parts.push(`[#${target.handle}]`);
   }
   if (target.key && (!target.label || normalizeLogToken(target.key) !== normalizeLogToken(target.label))) {
-    parts.push(`key=${truncateForLog(target.key, 30)}`);
+    parts.push(`key ${truncateForLog(target.key, 30)}`);
   }
   if (target.nearbyText) {
-    parts.push(`near="${truncateForLog(target.nearbyText, 60)}"`);
+    parts.push(`near "${truncateForLog(target.nearbyText, 60)}"`);
   }
   if (target.domPath) {
-    parts.push(`path=${truncateForLog(target.domPath, 70)}`);
+    parts.push(`path ${truncateForLog(target.domPath, 70)}`);
   }
   return parts.join(" ");
 }
