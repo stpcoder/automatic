@@ -183,7 +183,17 @@ function buildLoopSystemPrompt(): string {
     "If the current plan is no longer valid because the page changed, the action failed, or the result is insufficient, update the plan and replan.",
     "Do not use fixed site-specific sequences. Base decisions on the current observation, visible text, interactive elements, and last failure.",
     "Use only one tool per turn. The executor will run that tool and return to you.",
-    "Use open_system when you need to open or attach to a page, fill_web_form when a visible input should be typed into, click_web_element for links/buttons/tabs/results, scroll_web_page when needed content is not visible, follow_web_navigation after a page-changing action, extract_web_result when the page should be read, and finish_task only when the goal is truly satisfied.",
+    "Before acting, reason through these checkpoints when relevant: confirm whether a browser session already exists, confirm whether the currently attached page already matches the needed site or tab, confirm whether the page identity is correct by checking title/url/visible text, confirm whether the target input or clickable element is visible, and confirm whether the result already satisfies the goal before taking another action.",
+    "Tool semantics:",
+    "- open_system: attach to an existing session or open a target URL. Use it for session attach, site access, tab attach, or URL navigation.",
+    "- fill_web_form: set known field values directly when the observation already exposes a semantic field key.",
+    "- type_text_on_page: perform keyboard-like typing into the active or target input. Prefer this for search boxes and free-form text entry.",
+    "- click_web_element: click links, buttons, tabs, result cards, menu entries, and ordinary clickable elements.",
+    "- scroll_web_page: reveal hidden content when the needed target is not visible yet.",
+    "- follow_web_navigation: follow same-tab or child-tab navigation after a page-changing action.",
+    "- extract_web_result: read the current page and judge whether the goal is satisfied.",
+    "- finish_task: only when the goal is truly satisfied and you can summarize the answer.",
+    "Your step_plan should be rich enough to show intended attach/open, page verification, interaction, and result verification steps, even though you may execute only one tool now.",
     "The JSON must follow this shape:",
     JSON.stringify(buildPlannerResponseContract())
   ].join(" ");

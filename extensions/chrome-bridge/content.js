@@ -309,6 +309,34 @@
     control.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
+  async function typeIntoControl(control, value, submitKey) {
+    setAgentState("typing", "typing");
+    await animateInteraction(control, "type").catch(() => undefined);
+    control.focus();
+    const nextValue = String(value || "");
+    if ("value" in control) {
+      control.value = "";
+    }
+    for (const character of nextValue) {
+      const key = character === "\n" ? "Enter" : character;
+      control.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true }));
+      if ("value" in control) {
+        control.value = `${control.value || ""}${character}`;
+      }
+      control.dispatchEvent(new Event("input", { bubbles: true }));
+      control.dispatchEvent(new KeyboardEvent("keyup", { key, bubbles: true }));
+      await sleep(24);
+    }
+    control.dispatchEvent(new Event("change", { bubbles: true }));
+    if (submitKey) {
+      control.dispatchEvent(new KeyboardEvent("keydown", { key: submitKey, bubbles: true }));
+      control.dispatchEvent(new KeyboardEvent("keyup", { key: submitKey, bubbles: true }));
+      if (submitKey === "Enter" && typeof control.form?.requestSubmit === "function") {
+        control.form.requestSubmit();
+      }
+    }
+  }
+
   function resolveButtonCandidates(targetKey) {
     const normalizedTarget = normalize(targetKey);
     const matched = (system?.buttons || []).find((button) =>
@@ -365,6 +393,23 @@
       window.scrollBy({ top: delta, behavior: "smooth" });
       await sleep(450);
       await completeCommand(command.command_id, true, { observation: buildObservation().payload, direction, amount });
+      return;
+    }
+
+    if (command.type === "type_text") {
+      const text = String(command.payload.text || "");
+      const targetKey = typeof command.payload.target_key === "string" ? command.payload.target_key : "";
+      const submitKey = typeof command.payload.submit_key === "string" ? command.payload.submit_key : "";
+      const control = targetKey ? findControlForKey(targetKey) : document.activeElement instanceof HTMLElement ? document.activeElement : null;
+      const resolvedControl =
+        control && (control.tagName === "INPUT" || control.tagName === "TEXTAREA" || control.tagName === "SELECT")
+          ? control
+          : Array.from(document.querySelectorAll("input, textarea, select")).find((candidate) => shouldIncludeInteractiveElement(candidate));
+      if (!resolvedControl) {
+        throw new Error("No input control available for type_text command");
+      }
+      await typeIntoControl(resolvedControl, text, submitKey);
+      await completeCommand(command.command_id, true, { observation: buildObservation().payload, text, target_key: targetKey || resolveSemanticKey(resolvedControl) });
       return;
     }
 
