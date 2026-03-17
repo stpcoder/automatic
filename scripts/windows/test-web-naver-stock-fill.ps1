@@ -3,9 +3,9 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-$queryText = Decode-Utf8Base64 "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
+$queryTextBase64 = "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
 $fieldValues = @{
-  query = $queryText
+  query_base64 = $queryTextBase64
 }
 
 $body = @{

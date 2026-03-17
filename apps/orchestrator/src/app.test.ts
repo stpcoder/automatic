@@ -350,6 +350,36 @@ test("debug agent loop can read stock result from a direct naver stock page", as
   process.env.WEB_WORKER_ADAPTER = previousAdapter;
 });
 
+test("debug agent loop decodes base64 Korean instruction and query payloads", async () => {
+  const previousAdapter = process.env.WEB_WORKER_ADAPTER;
+  delete process.env.WEB_WORKER_ADAPTER;
+  const app = await createApp();
+
+  const response = await app.inject({
+    method: "POST",
+    url: "/debug/agent/run-loop",
+    payload: {
+      instruction_base64: "64Sk7J2067KEIOyXtOyWtOyEnCDtlZjsnbTri4nsiqQg7KO86rCA65286rOgIOqygOyDie2VmOqzoCDsp4DquIgg7KO86rCAIOyVjOugpOykmA==",
+      context: {
+        system_id: "naver_search",
+        field_values: {
+          query_base64: "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
+        },
+        target_key: "search"
+      },
+      max_steps: 6
+    }
+  });
+
+  assert.equal(response.statusCode, 200);
+  assert.equal(response.json().ok, true);
+  assert.equal(response.json().completed, true);
+  assert.match(String(response.json().final_response), /SK hynix/i);
+
+  await app.close();
+  process.env.WEB_WORKER_ADAPTER = previousAdapter;
+});
+
 test("llm config resolves from opencode.ai config file", () => {
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "skh-agent-llm-"));
   const configDir = path.join(tempDir, "opencode.ai");

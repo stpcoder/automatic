@@ -280,6 +280,7 @@
   }
 
   function setControlValue(control, value) {
+    setAgentState("typing", "typing");
     animateInteraction(control, "type").catch(() => undefined);
     control.focus();
     control.value = value;
@@ -305,6 +306,7 @@
     if (!target) {
       throw new Error(`Clickable element not found: ${targetKey}`);
     }
+    setAgentState("acting", "click");
     return animateInteraction(target, "click").then(() => {
       target.click();
       return target;
@@ -354,7 +356,12 @@
     if (!showPointerOverlay || document.getElementById("__skh-agent-pointer__")) {
       return {
         pointer: document.getElementById("__skh-agent-pointer__"),
-        label: document.getElementById("__skh-agent-pointer-label__")
+        label: document.getElementById("__skh-agent-pointer-label__"),
+        halo: document.getElementById("__skh-agent-pointer-halo__"),
+        reader: document.getElementById("__skh-agent-reader__"),
+        state: "idle",
+        homeX: 34,
+        homeY: 34
       };
     }
 
@@ -363,17 +370,32 @@
     pointer.style.position = "fixed";
     pointer.style.left = "0";
     pointer.style.top = "0";
-    pointer.style.width = "28px";
-    pointer.style.height = "28px";
-    pointer.style.borderRadius = "999px";
-    pointer.style.background = "radial-gradient(circle at 35% 35%, rgba(255,255,255,0.95), rgba(35,84,255,0.9))";
-    pointer.style.boxShadow = "0 10px 30px rgba(35,84,255,0.35)";
-    pointer.style.border = "2px solid rgba(255,255,255,0.95)";
-    pointer.style.transform = "translate(-50%, -50%) scale(0.75)";
-    pointer.style.opacity = "0";
+    pointer.style.width = "24px";
+    pointer.style.height = "30px";
+    pointer.style.transform = "translate(-30%, -18%)";
+    pointer.style.opacity = "0.96";
     pointer.style.pointerEvents = "none";
-    pointer.style.transition = "opacity 180ms ease, transform 180ms ease";
+    pointer.style.transition = "opacity 180ms ease, transform 180ms ease, left 180ms ease, top 180ms ease";
     pointer.style.zIndex = "2147483647";
+    pointer.innerHTML =
+      '<svg viewBox="0 0 24 32" width="24" height="32" aria-hidden="true">' +
+      '<path d="M4 2 L4 26 L10 20 L14 29 L18 27 L14 18 L22 18 Z" fill="rgba(255,255,255,0.98)" stroke="rgba(35,84,255,0.95)" stroke-width="1.8" stroke-linejoin="round"/>' +
+      "</svg>";
+
+    const halo = document.createElement("div");
+    halo.id = "__skh-agent-pointer-halo__";
+    halo.style.position = "fixed";
+    halo.style.left = "0";
+    halo.style.top = "0";
+    halo.style.width = "44px";
+    halo.style.height = "44px";
+    halo.style.borderRadius = "999px";
+    halo.style.background = "radial-gradient(circle, rgba(35,84,255,0.22), rgba(35,84,255,0.02) 68%, transparent 72%)";
+    halo.style.transform = "translate(-50%, -50%) scale(0.9)";
+    halo.style.opacity = "0.72";
+    halo.style.pointerEvents = "none";
+    halo.style.transition = "opacity 180ms ease, transform 180ms ease, left 180ms ease, top 180ms ease";
+    halo.style.zIndex = "2147483646";
 
     const label = document.createElement("div");
     label.id = "__skh-agent-pointer-label__";
@@ -385,15 +407,36 @@
     label.style.background = "rgba(17,24,39,0.88)";
     label.style.color = "#fff";
     label.style.font = "12px/1.2 -apple-system,BlinkMacSystemFont,Segoe UI,sans-serif";
-    label.style.transform = "translate(18px, -10px)";
-    label.style.opacity = "0";
+    label.style.transform = "translate(16px, -12px)";
+    label.style.opacity = "0.92";
     label.style.pointerEvents = "none";
     label.style.transition = "opacity 180ms ease";
     label.style.zIndex = "2147483647";
+    label.textContent = "reading";
 
+    const reader = document.createElement("div");
+    reader.id = "__skh-agent-reader__";
+    reader.style.position = "fixed";
+    reader.style.left = "0";
+    reader.style.top = "0";
+    reader.style.width = "72px";
+    reader.style.height = "72px";
+    reader.style.borderRadius = "999px";
+    reader.style.border = "1px solid rgba(35,84,255,0.18)";
+    reader.style.background = "conic-gradient(from 0deg, rgba(35,84,255,0.18), rgba(35,84,255,0.02), rgba(35,84,255,0.18))";
+    reader.style.transform = "translate(-50%, -50%) scale(0.85)";
+    reader.style.opacity = "0.0";
+    reader.style.pointerEvents = "none";
+    reader.style.zIndex = "2147483645";
+
+    document.documentElement.appendChild(reader);
+    document.documentElement.appendChild(halo);
     document.documentElement.appendChild(pointer);
     document.documentElement.appendChild(label);
-    return { pointer, label };
+    const state = { pointer, label, halo, reader, state: "idle", homeX: 34, homeY: 34 };
+    positionOverlay(state, state.homeX, state.homeY);
+    startIdleAnimation(state);
+    return state;
   }
 
   function sleep(ms) {
@@ -417,15 +460,21 @@
     const rect = element.getBoundingClientRect();
     const pointer = overlayState.pointer;
     const label = overlayState.label;
+    const halo = overlayState.halo;
     const targetX = rect.left + rect.width / 2;
     const targetY = rect.top + Math.min(Math.max(rect.height / 2, 16), Math.max(rect.height - 8, 16));
     const caption = mode === "click" ? "click" : "type";
+    stopIdleAnimation(overlayState);
     label.textContent = caption;
     label.style.left = `${targetX}px`;
     label.style.top = `${targetY}px`;
     label.style.opacity = "1";
     pointer.style.opacity = "1";
-    pointer.style.transform = "translate(-50%, -50%) scale(1)";
+    pointer.style.transform = "translate(-30%, -18%) scale(1)";
+    if (halo) {
+      halo.style.opacity = "0.95";
+      halo.style.transform = "translate(-50%, -50%) scale(1)";
+    }
     pointer.animate(
       [
         { left: pointer.style.left || "32px", top: pointer.style.top || "32px" },
@@ -437,8 +486,7 @@
         fill: "forwards"
       }
     );
-    pointer.style.left = `${targetX}px`;
-    pointer.style.top = `${targetY}px`;
+    positionOverlay(overlayState, targetX, targetY);
     await sleep(pointerMoveDurationMs);
 
     if (mode === "click") {
@@ -458,19 +506,19 @@
       ripple.animate(
         [
           { transform: "translate(-50%, -50%) scale(0.8)", opacity: 0.95 },
-          { transform: "translate(-50%, -50%) scale(2.2)", opacity: 0 }
+          { transform: "translate(-50%, -50%) scale(3.1)", opacity: 0 }
         ],
         {
-          duration: pointerClickDurationMs,
+          duration: pointerClickDurationMs + 120,
           easing: "ease-out",
           fill: "forwards"
         }
       );
       pointer.animate(
         [
-          { transform: "translate(-50%, -50%) scale(1)" },
-          { transform: "translate(-50%, -50%) scale(0.88)" },
-          { transform: "translate(-50%, -50%) scale(1)" }
+          { transform: "translate(-30%, -18%) scale(1)" },
+          { transform: "translate(-30%, -18%) scale(0.88)" },
+          { transform: "translate(-30%, -18%) scale(1)" }
         ],
         {
           duration: pointerClickDurationMs,
@@ -480,10 +528,119 @@
       await sleep(pointerClickDurationMs);
       ripple.remove();
     } else {
-      await sleep(100);
+      pointer.animate(
+        [
+          { transform: "translate(-30%, -18%) scale(1)" },
+          { transform: "translate(-30%, -18%) scale(0.96)" },
+          { transform: "translate(-30%, -18%) scale(1)" }
+        ],
+        {
+          duration: 240,
+          easing: "ease-out"
+        }
+      );
+      await sleep(140);
     }
 
-    label.style.opacity = "0";
+    setAgentState("reading", "reading");
+    startIdleAnimation(overlayState);
+  }
+
+  function positionOverlay(state, x, y) {
+    if (state.pointer) {
+      state.pointer.style.left = `${x}px`;
+      state.pointer.style.top = `${y}px`;
+    }
+    if (state.halo) {
+      state.halo.style.left = `${x}px`;
+      state.halo.style.top = `${y}px`;
+    }
+    if (state.reader) {
+      state.reader.style.left = `${x}px`;
+      state.reader.style.top = `${y}px`;
+    }
+    if (state.label) {
+      state.label.style.left = `${x}px`;
+      state.label.style.top = `${y}px`;
+    }
+  }
+
+  function setAgentState(stateName, caption) {
+    if (!showPointerOverlay || !overlayState.pointer || !overlayState.label) {
+      return;
+    }
+    overlayState.state = stateName;
+    overlayState.label.textContent = caption;
+    overlayState.label.style.opacity = "0.92";
+    overlayState.pointer.style.opacity = "0.96";
+    if (overlayState.halo) {
+      overlayState.halo.style.opacity = stateName === "reading" ? "0.72" : "0.9";
+    }
+    if (overlayState.reader) {
+      overlayState.reader.style.opacity = stateName === "reading" ? "0.35" : "0";
+    }
+  }
+
+  function startIdleAnimation(state) {
+    if (!showPointerOverlay || !state.pointer || state.idleTimer) {
+      return;
+    }
+    setAgentState(state.state === "typing" || state.state === "acting" ? state.state : "reading", state.label?.textContent || "reading");
+    state.idleTimer = window.setInterval(() => {
+      if (!state.pointer) {
+        return;
+      }
+      const driftX = state.state === "reading" ? state.homeX + 2 : state.homeX;
+      const driftY = state.state === "reading" ? state.homeY + 1 : state.homeY;
+      positionOverlay(state, driftX, driftY);
+      state.pointer.animate(
+        [
+          { transform: "translate(-30%, -18%) scale(1)" },
+          { transform: "translate(-30%, -18%) scale(0.97)" },
+          { transform: "translate(-30%, -18%) scale(1)" }
+        ],
+        {
+          duration: 1400,
+          easing: "ease-in-out"
+        }
+      );
+      if (state.halo) {
+        state.halo.animate(
+          [
+            { transform: "translate(-50%, -50%) scale(0.92)", opacity: 0.55 },
+            { transform: "translate(-50%, -50%) scale(1.08)", opacity: 0.82 },
+            { transform: "translate(-50%, -50%) scale(0.92)", opacity: 0.55 }
+          ],
+          {
+            duration: 1500,
+            easing: "ease-in-out"
+          }
+        );
+      }
+      if (state.reader && state.state === "reading") {
+        state.reader.animate(
+          [
+            { transform: "translate(-50%, -50%) scale(0.8) rotate(0deg)", opacity: 0.18 },
+            { transform: "translate(-50%, -50%) scale(1.05) rotate(120deg)", opacity: 0.34 },
+            { transform: "translate(-50%, -50%) scale(0.8) rotate(240deg)", opacity: 0.18 }
+          ],
+          {
+            duration: 1800,
+            easing: "linear"
+          }
+        );
+      }
+    }, 1600);
+  }
+
+  function stopIdleAnimation(state) {
+    if (state.idleTimer) {
+      window.clearInterval(state.idleTimer);
+      state.idleTimer = null;
+    }
+    if (state.reader) {
+      state.reader.style.opacity = "0";
+    }
   }
 
   async function fetchBootstrap() {
@@ -499,6 +656,7 @@
 
   async function ensureActiveSystem() {
     while (true) {
+      setAgentState("reading", "reading");
       const bootstrap = await fetchBootstrap();
       if (!bootstrap) {
         if (!bootstrapWaitLogged) {
@@ -529,7 +687,9 @@
     try {
       system = await ensureActiveSystem();
       await registerSession();
+      setAgentState("reading", "reading");
       await pushObservation();
+      setAgentState("reading", "reading");
       const commands = await pullCommands();
       for (const command of commands) {
         try {
@@ -542,6 +702,7 @@
       // no-op: avoid noisy console output in user pages
     }
 
+    setAgentState("reading", "reading");
     await sleep(pollMs);
   }
 })();

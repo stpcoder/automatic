@@ -116,7 +116,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/debug/web/fill", async (request) => {
-    const body = request.body as { system_id?: string; session_id?: string; field_values?: Record<string, unknown> };
+    const rawBody = request.body as { system_id?: string; session_id?: string; field_values?: Record<string, unknown> };
+    const body = decodePayloadStrings(rawBody) as { system_id?: string; session_id?: string; field_values?: Record<string, unknown> };
     return webWorker.execute(buildDebugToolRequest("fill_web_form", "draft", {
       system_id: body.system_id ?? "security_portal",
       session_id: body.session_id,
@@ -159,7 +160,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/debug/web/extract", async (request) => {
-    const body = request.body as { system_id?: string; session_id?: string; goal?: string; query?: string };
+    const rawBody = request.body as { system_id?: string; session_id?: string; goal?: string; query?: string };
+    const body = decodePayloadStrings(rawBody) as { system_id?: string; session_id?: string; goal?: string; query?: string };
     return webWorker.execute(buildDebugToolRequest("extract_web_result", "preview", {
       system_id: body.system_id ?? "security_portal",
       session_id: body.session_id,
@@ -222,7 +224,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/debug/agent/run", async (request) => {
-    const body = request.body as { instruction?: string; context?: Record<string, unknown> };
+    const rawBody = request.body as { instruction?: string; context?: Record<string, unknown> };
+    const body = decodePayloadStrings(rawBody) as { instruction?: string; context?: Record<string, unknown> };
     const instruction = typeof body.instruction === "string" ? body.instruction : "";
     const context = typeof body.context === "object" && body.context !== null ? body.context : {};
     const plannerRequest = buildDebugPlannerRequest(instruction, context, [
@@ -366,7 +369,8 @@ export async function createApp(orchestrator?: OrchestratorService): Promise<Fas
   });
 
   app.post("/debug/agent/run-loop", async (request) => {
-    const body = request.body as { instruction?: string; context?: Record<string, unknown>; max_steps?: number };
+    const rawBody = request.body as { instruction?: string; context?: Record<string, unknown>; max_steps?: number };
+    const body = decodePayloadStrings(rawBody) as { instruction?: string; context?: Record<string, unknown>; max_steps?: number };
     const instruction = typeof body.instruction === "string" ? body.instruction : "";
     const context = typeof body.context === "object" && body.context !== null ? body.context : {};
     const maxSteps = typeof body.max_steps === "number" && body.max_steps > 0 ? Math.min(body.max_steps, 12) : 6;
@@ -884,4 +888,37 @@ function inferExpectedButtonFromSystem(systemId: string): string {
     return "Send";
   }
   return "Submit";
+}
+
+function decodePayloadStrings(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map((entry) => decodePayloadStrings(entry));
+  }
+
+  if (typeof value !== "object" || value === null) {
+    return value;
+  }
+
+  const record = value as Record<string, unknown>;
+  if (typeof record.utf8_base64 === "string") {
+    return decodeUtf8Base64(record.utf8_base64);
+  }
+
+  const decoded: Record<string, unknown> = {};
+  for (const [key, entry] of Object.entries(record)) {
+    if (key.endsWith("_base64") && typeof entry === "string") {
+      decoded[key.slice(0, -7)] = decodeUtf8Base64(entry);
+      continue;
+    }
+    decoded[key] = decodePayloadStrings(entry);
+  }
+  return decoded;
+}
+
+function decodeUtf8Base64(value: string): string {
+  try {
+    return Buffer.from(value, "base64").toString("utf8");
+  } catch {
+    return value;
+  }
 }

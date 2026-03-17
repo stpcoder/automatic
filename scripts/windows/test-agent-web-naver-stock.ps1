@@ -8,11 +8,11 @@ $sessions = Assert-AgentSessionForSystem -SystemId "naver_search"
 Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 Write-Host "[skh-agent] running multi-step agent loop for naver_search..."
 
-$queryText = Decode-Utf8Base64 "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
-$instructionText = Decode-Utf8Base64 "64Sk7J2067KEIOyXtOyWtOyEnCDtlZjsnbTri4nsiqQg7KO86rCA65286rOgIOqygOyDie2VmOqzoCDsp4DquIgg7KO86rCAIOyVjOugpOykmA=="
+$queryTextBase64 = "7ZWY7J2064uJ7IqkIOyjvOqwgA=="
+$instructionTextBase64 = "64Sk7J2067KEIOyXtOyWtOyEnCDtlZjsnbTri4nsiqQg7KO86rCA65286rOgIOqygOyDie2VmOqzoCDsp4DquIgg7KO86rCAIOyVjOugpOykmA=="
 
 $fieldValues = @{
-  query = $queryText
+  query_base64 = $queryTextBase64
 }
 
 $context = @{
@@ -22,7 +22,7 @@ $context = @{
 }
 
 $body = @{
-  instruction = $instructionText
+  instruction_base64 = $instructionTextBase64
   context = $context
   max_steps = 6
 }

@@ -8,12 +8,12 @@ $sessions = Assert-AgentSessionForSystem -SystemId "naver_stock"
 Write-Host "[skh-agent] session found: $($sessions[0].session_id)"
 Write-Host "[skh-agent] running direct stock extraction loop..."
 
-$instructionText = Decode-Utf8Base64 "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
+$instructionTextBase64 = "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
 $context = @{
   system_id = "naver_stock"
 }
 $body = @{
-  instruction = $instructionText
+  instruction_base64 = $instructionTextBase64
   context = $context
   max_steps = 4
 }

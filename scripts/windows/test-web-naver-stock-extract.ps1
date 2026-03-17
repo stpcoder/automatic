@@ -3,10 +3,10 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-$goalText = Decode-Utf8Base64 "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
+$goalTextBase64 = "7ZiE7J6sIO2OmOydtOyngOyXkOyEnCDtlZjsnbTri4nsiqQg7ZiE7J6sIOyjvOqwgCDslYzroKTspJg="
 $body = @{
   system_id = "naver_stock"
-  goal = $goalText
+  goal_base64 = $goalTextBase64
   query = ""
 }
 
