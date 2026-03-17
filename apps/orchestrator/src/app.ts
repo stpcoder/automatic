@@ -411,16 +411,16 @@ export async function createApp(
       const loopContext = {
         ...context,
         current_observation: summarizeObservationForPlanner(currentObservation) ?? null,
-        previous_observation: summarizeObservationForPlanner(previousObservation) ?? null,
+        previous_observation: summarizePreviousObservationForPlanner(previousObservation) ?? null,
         current_observation_signature: currentObservationSignature ?? null,
         last_tool_result: summarizeToolResultForPlanner(lastToolResult) ?? null,
         global_plan: globalPlan ?? null,
         current_step_plan: currentStepPlan ?? null,
         last_failure: lastFailure ?? null,
         stagnation_count: stagnationCount,
-        replan_history: replanHistory.slice(-6),
-        plan_history: planHistory.slice(-6),
-        step_history: steps.slice(-8).map((step) => ({
+        replan_history: replanHistory.slice(-3),
+        plan_history: planHistory.slice(-3),
+        step_history: steps.slice(-4).map((step) => ({
           step: step.step,
           tool: step.tool,
           success: step.success
@@ -1356,6 +1356,20 @@ function summarizeObservationForPlanner(observation: Record<string, unknown> | u
   };
 }
 
+function summarizePreviousObservationForPlanner(observation: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
+  if (!observation) {
+    return undefined;
+  }
+
+  return {
+    sessionId: typeof observation.sessionId === "string" ? observation.sessionId : undefined,
+    systemId: typeof observation.systemId === "string" ? observation.systemId : undefined,
+    title: typeof observation.title === "string" ? observation.title : undefined,
+    url: typeof observation.url === "string" ? observation.url : undefined,
+    summary: typeof observation.summary === "string" ? truncateForLog(observation.summary, 180) : undefined
+  };
+}
+
 function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | undefined): Record<string, unknown> | undefined {
   if (!toolResult) {
     return undefined;
@@ -1386,14 +1400,6 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
       label: typeof clickTarget.label === "string" ? truncateForLog(clickTarget.label, 120) : undefined,
       nearbyText: typeof clickTarget.nearbyText === "string" ? truncateForLog(clickTarget.nearbyText, 160) : undefined
     };
-  }
-
-  const observation =
-    typeof toolResult.observation === "object" && toolResult.observation !== null
-      ? (toolResult.observation as Record<string, unknown>)
-      : undefined;
-  if (observation) {
-    summary.observation = summarizeObservationForPlanner(observation);
   }
 
   return summary;

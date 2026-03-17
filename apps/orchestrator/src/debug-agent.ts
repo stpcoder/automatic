@@ -53,8 +53,7 @@ export function buildDebugPlannerRequest(
         content: JSON.stringify({
           instruction,
           context,
-          response_contract: buildPlannerResponseContract(),
-          available_tools: tools
+          available_tools: buildPlannerToolIndex(tools)
         })
       }
     ],
@@ -78,13 +77,19 @@ export function buildDebugLoopPlannerRequest(
         content: JSON.stringify({
           instruction,
           context,
-          response_contract: buildPlannerResponseContract(),
-          available_tools: tools
+          available_tools: buildPlannerToolIndex(tools)
         })
       }
     ],
     tools
   };
+}
+
+function buildPlannerToolIndex(tools: DebugAgentToolSpec[]): Array<Record<string, unknown>> {
+  return tools.map((tool) => ({
+    name: tool.name,
+    input_keys: Object.keys(tool.input_schema ?? {})
+  }));
 }
 
 class JsonDebugPlanner implements DebugPlannerClient {

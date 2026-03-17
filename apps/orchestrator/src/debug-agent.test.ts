@@ -20,7 +20,8 @@ test("debug planner request includes explicit global and step planning contract"
   assert.match(systemPrompt, /evaluation_previous_goal/i);
   assert.match(systemPrompt, /memory/i);
   assert.match(systemPrompt, /next_goal/i);
-  assert.match(userContent, /response_contract/);
+  assert.match(userContent, /available_tools/);
+  assert.doesNotMatch(userContent, /response_contract/);
 });
 
 test("parsePlannerJsonText recovers JSON wrapped in prose", () => {
