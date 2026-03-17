@@ -21,9 +21,14 @@ export class ExtensionBridgeAdapter implements WebAdapter {
   async openSystem(systemId: string, _pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {
     const resolvedSelection = selection ?? {};
     const selectorSystemId = systemId === "web_generic" || systemId === "unknown" ? undefined : systemId;
+    const hasExplicitTarget =
+      Boolean(resolvedSelection.targetUrl) ||
+      Boolean(resolvedSelection.urlContains) ||
+      Boolean(resolvedSelection.titleContains);
+    const selectorSessionId = hasExplicitTarget ? undefined : resolvedSelection.sessionId;
     if (resolvedSelection.targetUrl && resolvedSelection.openIfMissing) {
       const existing = browserBridgeCoordinator.getObservationBySelector({
-        sessionId: resolvedSelection.sessionId,
+        sessionId: selectorSessionId,
         systemId: selectorSystemId,
         urlContains: resolvedSelection.urlContains ?? resolvedSelection.targetUrl,
         titleContains: resolvedSelection.titleContains
@@ -36,7 +41,7 @@ export class ExtensionBridgeAdapter implements WebAdapter {
     const observation =
       resolvedSelection.sessionId || resolvedSelection.urlContains || resolvedSelection.titleContains || resolvedSelection.targetUrl
         ? await browserBridgeCoordinator.waitForObservationBySelector({
-            sessionId: resolvedSelection.sessionId,
+            sessionId: selectorSessionId,
             systemId: selectorSystemId,
             urlContains: resolvedSelection.urlContains ?? resolvedSelection.targetUrl,
             titleContains: resolvedSelection.titleContains
