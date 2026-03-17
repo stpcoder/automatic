@@ -81,13 +81,98 @@
     return style.display !== "none" && style.visibility !== "hidden" && rect.width > 0 && rect.height > 0;
   }
 
+  function isUtilityText(text) {
+    const normalized = normalize(text);
+    if (!normalized) {
+      return true;
+    }
+    const utilityMarkers = [
+      "바로가기",
+      "건너뛰기",
+      "skip to",
+      "skip navigation",
+      "서비스 메뉴",
+      "service menu",
+      "새소식",
+      "news",
+      "공지",
+      "알림"
+    ];
+    return utilityMarkers.some((marker) => normalized.includes(marker));
+  }
+
+  function isUtilityContainer(element) {
+    return Boolean(
+      element.closest("header, nav, footer, aside, [role='navigation'], [role='banner'], [data-skip], .skip, .blind, .u_skip")
+    );
+  }
+
+  function isMainContentContainer(element) {
+    return Boolean(
+      element.closest("main, article, section, form, [role='main'], [role='search'], [role='dialog'], #content, #container, #wrap")
+    );
+  }
+
+  function isElementNearViewportCenter(element) {
+    const rect = element.getBoundingClientRect();
+    const viewportHeight = window.innerHeight || document.documentElement.clientHeight || 0;
+    if (viewportHeight <= 0) {
+      return true;
+    }
+    return rect.top < viewportHeight * 0.9 && rect.bottom > viewportHeight * 0.05;
+  }
+
+  function shouldIncludeTextElement(element, text) {
+    if (!isVisibleElement(element)) {
+      return false;
+    }
+    if (!text || text.length < 2) {
+      return false;
+    }
+    if (isUtilityText(text)) {
+      return false;
+    }
+    if (isUtilityContainer(element) && !isMainContentContainer(element)) {
+      return false;
+    }
+    return isMainContentContainer(element) || isElementNearViewportCenter(element);
+  }
+
+  function shouldIncludeInteractiveElement(element) {
+    if (!isVisibleElement(element)) {
+      return false;
+    }
+
+    const tagName = element.tagName.toLowerCase();
+    if (tagName === "input" || tagName === "textarea" || tagName === "select" || tagName === "button") {
+      return true;
+    }
+
+    const text = String(getLabelText(element) || element.innerText || element.textContent || "").replace(/\s+/g, " ").trim();
+    if (!text || text.length < 2) {
+      return false;
+    }
+    if (isUtilityText(text)) {
+      return false;
+    }
+    if (isUtilityContainer(element) && !isMainContentContainer(element)) {
+      return false;
+    }
+    return isMainContentContainer(element) || isElementNearViewportCenter(element);
+  }
+
   function collectVisibleTextBlocks() {
-    const candidates = Array.from(
-      document.querySelectorAll("h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,[role='button'],[role='link']")
-    )
-      .filter((element) => isVisibleElement(element))
-      .map((element) => String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim())
-      .filter((text) => text.length >= 2);
+    const primarySelectors = "main h1, main h2, main h3, main h4, main h5, main p, main label, main button, main a, main th, main td, main li, main strong, main b, main [role='button'], main [role='link'], article h1, article h2, article h3, article p, article a, article li, form label, form button, form p, form [role='button'], [role='main'] h1, [role='main'] h2, [role='main'] p, [role='search'] label, [role='search'] button";
+    const fallbackSelectors = "h1,h2,h3,h4,h5,p,label,button,a,th,td,li,strong,b,[role='button'],[role='link']";
+    const primaryCandidates = Array.from(document.querySelectorAll(primarySelectors));
+    const fallbackCandidates = primaryCandidates.length >= 8 ? [] : Array.from(document.querySelectorAll(fallbackSelectors));
+    const candidates = [...primaryCandidates, ...fallbackCandidates]
+      .map((element) => ({
+        element,
+        text: String(element.innerText || element.textContent || "").replace(/\s+/g, " ").trim()
+      }))
+      .filter(({ element, text }) => shouldIncludeTextElement(element, text))
+      .map(({ text }) => text);
 
     const unique = [];
     const seen = new Set();
@@ -107,7 +192,7 @@
 
   function buildObservation() {
     const controls = Array.from(document.querySelectorAll("input, textarea, select, button, a[href], [role='button'], [role='link']"))
-      .filter((element) => isVisibleElement(element))
+      .filter((element) => shouldIncludeInteractiveElement(element))
       .map((element, index) => {
         const tagName = element.tagName.toLowerCase();
         const type =
