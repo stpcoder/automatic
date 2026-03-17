@@ -115,6 +115,7 @@ export class WebWorker implements ToolExecutor {
         session_id: result.observation.sessionId,
         target_key: targetKey,
         target_handle: targetHandle,
+        target: result.target,
         harness: this.adapter.harnessName,
         observation: result.observation
       },

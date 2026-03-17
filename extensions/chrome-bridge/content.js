@@ -609,25 +609,31 @@
     return matched ? [matched.label].concat(matched.aliases || []).map(normalize) : [normalizedTarget];
   }
 
-  function clickTarget(targetKey, targetHandle) {
+  function resolveClickTarget(targetKey, targetHandle) {
     const candidates = resolveButtonCandidates(targetKey);
     const normalizedTargetKey = normalize(targetKey);
     const buttons = buildInteractiveCandidates().filter((candidate) => candidate.type === "button" || candidate.type === "link");
-    const target =
-      buttons.find((candidate) => String(candidate.handle) === String(targetHandle || ""))?.element ||
-      buttons.find((candidate) => normalize(candidate.key) === normalizedTargetKey)?.element ||
-      buttons.find((candidate) => candidates.includes(normalize(candidate.label)))?.element;
-    if (!target) {
+    const resolved =
+      buttons.find((candidate) => String(candidate.handle) === String(targetHandle || "")) ||
+      buttons.find((candidate) => normalize(candidate.key) === normalizedTargetKey) ||
+      buttons.find((candidate) => candidates.includes(normalize(candidate.label)));
+    if (!resolved) {
       const available = buttons
         .slice(0, 8)
         .map((candidate) => `${candidate.key}:${candidate.label}`)
         .join(" | ");
       throw new Error(`Clickable element not found: ${targetKey}. Available clickable candidates: ${available}`);
     }
+    return resolved;
+  }
+
+  function clickTarget(targetKey, targetHandle) {
+    const resolved = resolveClickTarget(targetKey, targetHandle);
+    const target = resolved.element;
     setAgentState("acting", "click");
     return animateInteraction(target, "click").then(() => {
       simulateClickSequence(target);
-      return target;
+      return resolved;
     });
   }
 
@@ -716,10 +722,18 @@
           : String(command.payload.target_key || "");
       const targetHandle = String(command.payload.target_handle || "");
       const previousSignature = observationSignature();
+      const target = resolveClickTarget(targetKey, targetHandle);
       await completeCommand(command.command_id, true, {
         accepted: true,
         target_key: targetKey,
-        target_handle: targetHandle
+        target_handle: targetHandle,
+        target: {
+          handle: target.handle,
+          key: target.key,
+          label: target.label,
+          domPath: target.domPath,
+          nearbyText: target.nearbyText
+        }
       });
       await clickTarget(targetKey, targetHandle);
       await waitForObservationChange(previousSignature);

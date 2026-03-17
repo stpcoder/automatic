@@ -83,6 +83,13 @@ export class PageAgentDomAdapter implements WebAdapter {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
       targetHandle,
+      target: {
+        handle: target.handle,
+        key: target.key,
+        label: target.label,
+        domPath: target.domPath,
+        nearbyText: target.nearbyText
+      },
       observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
     };
   }

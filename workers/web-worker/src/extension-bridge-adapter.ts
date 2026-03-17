@@ -101,10 +101,23 @@ export class ExtensionBridgeAdapter implements WebAdapter {
       sessionId
         ? await this.observeAfterClick(systemId, sessionId, baselineUpdatedAt)
         : await this.observe(systemId, sessionId);
+    const targetResult =
+      result.result && typeof result.result.target === "object" && result.result.target !== null
+        ? (result.result.target as Record<string, unknown>)
+        : undefined;
     return {
       clickId: `WEBCLICK-${crypto.randomUUID()}`,
       targetKey,
       targetHandle,
+      target: targetResult
+        ? {
+            handle: typeof targetResult.handle === "string" ? targetResult.handle : undefined,
+            key: typeof targetResult.key === "string" ? targetResult.key : targetKey,
+            label: typeof targetResult.label === "string" ? targetResult.label : targetKey,
+            domPath: typeof targetResult.domPath === "string" ? targetResult.domPath : undefined,
+            nearbyText: typeof targetResult.nearbyText === "string" ? targetResult.nearbyText : undefined
+          }
+        : undefined,
       observation
     };
   }

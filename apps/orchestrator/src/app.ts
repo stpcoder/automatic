@@ -722,9 +722,23 @@ function logDebugToolResult(
       : typeof observation?.summary === "string"
         ? observation.summary
         : undefined;
+  const clickTarget =
+    typeof toolResult.output.target === "object" && toolResult.output.target !== null
+      ? (toolResult.output.target as Record<string, unknown>)
+      : undefined;
+  const clickTargetSummary =
+    clickTarget
+      ? formatClickTargetSummary({
+          handle: typeof clickTarget.handle === "string" ? clickTarget.handle : undefined,
+          key: typeof clickTarget.key === "string" ? clickTarget.key : undefined,
+          label: typeof clickTarget.label === "string" ? clickTarget.label : undefined,
+          nearbyText: typeof clickTarget.nearbyText === "string" ? clickTarget.nearbyText : undefined,
+          domPath: typeof clickTarget.domPath === "string" ? clickTarget.domPath : undefined
+        })
+      : "";
 
   console.log(
-    `[debug-agent:${mode}] step=${step} result=${toolResult.success ? "ok" : "fail"} session=${sessionId ?? "-"} title="${truncateForLog(title, 80)}" url="${truncateForLog(url, 120)}" summary="${truncateForLog(summary, 120)}" planner_ms=${timing.planner_ms ?? 0} tool_ms=${timing.tool_ms ?? 0}`
+    `[debug-agent:${mode}] step=${step} result=${toolResult.success ? "ok" : "fail"}${clickTargetSummary ? ` click=${clickTargetSummary}` : ""} session=${sessionId ?? "-"} title="${truncateForLog(title, 80)}" url="${truncateForLog(url, 120)}" summary="${truncateForLog(summary, 120)}" planner_ms=${timing.planner_ms ?? 0} tool_ms=${timing.tool_ms ?? 0}`
   );
 }
 
@@ -855,6 +869,36 @@ function stringForLog(value: unknown): string {
 function truncateForLog(value: unknown, maxLength: number): string {
   const text = typeof value === "string" ? value : value == null ? "-" : String(value);
   return text.length > maxLength ? `${text.slice(0, maxLength - 3)}...` : text;
+}
+
+function formatClickTargetSummary(target: {
+  handle?: string;
+  key?: string;
+  label?: string;
+  nearbyText?: string;
+  domPath?: string;
+}): string {
+  const parts: string[] = [];
+  if (target.label) {
+    parts.push(`"${truncateForLog(target.label, 40)}"`);
+  }
+  if (target.handle) {
+    parts.push(`[#${target.handle}]`);
+  }
+  if (target.key && (!target.label || normalizeLogToken(target.key) !== normalizeLogToken(target.label))) {
+    parts.push(`key=${truncateForLog(target.key, 30)}`);
+  }
+  if (target.nearbyText) {
+    parts.push(`near="${truncateForLog(target.nearbyText, 60)}"`);
+  }
+  if (target.domPath) {
+    parts.push(`path=${truncateForLog(target.domPath, 70)}`);
+  }
+  return parts.join(" ");
+}
+
+function normalizeLogToken(value: string): string {
+  return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
 
 function buildDebugToolRequest(toolName: string, mode: "draft" | "preview" | "commit", input: Record<string, unknown>) {

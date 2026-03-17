@@ -79,6 +79,13 @@ export interface ClickResult {
   clickId: string;
   targetKey: string;
   targetHandle?: string;
+  target?: {
+    handle?: string;
+    key: string;
+    label: string;
+    domPath?: string;
+    nearbyText?: string;
+  };
   observation: PageObservation;
 }
 
