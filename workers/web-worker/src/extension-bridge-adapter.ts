@@ -1,14 +1,36 @@
 import { browserBridgeCoordinator } from "../../../packages/browser-bridge/src/index.js";
 
 import { getWebSystemDefinition } from "./system-definitions.js";
-import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter, WebOpenSelection } from "./types.js";
 
 export class ExtensionBridgeAdapter implements WebAdapter {
   readonly harnessName = "extension_bridge";
 
-  async openSystem(systemId: string, _pageId?: string, sessionId?: string): Promise<PageObservation> {
-    const observation = await browserBridgeCoordinator.waitForObservation(systemId, undefined, sessionId);
-    return this.toPageObservation(systemId, observation, sessionId);
+  async openSystem(systemId: string, _pageId?: string, selection?: WebOpenSelection): Promise<PageObservation> {
+    const resolvedSelection = selection ?? {};
+    if (resolvedSelection.targetUrl && resolvedSelection.openIfMissing) {
+      const existing = browserBridgeCoordinator.getObservationBySelector({
+        sessionId: resolvedSelection.sessionId,
+        systemId,
+        urlContains: resolvedSelection.urlContains ?? resolvedSelection.targetUrl,
+        titleContains: resolvedSelection.titleContains
+      });
+      if (!existing) {
+        browserBridgeCoordinator.enqueueOpenTab(resolvedSelection.targetUrl);
+      }
+    }
+
+    const observation =
+      resolvedSelection.sessionId || resolvedSelection.urlContains || resolvedSelection.titleContains || resolvedSelection.targetUrl
+        ? await browserBridgeCoordinator.waitForObservationBySelector({
+            sessionId: resolvedSelection.sessionId,
+            systemId,
+            urlContains: resolvedSelection.urlContains ?? resolvedSelection.targetUrl,
+            titleContains: resolvedSelection.titleContains
+          })
+        : await browserBridgeCoordinator.waitForObservation(systemId);
+
+    return this.toPageObservation(systemId, observation, resolvedSelection.sessionId);
   }
 
   async observe(systemId: string, sessionId?: string): Promise<PageObservation> {

@@ -1,5 +1,5 @@
 import { buildHarnessPage } from "./system-definitions.js";
-import type { ClickResult, FillResult, HarnessPageDefinition, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import type { ClickResult, FillResult, HarnessPageDefinition, PageObservation, PreviewResult, SubmitResult, WebAdapter, WebOpenSelection } from "./types.js";
 
 interface SessionState {
   sessionId: string;
@@ -12,7 +12,7 @@ export class PageAgentDomAdapter implements WebAdapter {
   readonly harnessName = "page_agent_dom";
   private readonly sessions = new Map<string, SessionState>();
 
-  async openSystem(systemId: string, pageId?: string): Promise<PageObservation> {
+  async openSystem(systemId: string, pageId?: string, _selection?: WebOpenSelection): Promise<PageObservation> {
     const page = this.buildDefaultPage(systemId, pageId);
     this.sessions.set(systemId, { sessionId: `page-agent-${crypto.randomUUID()}`, systemId, page });
     const session = this.getSession(systemId);

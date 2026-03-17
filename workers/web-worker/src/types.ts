@@ -63,9 +63,17 @@ export interface ExtractResult {
   summary: string;
 }
 
+export interface WebOpenSelection {
+  sessionId?: string;
+  targetUrl?: string;
+  urlContains?: string;
+  titleContains?: string;
+  openIfMissing?: boolean;
+}
+
 export interface WebAdapter {
   readonly harnessName: string;
-  openSystem(systemId: string, pageId?: string, sessionId?: string): Promise<PageObservation>;
+  openSystem(systemId: string, pageId?: string, selection?: WebOpenSelection): Promise<PageObservation>;
   observe(systemId: string, sessionId?: string): Promise<PageObservation>;
   fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
   clickElement(systemId: string, targetKey: string, sessionId?: string): Promise<ClickResult>;

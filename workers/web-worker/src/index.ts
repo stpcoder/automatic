@@ -45,7 +45,17 @@ export class WebWorker implements ToolExecutor {
     const systemId = String(request.input.system_id ?? "unknown");
     const pageId = typeof request.input.page_id === "string" ? request.input.page_id : undefined;
     const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
-    const observation = await this.adapter.openSystem(systemId, pageId, sessionId);
+    const targetUrl = typeof request.input.target_url === "string" ? request.input.target_url : undefined;
+    const urlContains = typeof request.input.url_contains === "string" ? request.input.url_contains : undefined;
+    const titleContains = typeof request.input.title_contains === "string" ? request.input.title_contains : undefined;
+    const openIfMissing = request.input.open_if_missing === true;
+    const observation = await this.adapter.openSystem(systemId, pageId, {
+      sessionId,
+      targetUrl,
+      urlContains,
+      titleContains,
+      openIfMissing
+    });
     return {
       request_id: request.request_id,
       success: true,
