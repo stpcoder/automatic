@@ -75,7 +75,7 @@
     "win:test:4": "npm run win:test:agent:scenario:google-price-detail",
     "win:test:5": "npm run win:test:agent:scenario:mail-keyword-summary",
     "win:test:6": "npm run win:test:agent:scenario:mail-ae-school-draft",
-    "win:test:7": "npm run win:test:agent:web-naver-stock-direct",
+    "win:test:7": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-mail-prompt.ps1",
     "win:test:8": "npm run win:test:agent:scenario:naver-shopping-price",
     "win:test:9": "npm run win:test:agent:scenario:mail-request-watch",
     "win:test:10": "npm run win:test:agent:scenario:current-page-summary",
