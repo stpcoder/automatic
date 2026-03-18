@@ -9,7 +9,7 @@ $context = @{
   approved_to_send = $true
 }
 
-Write-Host "[skh-agent] running mail scenario: draft -> send -> watch..."
+Write-Host "[skh-agent] running mail watch scenario..."
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
   instruction_base64 = $instructionBase64
   context = $context

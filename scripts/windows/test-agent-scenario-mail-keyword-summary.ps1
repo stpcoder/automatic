@@ -9,7 +9,7 @@ $context = @{
   keyword_base64 = "YWUgc2Nob29s"
 }
 
-Write-Host "[skh-agent] running mail scenario: search -> read -> summarize..."
+Write-Host "[skh-agent] running mail summary scenario..."
 $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-loop") -Body @{
   instruction_base64 = $instructionBase64
   context = $context
