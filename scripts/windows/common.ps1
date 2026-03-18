@@ -327,8 +327,18 @@ function Confirm-AndMaybeSendDraft {
     }
   }
 
-  $sendResult = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/send") -Body @{
-    draft_id = $draftId
+  try {
+    $sendResult = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/send") -Body @{
+      draft_id = $draftId
+    }
+  } catch {
+    $message = $_.Exception.Message
+    Write-Host "[skh-agent] send failed: $message"
+    return @{
+      sent = $false
+      draft_id = $draftId
+      error = $message
+    }
   }
   if ($sendResult.success -ne $true) {
     $message = if ($sendResult.output.error) { [string]$sendResult.output.error } else { "Draft send failed." }
