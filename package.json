@@ -27,6 +27,8 @@
     "win:advance-case": "powershell -ExecutionPolicy Bypass -File scripts/windows/advance-case.ps1",
     "win:approve-latest": "powershell -ExecutionPolicy Bypass -File scripts/windows/approve-latest.ps1",
     "win:llm:init": "powershell -ExecutionPolicy Bypass -File scripts/windows/init-llm-config.ps1",
+    "win:llm:models": "powershell -ExecutionPolicy Bypass -File scripts/windows/llm-list-models.ps1",
+    "win:llm:bench": "powershell -ExecutionPolicy Bypass -File scripts/windows/llm-bench.ps1",
     "win:debug:overview": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-overview.ps1",
     "win:debug:web:open": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-open.ps1",
     "win:debug:web:fill": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-web-fill.ps1",
