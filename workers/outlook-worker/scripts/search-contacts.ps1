@@ -206,7 +206,6 @@ function Get-MatchScore {
   $listNameNormalized = Normalize-SearchText -Value $ListName
   if ($sourceNormalized.Contains("directoryresolved")) { $score += 120 }
   elseif ($sourceNormalized.Contains("directory")) { $score += 80 }
-  elseif ($sourceNormalized.Contains("contacts")) { $score += 50 }
   elseif ($sourceNormalized.Contains("recentmail")) { $score += 20 }
 
   if (
@@ -387,42 +386,6 @@ foreach ($store in $stores) {
       }
     }
   } catch {
-  }
-
-  try {
-    $contactsFolder = $store.GetDefaultFolder(10)
-    if ($null -eq $contactsFolder) { continue }
-    $items = $contactsFolder.Items
-    if ($null -eq $items) { continue }
-
-    $maxScan = [Math]::Min($items.Count, 600)
-    for ($index = 1; $index -le $maxScan; $index++) {
-      try {
-        $item = $items.Item($index)
-        if ($null -eq $item) { continue }
-        $itemClass = 0
-        try { $itemClass = [int]$item.Class } catch { $itemClass = 0 }
-        if ($itemClass -ne 40) { continue }
-
-        $name = Get-SafeString -Value $item.FullName
-        $email = Get-SafeString -Value $item.Email1Address
-        $company = Get-SafeString -Value $item.CompanyName
-        $department = Get-SafeString -Value $item.Department
-        $jobTitle = Get-SafeString -Value $item.JobTitle
-        Add-Result `
-          -Name $name `
-          -Email $email `
-          -Source "contacts" `
-          -Company $company `
-          -Department $department `
-          -JobTitle $jobTitle `
-          -EntryId (Get-SafeString -Value $item.EntryID)
-      } catch {
-        continue
-      }
-    }
-  } catch {
-    continue
   }
 
   if ($results.Count -ge $maxResults) {

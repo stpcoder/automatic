@@ -469,7 +469,7 @@ export async function createApp(
       },
       {
         name: "search_outlook_contacts",
-        description: "Search Outlook contacts and organizational directory by person, team, or email query.",
+        description: "Search recent mail participants and the organizational directory by person, team, or email query.",
         input_schema: {
           query: { type: "string" },
           max_results: { type: "number" }
@@ -1531,7 +1531,7 @@ function buildDebugToolSpecs() {
     },
     {
       name: "search_outlook_contacts",
-      description: "Search Outlook contacts and organizational directory by person, team, or email query.",
+      description: "Search recent mail participants and the organizational directory by person, team, or email query.",
       input_schema: {
         query: { type: "string" },
         max_results: { type: "number" }
