@@ -3,11 +3,10 @@ param()
 . (Join-Path $PSScriptRoot "common.ps1")
 Set-AgentEnvironment | Out-Null
 
-$instruction = "Outlook에서 ae school 관련 이메일을 찾아 가장 관련 높은 메일을 읽고 핵심 내용을 요약해줘"
-$instructionBase64 = Encode-Utf8Base64 -Value $instruction
+$instructionBase64 = "T3V0bG9va+yXkOyEnCBhZSBzY2hvb2wg6rSA66GoIOydtOuplOydvOydhCDssL7slYQg6rCA7J6lIOq0gOugqCDrhpLsnYAg66mU7J287J2EIOydveqzoCDtlbXsi6wg64K07Jqp7J2EIOyalOyVve2VtOykmA=="
 
 $context = @{
-  keyword = "ae school"
+  keyword_base64 = "YWUgc2Nob29s"
 }
 
 Write-Host "[skh-agent] running mail scenario: search -> read -> summarize..."
