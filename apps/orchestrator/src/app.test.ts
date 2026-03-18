@@ -42,7 +42,6 @@ function buildPlannerOutput(
 ): PlannerOutput {
   return {
     objective,
-    rationale: "Selected by test planner",
     evaluation_previous_goal: "No previous step to evaluate yet",
     memory: [],
     next_goal: objective,

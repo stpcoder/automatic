@@ -89,7 +89,6 @@ export class LegacyOpenAICompatiblePlannerClient implements PlannerClient {
     if (toolCall?.function?.name) {
       return plannerOutputSchema.parse({
         objective: "LLM generated tool action",
-        rationale: "Parsed from legacy tool_call response",
         evaluation_previous_goal: "No previous step evaluated",
         memory: [],
         next_goal: "Execute the selected tool action",
@@ -165,7 +164,6 @@ export class AISDKOpenAICompatiblePlannerClient implements PlannerClient {
     if (toolCall?.toolName) {
       return plannerOutputSchema.parse({
         objective: "LLM generated tool action",
-        rationale: "Parsed from AI SDK tool call response",
         evaluation_previous_goal: "No previous step evaluated",
         memory: [],
         next_goal: "Execute the selected tool action",

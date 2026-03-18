@@ -376,7 +376,6 @@ function buildLoopSystemPrompt(): string {
 function buildPlannerResponseContract(): Record<string, unknown> {
   return {
     objective: "Immediate goal for this turn",
-    rationale: "Why this next action is correct right now",
     evaluation_previous_goal: "Short evaluation of the previous action or current state",
     memory: ["Short durable facts learned so far"],
     next_goal: "Immediate milestone to reach after this planning step",

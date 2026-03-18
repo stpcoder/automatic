@@ -26,7 +26,7 @@ test("debug planner request includes explicit global and step planning contract"
 
 test("parsePlannerJsonText recovers JSON wrapped in prose", () => {
   const parsed = parsePlannerJsonText(
-    'The search plan is below.\n{"objective":"Search","rationale":"Need result","next_action":{"tool":"open_system","input":{}},"requires_approval":false,"expected_transition":"RUNNING"}'
+    'The search plan is below.\n{"objective":"Search","next_action":{"tool":"open_system","input":{}},"requires_approval":false,"expected_transition":"RUNNING"}'
   ) as Record<string, unknown>;
 
   assert.equal(parsed.objective, "Search");
@@ -34,7 +34,7 @@ test("parsePlannerJsonText recovers JSON wrapped in prose", () => {
 
 test("parsePlannerJsonText recovers fenced JSON with smart quotes", () => {
   const parsed = parsePlannerJsonText(
-    '```json\n{\n  “objective”: “Search”,\n  “rationale”: “Need result”,\n  “next_action”: { “tool”: “open_system”, “input”: {} },\n  “requires_approval”: false,\n  “expected_transition”: “RUNNING”\n}\n```'
+    '```json\n{\n  “objective”: “Search”,\n  “next_action”: { “tool”: “open_system”, “input”: {} },\n  “requires_approval”: false,\n  “expected_transition”: “RUNNING”\n}\n```'
   ) as Record<string, unknown>;
 
   assert.equal(parsed.expected_transition, "RUNNING");
@@ -43,7 +43,7 @@ test("parsePlannerJsonText recovers fenced JSON with smart quotes", () => {
 test("debug planner normalizes SUCCEEDED transition aliases before schema validation", () => {
   const parsed = normalizePlannerOutputForSchema(
     parsePlannerJsonText(
-      '{"objective":"Finish the task","rationale":"The answer is already visible","next_action":{"tool":"finish_task","input":{"summary":"Done"}},"requires_approval":false,"expected_transition":"SUCCEEDED"}'
+      '{"objective":"Finish the task","next_action":{"tool":"finish_task","input":{"summary":"Done"}},"requires_approval":false,"expected_transition":"SUCCEEDED"}'
     )
   );
   const result = plannerOutputSchema.parse(parsed);

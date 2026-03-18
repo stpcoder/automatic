@@ -651,13 +651,12 @@ export async function createApp(
           : currentStepPlan;
       planHistory.push({
         step: stepIndex,
-          objective: plannerOutput.objective,
-          rationale: plannerOutput.rationale,
-          evaluation_previous_goal: plannerOutput.evaluation_previous_goal,
-          memory: plannerOutput.memory,
-          next_goal: plannerOutput.next_goal,
-          global_plan: globalPlan ?? null,
-          step_plan: currentStepPlan ?? null
+        objective: plannerOutput.objective,
+        evaluation_previous_goal: plannerOutput.evaluation_previous_goal,
+        memory: plannerOutput.memory,
+        next_goal: plannerOutput.next_goal,
+        global_plan: globalPlan ?? null,
+        step_plan: currentStepPlan ?? null
       });
 
       const normalizedInput = normalizeDebugToolInput(plannerOutput.next_action.tool, plannerOutput.next_action.input, loopContext, instruction);
@@ -948,9 +947,6 @@ function logDebugPlannerDecision(
   console.log(`[${step}] GOAL  ${planSummary.primary}`);
   const toolHint = formatToolHint(toolName, normalizedInput);
   console.log(`[${step}] ACT   ${toolName}${toolHint ? ` -> ${toolHint}` : ""}`);
-  if (planSummary.why) {
-    console.log(`[${step}] WHY   ${planSummary.why}`);
-  }
   const plannerIo = formatPlannerIoSummary(plannerTrace);
   if (plannerIo) {
     console.log(`[${step}] IO    ${plannerIo}`);
@@ -1154,9 +1150,8 @@ function classifyDebugError(error: unknown): ClassifiedDebugError {
   return { code: "unknown_error", message };
 }
 
-function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; why?: string } {
+function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string } {
   let primary = "";
-  let why = "";
 
   if (typeof plannerOutput.objective === "string" && plannerOutput.objective.trim().length > 0) {
     primary = truncateForLog(plannerOutput.objective, 100);
@@ -1179,35 +1174,15 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; 
       : undefined;
   if (stepPlan) {
     const currentGoal = typeof stepPlan.current_goal === "string" ? stepPlan.current_goal : "";
-    const actionPlan = Array.isArray(stepPlan.action_plan)
-      ? stepPlan.action_plan
-          .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-          .slice(0, 2)
-      : [];
     if (currentGoal) {
       if (!primary) {
         primary = truncateForLog(currentGoal, 100);
       }
     }
-    if (actionPlan.length > 0 && !why) {
-      why = truncateForLog(actionPlan.join(" | "), 120);
-    }
-  }
-
-  if (typeof plannerOutput.rationale === "string" && plannerOutput.rationale.trim().length > 0) {
-    why = truncateForLog(plannerOutput.rationale, 110);
-  } else if (
-    typeof plannerOutput.evaluation_previous_goal === "string" &&
-    plannerOutput.evaluation_previous_goal.trim().length > 0
-  ) {
-    why = truncateForLog(plannerOutput.evaluation_previous_goal, 110);
-  } else if (typeof plannerOutput.next_goal === "string" && plannerOutput.next_goal.trim().length > 0) {
-    why = truncateForLog(plannerOutput.next_goal, 110);
   }
 
   return {
-    primary: primary || "Continue the task",
-    why: why || undefined
+    primary: primary || "Continue the task"
   };
 }
 
@@ -2038,7 +2013,7 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
   if (Array.isArray(toolResult.messages)) {
     summary.messages = toolResult.messages
       .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
-      .slice(0, 5)
+      .slice(0, 3)
       .map((item) => ({
         entry_id: typeof item.entry_id === "string" ? item.entry_id : undefined,
         conversation_id: typeof item.conversation_id === "string" ? item.conversation_id : undefined,
