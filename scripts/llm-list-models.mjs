@@ -2,7 +2,15 @@ import { fetchJson, parseCliArgs, resolveLlmConfig, trimTrailingSlash } from "./
 
 function normalizeModelsPayload(payload) {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload.map((entry) => {
+      if (typeof entry === "string") {
+        return { id: entry };
+      }
+      if (entry && typeof entry === "object") {
+        return entry;
+      }
+      return { id: String(entry ?? "") };
+    });
   }
   if (Array.isArray(payload?.data)) {
     return payload.data;
