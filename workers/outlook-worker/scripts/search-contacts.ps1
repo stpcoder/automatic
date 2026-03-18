@@ -103,6 +103,7 @@ function Get-DirectoryMetadata {
 
 $results = @{}
 $seen = @{}
+$resolvedEnough = $false
 
 function Normalize-SearchText {
   param(
@@ -299,6 +300,7 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
         -JobTitle (Get-SafeString -Value $meta.job_title) `
         -Alias (Get-SafeString -Value $meta.alias) `
         -ListName "resolved"
+      $resolvedEnough = $true
     }
   } catch {
   }
@@ -312,6 +314,10 @@ try {
 }
 
 foreach ($store in $stores) {
+  if ($results.Count -ge $maxResults -and $resolvedEnough) {
+    break
+  }
+
   try {
     foreach ($folderId in @(6, 5)) {
       try {
@@ -326,7 +332,7 @@ foreach ($store in $stores) {
         } catch {
         }
 
-        $maxScan = [Math]::Min($items.Count, 800)
+        $maxScan = [Math]::Min($items.Count, 250)
         for ($index = 1; $index -le $maxScan; $index++) {
           try {
             $item = $items.Item($index)
@@ -375,6 +381,10 @@ foreach ($store in $stores) {
       } catch {
         continue
       }
+
+      if ($results.Count -ge $maxResults) {
+        break
+      }
     }
   } catch {
   }
@@ -385,7 +395,7 @@ foreach ($store in $stores) {
     $items = $contactsFolder.Items
     if ($null -eq $items) { continue }
 
-    $maxScan = [Math]::Min($items.Count, 2000)
+    $maxScan = [Math]::Min($items.Count, 600)
     for ($index = 1; $index -le $maxScan; $index++) {
       try {
         $item = $items.Item($index)
@@ -414,17 +424,48 @@ foreach ($store in $stores) {
   } catch {
     continue
   }
+
+  if ($results.Count -ge $maxResults) {
+    break
+  }
 }
 
 if (-not [string]::IsNullOrWhiteSpace($query)) {
   try {
-    $addressLists = @($namespace.AddressLists)
+    $allAddressLists = @($namespace.AddressLists)
+    $preferredAddressLists = @()
+    $fallbackAddressLists = @()
+
+    foreach ($addressList in $allAddressLists) {
+      $listName = Get-SafeString -Value $addressList.Name
+      $normalizedListName = Normalize-SearchText -Value $listName
+      if (
+        $normalizedListName.Contains("globaladdresslist") -or
+        $normalizedListName.Contains("allusers") -or
+        $normalizedListName.Contains("organiz") -or
+        $normalizedListName.Contains((Normalize-SearchText -Value $addressBookTokenKorean)) -or
+        $normalizedListName.Contains((Normalize-SearchText -Value $organizationTokenKorean))
+      ) {
+        $preferredAddressLists += ,$addressList
+      } else {
+        $fallbackAddressLists += ,$addressList
+      }
+    }
+
+    $addressLists = @($preferredAddressLists + $fallbackAddressLists)
     foreach ($addressList in $addressLists) {
+      if ($results.Count -ge $maxResults -and $resolvedEnough) {
+        break
+      }
       $listName = Get-SafeString -Value $addressList.Name
       try {
         $entries = $addressList.AddressEntries
         if ($null -eq $entries) { continue }
-        $maxScan = [Math]::Min($entries.Count, 5000)
+        $maxScan = if ($preferredAddressLists -contains $addressList) {
+          [Math]::Min($entries.Count, 1200)
+        } else {
+          [Math]::Min($entries.Count, 300)
+        }
         for ($index = 1; $index -le $maxScan; $index++) {
           try {
             $entry = $entries.Item($index)
@@ -444,6 +485,9 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
           } catch {
             continue
           }
+        }
+        if ($results.Count -ge $maxResults) {
+          break
         }
       } catch {
         continue
