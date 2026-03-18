@@ -4,9 +4,9 @@ param()
 Set-AgentEnvironment | Out-Null
 
 Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run") -Body @{
-  instruction = "ae school 키워드가 들어간 메일을 조회해줘"
+  instruction_base64 = "YWUgc2Nob29sIO2CpOybjOuTnOqwgCDrk6TslrTqsIQg66mU7J287J2EIOyhsO2ajO2VtOykmA=="
   context = @{
-    keyword = "ae school"
+    keyword_base64 = "YWUgc2Nob29s"
     max_results = 10
   }
 } | ConvertTo-Json -Depth 20
