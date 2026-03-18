@@ -144,7 +144,9 @@ function Get-MatchScore {
     [string]$Company,
     [string]$Department,
     [string]$JobTitle,
-    [string]$Alias
+    [string]$Alias,
+    [string]$Source = "",
+    [string]$ListName = ""
   )
 
   if ([string]::IsNullOrWhiteSpace($QueryText)) {
@@ -197,6 +199,23 @@ function Get-MatchScore {
     }
   }
 
+  $sourceNormalized = Normalize-SearchText -Value $Source
+  $listNameNormalized = Normalize-SearchText -Value $ListName
+  if ($sourceNormalized.Contains("directoryresolved")) { $score += 120 }
+  elseif ($sourceNormalized.Contains("directory")) { $score += 80 }
+  elseif ($sourceNormalized.Contains("contacts")) { $score += 50 }
+  elseif ($sourceNormalized.Contains("recentmail")) { $score += 20 }
+
+  if (
+    $listNameNormalized.Contains("globaladdresslist") -or
+    $listNameNormalized.Contains("allusers") -or
+    $listNameNormalized.Contains("organiz") -or
+    $listNameNormalized.Contains("주소록") -or
+    $listNameNormalized.Contains("조직")
+  ) {
+    $score += 40
+  }
+
   return $score
 }
 
@@ -209,14 +228,15 @@ function Add-Result {
     [string]$Department,
     [string]$JobTitle,
     [string]$EntryId = "",
-    [string]$Alias = ""
+    [string]$Alias = "",
+    [string]$ListName = ""
   )
 
   if ([string]::IsNullOrWhiteSpace($Name) -and [string]::IsNullOrWhiteSpace($Email)) {
     return
   }
 
-  $score = Get-MatchScore -QueryText $query -Name $Name -Email $Email -Company $Company -Department $Department -JobTitle $JobTitle -Alias $Alias
+  $score = Get-MatchScore -QueryText $query -Name $Name -Email $Email -Company $Company -Department $Department -JobTitle $JobTitle -Alias $Alias -Source $Source -ListName $ListName
   if ($score -le 0) {
     return
   }
@@ -236,6 +256,7 @@ function Add-Result {
     job_title = $JobTitle
     entry_id = $EntryId
     alias = $Alias
+    list_name = $ListName
     score = $score
     display = if (-not [string]::IsNullOrWhiteSpace($Email)) { "$Name <$Email>" } else { $Name }
   }
@@ -274,7 +295,8 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
         -Company (Get-SafeString -Value $meta.company) `
         -Department (Get-SafeString -Value $meta.department) `
         -JobTitle (Get-SafeString -Value $meta.job_title) `
-        -Alias (Get-SafeString -Value $meta.alias)
+        -Alias (Get-SafeString -Value $meta.alias) `
+        -ListName "resolved"
     }
   } catch {
   }
@@ -397,9 +419,6 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
     $addressLists = @($namespace.AddressLists)
     foreach ($addressList in $addressLists) {
       $listName = Get-SafeString -Value $addressList.Name
-      $isPreferredList = $listName -match "Global Address List|All Users|Offline Global Address List|주소록|조직"
-      if (-not $isPreferredList) { continue }
-
       try {
         $entries = $addressList.AddressEntries
         if ($null -eq $entries) { continue }
@@ -418,7 +437,8 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
               -Company (Get-SafeString -Value $meta.company) `
               -Department (Get-SafeString -Value $meta.department) `
               -JobTitle (Get-SafeString -Value $meta.job_title) `
-              -Alias (Get-SafeString -Value $meta.alias)
+              -Alias (Get-SafeString -Value $meta.alias) `
+              -ListName $listName
           } catch {
             continue
           }
@@ -447,6 +467,7 @@ $rankedResults = @(
         job_title = $_.job_title
         entry_id = $_.entry_id
         alias = $_.alias
+        list_name = $_.list_name
         display = $_.display
       }
     }

@@ -34,6 +34,7 @@ interface ContactCandidate {
   entry_id?: string;
   alias?: string;
   display?: string;
+  list_name?: string;
 }
 
 export class OutlookWorker implements ToolExecutor {
