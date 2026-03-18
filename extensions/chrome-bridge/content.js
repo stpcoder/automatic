@@ -49,12 +49,14 @@
     }
   }
 
-  function safeStorageSet(value) {
+  async function safeStorageSet(value) {
     try {
-      chrome.storage.local.set(value);
-      return true;
+      await chrome.storage.local.set(value);
+      return;
     } catch (error) {
-      return !markExtensionContextInvalidated(error);
+      if (!markExtensionContextInvalidated(error)) {
+        throw error;
+      }
     }
   }
 
@@ -1152,19 +1154,15 @@
       window.clearTimeout(pointerStateSaveTimer);
     }
     pointerStateSaveTimer = window.setTimeout(() => {
-      try {
-        safeStorageSet({
-          [`skh-pointer-state:${sessionId}`]: {
-            x: state.currentX,
-            y: state.currentY,
-            homeX: state.homeX,
-            homeY: state.homeY,
-            updatedAt: Date.now()
-          }
-        });
-      } catch (_error) {
-        // no-op: safeStorageSet already handles invalidated extension context
-      }
+      void safeStorageSet({
+        [`skh-pointer-state:${sessionId}`]: {
+          x: state.currentX,
+          y: state.currentY,
+          homeX: state.homeX,
+          homeY: state.homeY,
+          updatedAt: Date.now()
+        }
+      }).catch(() => undefined);
       pointerStateSaveTimer = null;
     }, 30);
   }
