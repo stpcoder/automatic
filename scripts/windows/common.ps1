@@ -146,10 +146,7 @@ function Invoke-AgentApi {
     try {
       $jsonBody = $Body | ConvertTo-Json -Depth 20 -Compress
       $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
-      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -Headers @{
-        Connection = "close"
-        Accept = "application/json"
-      } -TimeoutSec 180 -Body $utf8Body
+      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -DisableKeepAlive -TimeoutSec 180 -Body $utf8Body
     }
     catch {
       $detail = $_.ErrorDetails.Message
@@ -161,10 +158,7 @@ function Invoke-AgentApi {
   }
 
   try {
-    return Invoke-RestMethod -Method $Method -Uri $Uri -Headers @{
-      Connection = "close"
-      Accept = "application/json"
-    } -TimeoutSec 180
+    return Invoke-RestMethod -Method $Method -Uri $Uri -DisableKeepAlive -TimeoutSec 180
   }
   catch {
     $detail = $_.ErrorDetails.Message
