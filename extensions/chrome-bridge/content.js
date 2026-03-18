@@ -38,6 +38,14 @@
     }
   }
 
+  async function callBridge(message) {
+    const response = await safeSendMessage(message);
+    if (!response || response.ok !== true) {
+      throw new Error(response?.error || "Bridge proxy request failed");
+    }
+    return response.result;
+  }
+
   async function safeStorageGet(keys) {
     try {
       return await chrome.storage.local.get(keys);
@@ -682,37 +690,40 @@
   }
 
   async function registerSession() {
-    await fetch(`${config.serverOrigin}/bridge/sessions/register`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
+    await callBridge({
+      type: "skh:bridge-register-session",
+      payload: {
         session_id: sessionId,
         parent_session_id: parentSessionId,
         system_id: system.system_id,
         title: document.title,
         url: location.href
-      })
+      }
     });
   }
 
   async function pushObservation() {
-    await fetch(`${config.serverOrigin}/bridge/sessions/${sessionId}/snapshot`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(buildObservation())
+    await callBridge({
+      type: "skh:bridge-push-observation",
+      sessionId,
+      payload: buildObservation()
     });
   }
 
   async function pullCommands() {
-    const response = await fetch(`${config.serverOrigin}/bridge/sessions/${sessionId}/commands`);
-    return response.json();
+    const commands = await callBridge({
+      type: "skh:bridge-pull-commands",
+      sessionId
+    });
+    return Array.isArray(commands) ? commands : [];
   }
 
   async function completeCommand(commandId, success, result, error) {
-    await fetch(`${config.serverOrigin}/bridge/sessions/${sessionId}/commands/${commandId}/result`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ success, result, error })
+    await callBridge({
+      type: "skh:bridge-complete-command",
+      sessionId,
+      commandId,
+      payload: { success, result, error }
     });
   }
 
@@ -1308,14 +1319,12 @@
   }
 
   async function fetchBootstrap() {
-    const response = await fetch(`${config.serverOrigin}/bridge/extension-bootstrap`, {
-      cache: "no-store"
-    }).catch(() => null);
-    if (!response || !response.ok) {
+    const bootstrap = await callBridge({ type: "skh:bridge-bootstrap" }).catch(() => null);
+    if (!bootstrap) {
       return null;
     }
 
-    return response.json();
+    return bootstrap;
   }
 
   async function ensureActiveSystem() {

@@ -1,6 +1,6 @@
 # Chrome Bridge Extension
 
-이 확장은 기존 `/bridge/*` API를 그대로 사용하면서, 북마클릿 대신 content script로 현재 탭을 브리지 세션에 연결한다.
+이 확장은 기존 `/bridge/*` API를 그대로 사용하면서, 북마클릿 대신 content script와 background service worker로 현재 탭을 브리지 세션에 연결한다.
 
 ## 설치
 
@@ -23,6 +23,7 @@
 - 시스템 패턴과 맞는 정의가 있으면 그 시스템으로 붙고, 없으면 `web_generic`으로 붙는다.
 - 세션은 `ext-tab-<tabId>` 형태로 등록된다.
 - 페이지 이동 후에도 새 content script가 같은 탭에서 다시 붙는다.
+- 로컬 서버 통신은 content script가 직접 하지 않고 background service worker가 프록시한다.
 
 ## 예외
 
