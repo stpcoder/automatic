@@ -595,6 +595,7 @@ export async function createApp(
         last_tool_result: summarizeToolResultForPlanner(lastToolResult) ?? null,
         mail_evidence: summarizeMailEvidenceForPlanner(steps, lastToolResult) ?? null,
         contact_evidence: summarizeContactEvidenceForPlanner(steps, lastToolResult) ?? null,
+        draft_evidence: summarizeDraftEvidenceForPlanner(steps, lastToolResult) ?? null,
         global_plan: globalPlan ?? null,
         current_step_plan: currentStepPlan ?? null,
         last_failure: lastFailure ?? null,
@@ -944,14 +945,12 @@ function logDebugPlannerDecision(
   plannerTrace?: unknown
 ): void {
   const planSummary = formatPlannerSummary(plannerOutput);
-  if (planSummary.primary) {
-    console.log(`[${step}] PLAN  ${planSummary.primary}`);
-  }
-  for (const detail of planSummary.details) {
-    console.log(`[${step}] NOTE  ${detail}`);
-  }
+  console.log(`[${step}] GOAL  ${planSummary.primary}`);
   const toolHint = formatToolHint(toolName, normalizedInput);
-  console.log(`[${step}] TOOL  ${toolName}${toolHint ? ` -> ${toolHint}` : ""}`);
+  console.log(`[${step}] ACT   ${toolName}${toolHint ? ` -> ${toolHint}` : ""}`);
+  if (planSummary.why) {
+    console.log(`[${step}] WHY   ${planSummary.why}`);
+  }
   const plannerIo = formatPlannerIoSummary(plannerTrace);
   if (plannerIo) {
     console.log(`[${step}] IO    ${plannerIo}`);
@@ -964,6 +963,7 @@ function logDebugToolResult(
   toolResult: { success: boolean; output: Record<string, unknown> },
   timing: { planner_ms?: number; tool_ms?: number; total_ms?: number }
 ): void {
+  const artifactKind = typeof toolResult.output.artifact_kind === "string" ? toolResult.output.artifact_kind : "";
   const observation =
     typeof toolResult.output.observation === "object" && toolResult.output.observation !== null
       ? (toolResult.output.observation as Record<string, unknown>)
@@ -998,18 +998,28 @@ function logDebugToolResult(
       : "";
 
   const status = toolResult.success ? "OK" : "FAIL";
+  const header = clickTargetSummary ? `${status}   ${clickTargetSummary}` : status;
+  console.log(`[${step}] ${header}`);
+
   const pageSummary = [truncateForLog(title, 80), truncateForLog(url, 120)].filter((value) => value && value !== "-").join(" | ");
-  console.log(`[${step}] ${status}${clickTargetSummary ? ` ${clickTargetSummary}` : ""}`);
-  if (pageSummary) {
+  const draftSummary = formatDraftResultSummary(toolResult.output);
+  const mailSummary = formatMailResultSummary(toolResult.output);
+
+  if (draftSummary) {
+    console.log(`[${step}] DRAFT ${draftSummary}`);
+  } else if (mailSummary) {
+    console.log(`[${step}] MAIL  ${mailSummary}`);
+  } else if (pageSummary) {
     console.log(`[${step}] PAGE  ${pageSummary}`);
   }
   if (summary && summary !== "-") {
     console.log(`[${step}] INFO  ${truncateForLog(summary, 140)}`);
   }
-  if (sessionId && sessionId !== "-") {
-    console.log(`[${step}] SESSION ${sessionId}`);
+  if (sessionId && sessionId !== "-" && artifactKind.startsWith("web")) {
+    console.log(`[${step}] SID   ${sessionId}`);
   }
-  console.log(`[${step}] TIME  llm_api=${timing.planner_ms ?? 0}ms action=${timing.tool_ms ?? 0}ms`);
+  const totalStepMs = (timing.planner_ms ?? 0) + (timing.tool_ms ?? 0);
+  console.log(`[${step}] TIME  llm=${timing.planner_ms ?? 0}ms action=${timing.tool_ms ?? 0}ms total=${totalStepMs}ms`);
 }
 
 function formatPlannerIoSummary(plannerTrace: unknown): string {
@@ -1144,30 +1154,12 @@ function classifyDebugError(error: unknown): ClassifiedDebugError {
   return { code: "unknown_error", message };
 }
 
-function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; details: string[] } {
-  const details: string[] = [];
+function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; why?: string } {
   let primary = "";
+  let why = "";
 
   if (typeof plannerOutput.objective === "string" && plannerOutput.objective.trim().length > 0) {
     primary = truncateForLog(plannerOutput.objective, 100);
-  }
-  if (
-    typeof plannerOutput.evaluation_previous_goal === "string" &&
-    plannerOutput.evaluation_previous_goal.trim().length > 0
-  ) {
-    details.push(`Eval: ${truncateForLog(plannerOutput.evaluation_previous_goal, 100)}`);
-  }
-  if (typeof plannerOutput.next_goal === "string" && plannerOutput.next_goal.trim().length > 0) {
-    details.push(`Next: ${truncateForLog(plannerOutput.next_goal, 100)}`);
-  }
-  if (Array.isArray(plannerOutput.memory) && plannerOutput.memory.length > 0) {
-    const memorySummary = plannerOutput.memory
-      .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
-      .slice(0, 2)
-      .join(" | ");
-    if (memorySummary) {
-      details.push(`Memory: ${truncateForLog(memorySummary, 110)}`);
-    }
   }
 
   const globalPlan =
@@ -1175,13 +1167,9 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; 
       ? (plannerOutput.global_plan as Record<string, unknown>)
       : undefined;
   if (globalPlan) {
-    const currentStepId = typeof globalPlan.current_step_id === "string" ? globalPlan.current_step_id : "";
     const progressSummary = typeof globalPlan.progress_summary === "string" ? globalPlan.progress_summary : "";
-    if (currentStepId) {
-      details.push(`Current step: ${currentStepId}`);
-    }
-    if (progressSummary) {
-      details.push(`Progress: ${truncateForLog(progressSummary, 100)}`);
+    if (progressSummary && !primary) {
+      primary = truncateForLog(progressSummary, 100);
     }
   }
 
@@ -1199,23 +1187,88 @@ function formatPlannerSummary(plannerOutput: PlannerOutput): { primary: string; 
     if (currentGoal) {
       if (!primary) {
         primary = truncateForLog(currentGoal, 100);
-      } else {
-        details.push(`Step goal: ${truncateForLog(currentGoal, 100)}`);
       }
     }
-    if (actionPlan.length > 0) {
-      details.push(`Actions: ${truncateForLog(actionPlan.join(" | "), 120)}`);
+    if (actionPlan.length > 0 && !why) {
+      why = truncateForLog(actionPlan.join(" | "), 120);
     }
   }
 
   if (typeof plannerOutput.rationale === "string" && plannerOutput.rationale.trim().length > 0) {
-    details.push(`Why: ${truncateForLog(plannerOutput.rationale, 110)}`);
+    why = truncateForLog(plannerOutput.rationale, 110);
+  } else if (
+    typeof plannerOutput.evaluation_previous_goal === "string" &&
+    plannerOutput.evaluation_previous_goal.trim().length > 0
+  ) {
+    why = truncateForLog(plannerOutput.evaluation_previous_goal, 110);
+  } else if (typeof plannerOutput.next_goal === "string" && plannerOutput.next_goal.trim().length > 0) {
+    why = truncateForLog(plannerOutput.next_goal, 110);
   }
 
   return {
     primary: primary || "Continue the task",
-    details
+    why: why || undefined
   };
+}
+
+function formatDraftResultSummary(output: Record<string, unknown>): string {
+  const artifactKind = typeof output.artifact_kind === "string" ? output.artifact_kind : "";
+  if (artifactKind !== "mail_draft" && artifactKind !== "mail_draft_preview") {
+    return "";
+  }
+  const subject = typeof output.subject === "string" ? truncateForLog(output.subject, 80) : "-";
+  const to = Array.isArray(output.to)
+    ? output.to
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .slice(0, 2)
+        .map((item) => truncateForLog(item, 80))
+        .join("; ")
+    : "";
+  const cc = Array.isArray(output.cc)
+    ? output.cc
+        .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+        .slice(0, 2)
+        .map((item) => truncateForLog(item, 80))
+        .join("; ")
+    : "";
+  const parts = [`subject="${subject}"`];
+  if (to) {
+    parts.push(`to=${to}`);
+  }
+  if (cc) {
+    parts.push(`cc=${cc}`);
+  }
+  return parts.join(" | ");
+}
+
+function formatMailResultSummary(output: Record<string, unknown>): string {
+  const artifactKind = typeof output.artifact_kind === "string" ? output.artifact_kind : "";
+  if (artifactKind === "mail_detail") {
+    const subject = typeof output.subject === "string" ? truncateForLog(output.subject, 80) : "-";
+    const sender = typeof output.sender === "string" ? truncateForLog(output.sender, 80) : "-";
+    return `subject="${subject}" | from=${sender}`;
+  }
+  if (artifactKind === "mail_conversation") {
+    const count = typeof output.count === "number" ? output.count : 0;
+    const conversationId = typeof output.conversation_id === "string" ? truncateForLog(output.conversation_id, 40) : "-";
+    return `conversation=${conversationId} | messages=${count}`;
+  }
+  if (artifactKind === "contact_search") {
+    const contacts = Array.isArray(output.contacts)
+      ? output.contacts
+          .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+          .slice(0, 2)
+          .map((item) => {
+            const name = typeof item.name === "string" ? truncateForLog(item.name, 40) : "";
+            const email = typeof item.email === "string" ? truncateForLog(item.email, 80) : "";
+            return [name, email].filter(Boolean).join(" <") + (name && email ? ">" : "");
+          })
+          .filter((item) => item.length > 0)
+          .join(" | ")
+      : "";
+    return contacts || "";
+  }
+  return "";
 }
 
 function formatToolHint(toolName: string, input: Record<string, unknown>): string {
@@ -1990,6 +2043,26 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
       }));
   }
 
+  if (toolResult.artifact_kind === "mail_draft" || toolResult.artifact_kind === "mail_draft_preview") {
+    summary.draft = {
+      draft_id: typeof toolResult.draft_id === "string" ? toolResult.draft_id : undefined,
+      subject: typeof toolResult.subject === "string" ? truncateForLog(toolResult.subject, 140) : undefined,
+      to: Array.isArray(toolResult.to)
+        ? toolResult.to
+            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            .slice(0, 3)
+            .map((item) => truncateForLog(item, 120))
+        : undefined,
+      cc: Array.isArray(toolResult.cc)
+        ? toolResult.cc
+            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            .slice(0, 3)
+            .map((item) => truncateForLog(item, 120))
+        : undefined,
+      preview_summary: typeof toolResult.preview_summary === "string" ? truncateForLog(toolResult.preview_summary, 180) : undefined
+    };
+  }
+
   const clickTarget =
     typeof toolResult.click_target === "object" && toolResult.click_target !== null
       ? (toolResult.click_target as Record<string, unknown>)
@@ -2100,6 +2173,9 @@ function summarizeContactEvidenceForPlanner(
     }
   }
 
+  const aggregatedContacts: Array<Record<string, unknown>> = [];
+  const seenEmails = new Set<string>();
+
   for (const candidate of candidates) {
     const artifactKind = typeof candidate.artifact_kind === "string" ? candidate.artifact_kind : "";
     if (artifactKind !== "contact_search" || !Array.isArray(candidate.contacts)) {
@@ -2109,6 +2185,7 @@ function summarizeContactEvidenceForPlanner(
     const contacts = candidate.contacts
       .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
       .map((item) => ({
+        query: typeof candidate.query === "string" ? truncateForLog(candidate.query, 80) : undefined,
         name: typeof item.name === "string" ? truncateForLog(item.name, 80) : undefined,
         email: typeof item.email === "string" ? truncateForLog(item.email, 120) : undefined,
         display: typeof item.display === "string" ? truncateForLog(item.display, 140) : undefined,
@@ -2119,16 +2196,94 @@ function summarizeContactEvidenceForPlanner(
         job_title: typeof item.job_title === "string" ? truncateForLog(item.job_title, 80) : undefined,
         alias: typeof item.alias === "string" ? truncateForLog(item.alias, 80) : undefined
       }))
-      .filter((item) => typeof item.email === "string" && item.email.trim().length > 0)
-      .slice(0, 5);
+      .filter((item) => typeof item.email === "string" && item.email.trim().length > 0);
 
-    if (contacts.length > 0) {
-      return {
-        artifact_kind: "contact_search",
-        query: typeof candidate.query === "string" ? truncateForLog(candidate.query, 80) : undefined,
-        contacts
-      };
+    for (const contact of contacts) {
+      const email = typeof contact.email === "string" ? contact.email.toLowerCase() : "";
+      if (!email || seenEmails.has(email)) {
+        continue;
+      }
+      seenEmails.add(email);
+      aggregatedContacts.push(contact);
+      if (aggregatedContacts.length >= 6) {
+        break;
+      }
     }
+
+    if (aggregatedContacts.length >= 6) {
+      break;
+    }
+  }
+
+  if (aggregatedContacts.length === 0) {
+    return undefined;
+  }
+
+  const queries = Array.from(
+    new Set(
+      aggregatedContacts
+        .map((item) => (typeof item.query === "string" ? item.query : ""))
+        .filter((value) => value.length > 0)
+    )
+  ).slice(0, 3);
+
+  return {
+    artifact_kind: "contact_search",
+    queries,
+    contacts: aggregatedContacts.map(({ query, ...contact }) => contact)
+  };
+}
+
+function summarizeDraftEvidenceForPlanner(
+  steps: Array<Record<string, unknown>>,
+  lastToolResult: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const candidates: Array<Record<string, unknown>> = [];
+  if (lastToolResult) {
+    candidates.push(lastToolResult);
+  }
+
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
+    if (step.success !== true) {
+      continue;
+    }
+    const toolResult =
+      typeof step.tool_result === "object" && step.tool_result !== null
+        ? (step.tool_result as Record<string, unknown>)
+        : undefined;
+    const output =
+      typeof toolResult?.output === "object" && toolResult.output !== null
+        ? (toolResult.output as Record<string, unknown>)
+        : undefined;
+    if (output) {
+      candidates.push(output);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const artifactKind = typeof candidate.artifact_kind === "string" ? candidate.artifact_kind : "";
+    if (artifactKind !== "mail_draft" && artifactKind !== "mail_draft_preview") {
+      continue;
+    }
+    return {
+      artifact_kind: artifactKind,
+      draft_id: typeof candidate.draft_id === "string" ? candidate.draft_id : undefined,
+      subject: typeof candidate.subject === "string" ? truncateForLog(candidate.subject, 140) : undefined,
+      to: Array.isArray(candidate.to)
+        ? candidate.to
+            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            .slice(0, 3)
+            .map((item) => truncateForLog(item, 120))
+        : undefined,
+      cc: Array.isArray(candidate.cc)
+        ? candidate.cc
+            .filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+            .slice(0, 3)
+            .map((item) => truncateForLog(item, 120))
+        : undefined,
+      preview_summary: typeof candidate.preview_summary === "string" ? truncateForLog(candidate.preview_summary, 180) : undefined
+    };
   }
 
   return undefined;

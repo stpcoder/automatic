@@ -20,6 +20,14 @@ function Set-AgentEnvironment {
   catch {
   }
 
+  try {
+    [System.Net.ServicePointManager]::Expect100Continue = $false
+    [System.Net.ServicePointManager]::UseNagleAlgorithm = $false
+    [System.Net.ServicePointManager]::DefaultConnectionLimit = 32
+  }
+  catch {
+  }
+
   $env:ORCHESTRATOR_PORT = if ($env:ORCHESTRATOR_PORT) { $env:ORCHESTRATOR_PORT } else { "43117" }
   $env:WEB_WORKER_ADAPTER = if ($env:WEB_WORKER_ADAPTER) { $env:WEB_WORKER_ADAPTER } else { "extension_bridge" }
   $env:OUTLOOK_WORKER_ADAPTER = if ($env:OUTLOOK_WORKER_ADAPTER) { $env:OUTLOOK_WORKER_ADAPTER } else { "outlook_com" }
@@ -138,7 +146,10 @@ function Invoke-AgentApi {
     try {
       $jsonBody = $Body | ConvertTo-Json -Depth 20 -Compress
       $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
-      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -Body $utf8Body
+      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -Headers @{
+        Connection = "close"
+        Accept = "application/json"
+      } -TimeoutSec 180 -Body $utf8Body
     }
     catch {
       $detail = $_.ErrorDetails.Message
@@ -150,7 +161,10 @@ function Invoke-AgentApi {
   }
 
   try {
-    return Invoke-RestMethod -Method $Method -Uri $Uri
+    return Invoke-RestMethod -Method $Method -Uri $Uri -Headers @{
+      Connection = "close"
+      Accept = "application/json"
+    } -TimeoutSec 180
   }
   catch {
     $detail = $_.ErrorDetails.Message
