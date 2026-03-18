@@ -32,6 +32,8 @@ interface ContactCandidate {
   department?: string;
   job_title?: string;
   entry_id?: string;
+  alias?: string;
+  display?: string;
 }
 
 export class OutlookWorker implements ToolExecutor {

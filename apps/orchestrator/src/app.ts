@@ -1979,10 +1979,12 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
       .map((item) => ({
         name: typeof item.name === "string" ? truncateForLog(item.name, 80) : undefined,
         email: typeof item.email === "string" ? truncateForLog(item.email, 120) : undefined,
+        display: typeof item.display === "string" ? truncateForLog(item.display, 140) : undefined,
         source: typeof item.source === "string" ? item.source : undefined,
         company: typeof item.company === "string" ? truncateForLog(item.company, 80) : undefined,
         department: typeof item.department === "string" ? truncateForLog(item.department, 80) : undefined,
         job_title: typeof item.job_title === "string" ? truncateForLog(item.job_title, 80) : undefined,
+        alias: typeof item.alias === "string" ? truncateForLog(item.alias, 80) : undefined,
         entry_id: typeof item.entry_id === "string" ? item.entry_id : undefined
       }));
   }
@@ -2108,10 +2110,12 @@ function summarizeContactEvidenceForPlanner(
       .map((item) => ({
         name: typeof item.name === "string" ? truncateForLog(item.name, 80) : undefined,
         email: typeof item.email === "string" ? truncateForLog(item.email, 120) : undefined,
+        display: typeof item.display === "string" ? truncateForLog(item.display, 140) : undefined,
         source: typeof item.source === "string" ? item.source : undefined,
         company: typeof item.company === "string" ? truncateForLog(item.company, 80) : undefined,
         department: typeof item.department === "string" ? truncateForLog(item.department, 80) : undefined,
-        job_title: typeof item.job_title === "string" ? truncateForLog(item.job_title, 80) : undefined
+        job_title: typeof item.job_title === "string" ? truncateForLog(item.job_title, 80) : undefined,
+        alias: typeof item.alias === "string" ? truncateForLog(item.alias, 80) : undefined
       }))
       .filter((item) => typeof item.email === "string" && item.email.trim().length > 0)
       .slice(0, 5);

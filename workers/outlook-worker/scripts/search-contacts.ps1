@@ -8,7 +8,6 @@ $payload = ConvertFrom-AgentJson -Json $PayloadJson
 $query = [string]$payload.query
 $maxResults = if ($payload.max_results) { [int]$payload.max_results } else { 10 }
 $maxResults = [Math]::Min([Math]::Max($maxResults, 1), 25)
-$escapedQuery = [regex]::Escape($query)
 
 function Get-SafeString {
   param($Value)
@@ -69,6 +68,7 @@ function Get-DirectoryMetadata {
   $jobTitle = ""
   $department = ""
   $company = ""
+  $alias = ""
 
   try {
     $exchangeUser = $AddressEntry.GetExchangeUser()
@@ -76,6 +76,7 @@ function Get-DirectoryMetadata {
       $jobTitle = Get-SafeString -Value $exchangeUser.JobTitle
       $department = Get-SafeString -Value $exchangeUser.Department
       $company = Get-SafeString -Value $exchangeUser.CompanyName
+      $alias = Get-SafeString -Value $exchangeUser.Alias
     }
   } catch {
   }
@@ -94,11 +95,110 @@ function Get-DirectoryMetadata {
     job_title = $jobTitle
     department = $department
     company = $company
+    alias = $alias
   }
 }
 
-$results = New-Object System.Collections.ArrayList
+$results = @{}
 $seen = @{}
+
+function Normalize-SearchText {
+  param(
+    [string]$Value
+  )
+
+  $text = Get-SafeString -Value $Value
+  if ([string]::IsNullOrWhiteSpace($text)) {
+    return ""
+  }
+
+  $text = $text.ToLowerInvariant()
+  $text = $text -replace "[\s\-_.,;:/\\\(\)\[\]{}]+", ""
+  return $text.Trim()
+}
+
+function Get-QueryTokens {
+  param(
+    [string]$Value
+  )
+
+  $text = Get-SafeString -Value $Value
+  if ([string]::IsNullOrWhiteSpace($text)) {
+    return @()
+  }
+
+  $tokens = @($text.ToLowerInvariant().Split(" ", [System.StringSplitOptions]::RemoveEmptyEntries))
+  $normalized = Normalize-SearchText -Value $text
+  if (-not [string]::IsNullOrWhiteSpace($normalized)) {
+    $tokens += $normalized
+  }
+
+  return @($tokens | Where-Object { $_ -and $_.Trim().Length -gt 0 } | Select-Object -Unique)
+}
+
+function Get-MatchScore {
+  param(
+    [string]$QueryText,
+    [string]$Name,
+    [string]$Email,
+    [string]$Company,
+    [string]$Department,
+    [string]$JobTitle,
+    [string]$Alias
+  )
+
+  if ([string]::IsNullOrWhiteSpace($QueryText)) {
+    return 1
+  }
+
+  $queryNormalized = Normalize-SearchText -Value $QueryText
+  $tokens = Get-QueryTokens -Value $QueryText
+
+  $nameNormalized = Normalize-SearchText -Value $Name
+  $emailNormalized = Normalize-SearchText -Value $Email
+  $companyNormalized = Normalize-SearchText -Value $Company
+  $departmentNormalized = Normalize-SearchText -Value $Department
+  $jobTitleNormalized = Normalize-SearchText -Value $JobTitle
+  $aliasNormalized = Normalize-SearchText -Value $Alias
+  $combined = "$nameNormalized $emailNormalized $companyNormalized $departmentNormalized $jobTitleNormalized $aliasNormalized"
+
+  $score = 0
+  if (-not [string]::IsNullOrWhiteSpace($queryNormalized)) {
+    if ($nameNormalized -eq $queryNormalized) { $score += 1000 }
+    elseif ($nameNormalized.StartsWith($queryNormalized)) { $score += 800 }
+    elseif ($nameNormalized.Contains($queryNormalized)) { $score += 650 }
+
+    if ($aliasNormalized -eq $queryNormalized) { $score += 900 }
+    elseif ($aliasNormalized.StartsWith($queryNormalized)) { $score += 700 }
+    elseif ($aliasNormalized.Contains($queryNormalized)) { $score += 500 }
+
+    if ($emailNormalized -eq $queryNormalized) { $score += 900 }
+    elseif ($emailNormalized.StartsWith($queryNormalized)) { $score += 700 }
+    elseif ($emailNormalized.Contains($queryNormalized)) { $score += 450 }
+
+    if ($companyNormalized.Contains($queryNormalized)) { $score += 250 }
+    if ($departmentNormalized.Contains($queryNormalized)) { $score += 250 }
+    if ($jobTitleNormalized.Contains($queryNormalized)) { $score += 150 }
+  }
+
+  if ($tokens.Count -gt 0) {
+    $matchedTokenCount = 0
+    foreach ($token in $tokens) {
+      if ([string]::IsNullOrWhiteSpace($token)) { continue }
+      if ($combined.Contains($token)) {
+        $matchedTokenCount += 1
+      }
+    }
+
+    if ($matchedTokenCount -eq $tokens.Count) {
+      $score += 300 + ($matchedTokenCount * 40)
+    } elseif ($matchedTokenCount -gt 0) {
+      $score += $matchedTokenCount * 35
+    }
+  }
+
+  return $score
+}
 
 function Add-Result {
   param(
@@ -108,20 +208,26 @@ function Add-Result {
     [string]$Company,
     [string]$Department,
     [string]$JobTitle,
-    [string]$EntryId = ""
+    [string]$EntryId = "",
+    [string]$Alias = ""
   )
 
   if ([string]::IsNullOrWhiteSpace($Name) -and [string]::IsNullOrWhiteSpace($Email)) {
     return
   }
 
-  $key = if (-not [string]::IsNullOrWhiteSpace($Email)) { $Email.ToLowerInvariant() } else { $Name.ToLowerInvariant() }
-  if ($seen.ContainsKey($key)) {
+  $score = Get-MatchScore -QueryText $query -Name $Name -Email $Email -Company $Company -Department $Department -JobTitle $JobTitle -Alias $Alias
+  if ($score -le 0) {
     return
   }
-  $seen[$key] = $true
 
-  [void]$results.Add(@{
+  $key = if (-not [string]::IsNullOrWhiteSpace($Email)) { $Email.ToLowerInvariant() } else { $Name.ToLowerInvariant() }
+  if ($seen.ContainsKey($key) -and [int]$seen[$key] -ge $score) {
+    return
+  }
+  $seen[$key] = $score
+
+  $results[$key] = @{
     name = $Name
     email = $Email
     source = $Source
@@ -129,7 +235,27 @@ function Add-Result {
     department = $Department
     job_title = $JobTitle
     entry_id = $EntryId
-  })
+    alias = $Alias
+    score = $score
+    display = if (-not [string]::IsNullOrWhiteSpace($Email)) { "$Name <$Email>" } else { $Name }
+  }
+}
+
+function Add-RecentMailParticipant {
+  param(
+    [string]$Name,
+    [string]$Email,
+    [string]$FolderName
+  )
+
+  Add-Result `
+    -Name $Name `
+    -Email $Email `
+    -Source "recent_mail_$FolderName" `
+    -Company "" `
+    -Department "" `
+    -JobTitle "" `
+    -Alias ""
 }
 
 $outlook = New-Object -ComObject Outlook.Application
@@ -147,7 +273,8 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
         -Source "directory_resolved" `
         -Company (Get-SafeString -Value $meta.company) `
         -Department (Get-SafeString -Value $meta.department) `
-        -JobTitle (Get-SafeString -Value $meta.job_title)
+        -JobTitle (Get-SafeString -Value $meta.job_title) `
+        -Alias (Get-SafeString -Value $meta.alias)
     }
   } catch {
   }
@@ -162,14 +289,80 @@ try {
 
 foreach ($store in $stores) {
   try {
+    foreach ($folderId in @(6, 5)) {
+      try {
+        $folder = $store.GetDefaultFolder($folderId)
+        if ($null -eq $folder) { continue }
+        $folderName = if ($folderId -eq 6) { "inbox" } else { "sent" }
+        $items = $folder.Items
+        if ($null -eq $items) { continue }
+
+        try {
+          $items.Sort("[ReceivedTime]", $true)
+        } catch {
+        }
+
+        $maxScan = [Math]::Min($items.Count, 800)
+        for ($index = 1; $index -le $maxScan; $index++) {
+          try {
+            $item = $items.Item($index)
+            if ($null -eq $item) { continue }
+            $itemClass = 0
+            try { $itemClass = [int]$item.Class } catch { $itemClass = 0 }
+            if ($itemClass -ne 43) { continue }
+
+            $senderName = Get-SafeString -Value $item.SenderName
+            $senderEmail = Get-SafeString -Value $item.SenderEmailAddress
+            if (-not [string]::IsNullOrWhiteSpace($senderName) -or -not [string]::IsNullOrWhiteSpace($senderEmail)) {
+              Add-RecentMailParticipant -Name $senderName -Email $senderEmail -FolderName $folderName
+            }
+
+            try {
+              $recipients = $item.Recipients
+              if ($null -eq $recipients) { continue }
+              $recipientCount = [Math]::Min([int]$recipients.Count, 20)
+              for ($recipientIndex = 1; $recipientIndex -le $recipientCount; $recipientIndex++) {
+                try {
+                  $recipient = $recipients.Item($recipientIndex)
+                  if ($null -eq $recipient) { continue }
+                  $recipientName = Get-SafeString -Value $recipient.Name
+                  $recipientEmail = ""
+                  try {
+                    if ($null -ne $recipient.AddressEntry) {
+                      $recipientEmail = Get-SmtpAddressFromAddressEntry -AddressEntry $recipient.AddressEntry
+                    }
+                  } catch {
+                  }
+                  if ([string]::IsNullOrWhiteSpace($recipientEmail)) {
+                    $recipientEmail = Get-SafeString -Value $recipient.Address
+                  }
+
+                  Add-RecentMailParticipant -Name $recipientName -Email $recipientEmail -FolderName $folderName
+                } catch {
+                  continue
+                }
+              }
+            } catch {
+            }
+          } catch {
+            continue
+          }
+        }
+      } catch {
+        continue
+      }
+    }
+  } catch {
+  }
+
+  try {
     $contactsFolder = $store.GetDefaultFolder(10)
     if ($null -eq $contactsFolder) { continue }
     $items = $contactsFolder.Items
     if ($null -eq $items) { continue }
 
-    $maxScan = [Math]::Min($items.Count, 500)
+    $maxScan = [Math]::Min($items.Count, 2000)
     for ($index = 1; $index -le $maxScan; $index++) {
-      if ($results.Count -ge $maxResults) { break }
       try {
         $item = $items.Item($index)
         if ($null -eq $item) { continue }
@@ -182,18 +375,14 @@ foreach ($store in $stores) {
         $company = Get-SafeString -Value $item.CompanyName
         $department = Get-SafeString -Value $item.Department
         $jobTitle = Get-SafeString -Value $item.JobTitle
-        $haystack = "$name`n$email`n$company`n$department`n$jobTitle"
-
-        if ([string]::IsNullOrWhiteSpace($query) -or $haystack -match $escapedQuery) {
-          Add-Result `
-            -Name $name `
-            -Email $email `
-            -Source "contacts" `
-            -Company $company `
-            -Department $department `
-            -JobTitle $jobTitle `
-            -EntryId (Get-SafeString -Value $item.EntryID)
-        }
+        Add-Result `
+          -Name $name `
+          -Email $email `
+          -Source "contacts" `
+          -Company $company `
+          -Department $department `
+          -JobTitle $jobTitle `
+          -EntryId (Get-SafeString -Value $item.EntryID)
       } catch {
         continue
       }
@@ -203,11 +392,10 @@ foreach ($store in $stores) {
   }
 }
 
-if ($results.Count -lt $maxResults -and -not [string]::IsNullOrWhiteSpace($query)) {
+if (-not [string]::IsNullOrWhiteSpace($query)) {
   try {
     $addressLists = @($namespace.AddressLists)
     foreach ($addressList in $addressLists) {
-      if ($results.Count -ge $maxResults) { break }
       $listName = Get-SafeString -Value $addressList.Name
       $isPreferredList = $listName -match "Global Address List|All Users|Offline Global Address List|주소록|조직"
       if (-not $isPreferredList) { continue }
@@ -215,25 +403,22 @@ if ($results.Count -lt $maxResults -and -not [string]::IsNullOrWhiteSpace($query
       try {
         $entries = $addressList.AddressEntries
         if ($null -eq $entries) { continue }
-        $maxScan = [Math]::Min($entries.Count, 1000)
+        $maxScan = [Math]::Min($entries.Count, 5000)
         for ($index = 1; $index -le $maxScan; $index++) {
-          if ($results.Count -ge $maxResults) { break }
           try {
             $entry = $entries.Item($index)
             if ($null -eq $entry) { continue }
             $name = Get-SafeString -Value $entry.Name
             $email = Get-SmtpAddressFromAddressEntry -AddressEntry $entry
             $meta = Get-DirectoryMetadata -AddressEntry $entry
-            $haystack = "$name`n$email`n$($meta.company)`n$($meta.department)`n$($meta.job_title)"
-            if ($haystack -match $escapedQuery) {
-              Add-Result `
-                -Name $name `
-                -Email $email `
-                -Source "directory" `
-                -Company (Get-SafeString -Value $meta.company) `
-                -Department (Get-SafeString -Value $meta.department) `
-                -JobTitle (Get-SafeString -Value $meta.job_title)
-            }
+            Add-Result `
+              -Name $name `
+              -Email $email `
+              -Source "directory" `
+              -Company (Get-SafeString -Value $meta.company) `
+              -Department (Get-SafeString -Value $meta.department) `
+              -JobTitle (Get-SafeString -Value $meta.job_title) `
+              -Alias (Get-SafeString -Value $meta.alias)
           } catch {
             continue
           }
@@ -246,9 +431,30 @@ if ($results.Count -lt $maxResults -and -not [string]::IsNullOrWhiteSpace($query
   }
 }
 
+$rankedResults = @(
+  $results.Values |
+    Sort-Object -Property `
+      @{ Expression = { [int]$_.score }; Descending = $true }, `
+      @{ Expression = { [string]$_.name } } |
+    Select-Object -First $maxResults |
+    ForEach-Object {
+      @{
+        name = $_.name
+        email = $_.email
+        source = $_.source
+        company = $_.company
+        department = $_.department
+        job_title = $_.job_title
+        entry_id = $_.entry_id
+        alias = $_.alias
+        display = $_.display
+      }
+    }
+)
+
 @{
   artifact_kind = "contact_search"
   query = $query
-  count = $results.Count
-  contacts = @($results | Select-Object -First $maxResults)
+  count = $rankedResults.Count
+  contacts = $rankedResults
 } | ConvertTo-Json -Depth 10 -Compress
