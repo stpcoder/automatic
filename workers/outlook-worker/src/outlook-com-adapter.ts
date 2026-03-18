@@ -1,4 +1,5 @@
 import { execFile } from "node:child_process";
+import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
 import { promisify } from "node:util";
@@ -7,6 +8,38 @@ const execFileAsync = promisify(execFile);
 
 function powershellBinary(): string {
   return process.platform === "win32" ? "powershell.exe" : "pwsh";
+}
+
+async function writeOutlookScriptErrorLog(scriptName: string, payload: Record<string, unknown>, error: unknown): Promise<string | undefined> {
+  try {
+    const logsDir = path.resolve(process.cwd(), "logs", "outlook-worker");
+    await mkdir(logsDir, { recursive: true });
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const filePath = path.join(logsDir, `${timestamp}-${scriptName}.log`);
+    const message = typeof error === "object" && error !== null ? String(Reflect.get(error, "message") ?? "") : String(error);
+    const stdout = typeof error === "object" && error !== null ? String(Reflect.get(error, "stdout") ?? "") : "";
+    const stderr = typeof error === "object" && error !== null ? String(Reflect.get(error, "stderr") ?? "") : "";
+    const body = [
+      `script=${scriptName}`,
+      `time=${new Date().toISOString()}`,
+      "",
+      "[payload]",
+      JSON.stringify(payload, null, 2),
+      "",
+      "[message]",
+      message,
+      "",
+      "[stderr]",
+      stderr,
+      "",
+      "[stdout]",
+      stdout
+    ].join("\n");
+    await writeFile(filePath, body, "utf8");
+    return filePath;
+  } catch {
+    return undefined;
+  }
 }
 
 async function runScript(scriptName: string, payload: Record<string, unknown>): Promise<Record<string, unknown>> {
@@ -25,7 +58,9 @@ async function runScript(scriptName: string, payload: Record<string, unknown>): 
             .filter((value) => typeof value === "string" && value.trim().length > 0)
             .join("\n")
         : String(error);
-    throw new Error(`Outlook script ${scriptName} failed.\n${details}`);
+    const logPath = await writeOutlookScriptErrorLog(scriptName, payload, error);
+    const logHint = logPath ? `\nlog_file=${logPath}` : "";
+    throw new Error(`Outlook script ${scriptName} failed.${logHint}\n${details}`);
   }
 }
 
