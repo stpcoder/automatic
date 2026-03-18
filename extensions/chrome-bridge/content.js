@@ -25,6 +25,24 @@
   let bootstrapWaitLogged = false;
   let systemWaitLogged = false;
   let pointerStateSaveTimer = null;
+  let extensionContextInvalidated = false;
+
+  function isExtensionContextInvalidatedError(error) {
+    const message = error instanceof Error ? error.message : String(error || "");
+    return /Extension context invalidated/i.test(message);
+  }
+
+  function markExtensionContextInvalidated(error) {
+    if (!isExtensionContextInvalidatedError(error)) {
+      return false;
+    }
+    extensionContextInvalidated = true;
+    if (pointerStateSaveTimer) {
+      window.clearTimeout(pointerStateSaveTimer);
+      pointerStateSaveTimer = null;
+    }
+    return true;
+  }
 
   function normalize(value) {
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -1095,19 +1113,26 @@
     if (!showPointerOverlay || !state || typeof chrome?.storage?.local?.set !== "function") {
       return;
     }
+    if (extensionContextInvalidated) {
+      return;
+    }
     if (pointerStateSaveTimer) {
       window.clearTimeout(pointerStateSaveTimer);
     }
     pointerStateSaveTimer = window.setTimeout(() => {
-      chrome.storage.local.set({
-        [`skh-pointer-state:${sessionId}`]: {
-          x: state.currentX,
-          y: state.currentY,
-          homeX: state.homeX,
-          homeY: state.homeY,
-          updatedAt: Date.now()
-        }
-      });
+      try {
+        chrome.storage.local.set({
+          [`skh-pointer-state:${sessionId}`]: {
+            x: state.currentX,
+            y: state.currentY,
+            homeX: state.homeX,
+            homeY: state.homeY,
+            updatedAt: Date.now()
+          }
+        });
+      } catch (error) {
+        markExtensionContextInvalidated(error);
+      }
       pointerStateSaveTimer = null;
     }, 30);
   }
@@ -1116,9 +1141,20 @@
     if (!showPointerOverlay || !state || typeof chrome?.storage?.local?.get !== "function") {
       return;
     }
+    if (extensionContextInvalidated) {
+      return;
+    }
     const currentKey = `skh-pointer-state:${sessionId}`;
     const parentKey = parentSessionId ? `skh-pointer-state:${parentSessionId}` : null;
-    const stored = await chrome.storage.local.get(parentKey ? [currentKey, parentKey] : [currentKey]);
+    let stored;
+    try {
+      stored = await chrome.storage.local.get(parentKey ? [currentKey, parentKey] : [currentKey]);
+    } catch (error) {
+      if (markExtensionContextInvalidated(error)) {
+        return;
+      }
+      throw error;
+    }
     const snapshot = stored[currentKey] || (parentKey ? stored[parentKey] : null);
     if (!snapshot || typeof snapshot.x !== "number" || typeof snapshot.y !== "number") {
       return;
@@ -1292,6 +1328,9 @@
   }
 
   while (true) {
+    if (extensionContextInvalidated) {
+      break;
+    }
     try {
       await chrome.runtime.sendMessage({ type: "skh:process-tasks" }).catch(() => null);
       system = await ensureActiveSystem();
@@ -1307,7 +1346,10 @@
           await completeCommand(command.command_id, false, {}, error instanceof Error ? error.message : String(error));
         }
       }
-    } catch (_error) {
+    } catch (error) {
+      if (markExtensionContextInvalidated(error)) {
+        break;
+      }
       // no-op: avoid noisy console output in user pages
     }
 
