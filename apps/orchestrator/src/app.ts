@@ -237,11 +237,11 @@ export async function createApp(
     };
     return outlookWorker.execute(buildDebugToolRequest("update_outlook_draft", "draft", {
       draft_id: body.draft_id ?? "",
-      subject: body.subject ?? "",
-      to: body.to ?? [],
-      cc: body.cc ?? [],
-      body_text: body.body_text ?? "",
-      body_html: body.body_html ?? ""
+      subject: body.subject,
+      to: body.to,
+      cc: body.cc,
+      body_text: body.body_text,
+      body_html: body.body_html
     }));
   });
 
@@ -1742,6 +1742,50 @@ function normalizeDebugToolInput(
     }
     if (typeof normalized.body_html !== "string" && typeof context.body_html === "string") {
       normalized.body_html = context.body_html;
+    }
+    const draftEvidence =
+      typeof context.draft_evidence === "object" && context.draft_evidence !== null
+        ? (context.draft_evidence as Record<string, unknown>)
+        : undefined;
+    const existingTo = Array.isArray(draftEvidence?.to)
+      ? draftEvidence.to.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const existingCc = Array.isArray(draftEvidence?.cc)
+      ? draftEvidence.cc.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const currentTo = Array.isArray(normalized.to)
+      ? normalized.to.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const currentCc = Array.isArray(normalized.cc)
+      ? normalized.cc.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    if (currentTo.length === 0 && existingTo.length > 0) {
+      normalized.to = existingTo;
+    }
+    if (currentCc.length === 0 && existingCc.length > 0) {
+      normalized.cc = existingCc;
+    }
+    const contactEvidence =
+      typeof context.contact_evidence === "object" && context.contact_evidence !== null
+        ? (context.contact_evidence as Record<string, unknown>)
+        : undefined;
+    const contacts = Array.isArray(contactEvidence?.contacts)
+      ? contactEvidence.contacts.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      : [];
+    const contactEmails = contacts
+      .map((item) => (typeof item.email === "string" ? item.email.trim() : ""))
+      .filter((value, index, array) => value.length > 0 && array.indexOf(value) === index);
+    const nextTo = Array.isArray(normalized.to)
+      ? normalized.to.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    const nextCc = Array.isArray(normalized.cc)
+      ? normalized.cc.filter((item): item is string => typeof item === "string" && item.trim().length > 0)
+      : [];
+    if (nextTo.length === 0 && contactEmails.length > 0) {
+      normalized.to = [contactEmails[0]];
+    }
+    if (nextCc.length === 0 && contactEmails.length > 1) {
+      normalized.cc = [contactEmails[1]];
     }
   }
 

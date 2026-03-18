@@ -33,6 +33,7 @@ function Set-AgentEnvironment {
   $env:BRIDGE_COMMAND_TIMEOUT_MS = if ($env:BRIDGE_COMMAND_TIMEOUT_MS) { $env:BRIDGE_COMMAND_TIMEOUT_MS } else { "30000" }
   $env:OUTLOOK_WAIT_TIMEOUT_SECONDS = if ($env:OUTLOOK_WAIT_TIMEOUT_SECONDS) { $env:OUTLOOK_WAIT_TIMEOUT_SECONDS } else { "86400" }
   $env:OUTLOOK_WAIT_POLL_INTERVAL_MS = if ($env:OUTLOOK_WAIT_POLL_INTERVAL_MS) { $env:OUTLOOK_WAIT_POLL_INTERVAL_MS } else { "10000" }
+  $env:AGENT_API_TIMEOUT_SECONDS = if ($env:AGENT_API_TIMEOUT_SECONDS) { $env:AGENT_API_TIMEOUT_SECONDS } else { "1800" }
 
   return $RepoRoot
 }
@@ -134,11 +135,19 @@ function Invoke-AgentApi {
     [object]$Body
   )
 
+  $timeoutSeconds = 1800
+  try {
+    $timeoutSeconds = [int]$env:AGENT_API_TIMEOUT_SECONDS
+  }
+  catch {
+    $timeoutSeconds = 1800
+  }
+
   if ($null -ne $Body) {
     try {
       $jsonBody = $Body | ConvertTo-Json -Depth 20 -Compress
       $utf8Body = [System.Text.Encoding]::UTF8.GetBytes($jsonBody)
-      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -TimeoutSec 180 -Body $utf8Body
+      return Invoke-RestMethod -Method $Method -Uri $Uri -ContentType "application/json; charset=utf-8" -TimeoutSec $timeoutSeconds -Body $utf8Body
     }
     catch {
       $detail = $_.ErrorDetails.Message
@@ -150,7 +159,7 @@ function Invoke-AgentApi {
   }
 
   try {
-    return Invoke-RestMethod -Method $Method -Uri $Uri -TimeoutSec 180
+    return Invoke-RestMethod -Method $Method -Uri $Uri -TimeoutSec $timeoutSeconds
   }
   catch {
     $detail = $_.ErrorDetails.Message
