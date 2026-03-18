@@ -72,6 +72,9 @@ Expected:
 3. Click `Load unpacked`
 4. Select `extensions/chrome-bridge`
 5. In the extension options, keep server origin as `http://127.0.0.1:43117`
+6. In Chrome extension details, set `Site access` to `On all sites`
+
+If Chrome keeps showing an allow/deny prompt for each new site, the extension is still in `On click` or limited-site mode. That prompt is controlled by Chrome, not by the SKH agent server.
 
 ## 7. Open Real Browser Pages
 

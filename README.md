@@ -138,6 +138,12 @@ Windows quick test aliases:
 
 See `docs/windows-real-test-runbook.md` for the current Windows extension setup.
 
+Important Chrome extension note:
+
+- Set the extension site access to `On all sites`.
+- If Chrome keeps asking whether the extension may access each new site, the extension is still in `On click` or limited-site mode.
+- This is a Chrome permission setting, not an orchestrator whitelist.
+
 The natural-language debug agent uses `@ai-sdk/openai-compatible` when `opencode.ai/config.json` contains a valid API key.
 It supports both a simple `llm` block and an OpenCode-style `provider/options/models` block.
 

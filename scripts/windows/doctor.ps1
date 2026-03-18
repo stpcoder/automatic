@@ -68,6 +68,8 @@ try {
 }
 
 Write-Host "Chrome Extension Bridge: expected"
+Write-Host "Chrome Site Access: set the extension to 'On all sites' or Chrome will prompt on each new site."
+Write-Host "Chrome internal pages such as chrome:// and the Chrome Web Store cannot be controlled."
 
 try {
   $sessions = Invoke-AgentApi -Method "GET" -Uri (Get-AgentUrl "/bridge/sessions")
@@ -76,7 +78,7 @@ try {
   if ($sessionCount -gt 0) {
     $sessions | Select-Object session_id, system_id, has_observation, is_stale, title, url, updated_at | Format-Table -AutoSize
   } else {
-    Write-Host "Extension sessions: none detected. Open a supported page in Chrome and wait a few seconds."
+    Write-Host "Extension sessions: none detected. Open a normal web page in Chrome, set extension site access to 'On all sites', and wait a few seconds."
   }
 } catch {
   Write-Host "Extension sessions: failed"
