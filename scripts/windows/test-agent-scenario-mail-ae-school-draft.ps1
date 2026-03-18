@@ -16,4 +16,9 @@ $result = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/agent/run-lo
   context = $context
 }
 
-Format-AgentRunResult -Result $result
+$formatted = Format-AgentRunResult -Result $result
+Write-Host $formatted
+
+if ($result.ok -eq $true) {
+  Confirm-AndMaybeSendDraft -RunResult $result | Out-Null
+}

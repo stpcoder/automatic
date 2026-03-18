@@ -232,3 +232,103 @@ function Format-WebReadResult {
   }
   return ($output | ConvertTo-Json -Depth 10)
 }
+
+function Get-AgentRunDraftId {
+  param(
+    [Parameter(Mandatory = $true)]
+    $Result
+  )
+
+  if ($null -ne $Result.final_result -and $Result.final_result.draft_id) {
+    return [string]$Result.final_result.draft_id
+  }
+
+  $steps = @($Result.steps)
+  for ($index = $steps.Count - 1; $index -ge 0; $index--) {
+    $step = $steps[$index]
+    if ($null -ne $step.tool_result -and $null -ne $step.tool_result.output -and $step.tool_result.output.draft_id) {
+      return [string]$step.tool_result.output.draft_id
+    }
+  }
+
+  return $null
+}
+
+function Convert-HtmlToPreviewText {
+  param(
+    [string]$Html
+  )
+
+  if ([string]::IsNullOrWhiteSpace($Html)) {
+    return ""
+  }
+
+  $text = $Html -replace '<br\s*/?>', "`n"
+  $text = $text -replace '<[^>]+>', ' '
+  $text = [System.Net.WebUtility]::HtmlDecode($text)
+  $text = $text -replace '[ \t]+\r?\n', "`n"
+  $text = $text -replace '\r?\n\s+', "`n"
+  $text = $text -replace '\n{3,}', "`n`n"
+  return $text.Trim()
+}
+
+function Show-DraftPreview {
+  param(
+    [Parameter(Mandatory = $true)]
+    [string]$DraftId
+  )
+
+  $preview = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/preview-draft") -Body @{
+    draft_id = $DraftId
+  }
+
+  $bodyPreview = Convert-HtmlToPreviewText -Html ([string]$preview.body_html)
+  Write-Host ""
+  Write-Host "----- Draft Preview -----"
+  Write-Host "Subject: $($preview.subject)"
+  Write-Host "To:      $((@($preview.to) -join '; '))"
+  if (@($preview.cc).Count -gt 0) {
+    Write-Host "Cc:      $((@($preview.cc) -join '; '))"
+  }
+  Write-Host ""
+  if ($bodyPreview) {
+    Write-Host $bodyPreview
+  }
+  Write-Host "-------------------------"
+  Write-Host ""
+
+  return $preview
+}
+
+function Confirm-AndMaybeSendDraft {
+  param(
+    [Parameter(Mandatory = $true)]
+    $RunResult
+  )
+
+  $draftId = Get-AgentRunDraftId -Result $RunResult
+  if ([string]::IsNullOrWhiteSpace($draftId)) {
+    return $null
+  }
+
+  Show-DraftPreview -DraftId $draftId | Out-Null
+  $answer = Read-Host "Send this draft now? [y/N]"
+  if ($answer -notmatch '^(?i:y|yes)$') {
+    Write-Host "[skh-agent] send cancelled."
+    return @{
+      sent = $false
+      draft_id = $draftId
+    }
+  }
+
+  $sendResult = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/send") -Body @{
+    draft_id = $draftId
+  }
+
+  Write-Host "[skh-agent] draft sent."
+  return @{
+    sent = $true
+    draft_id = $draftId
+    result = $sendResult
+  }
+}
