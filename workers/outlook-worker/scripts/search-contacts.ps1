@@ -453,9 +453,9 @@ if (-not [string]::IsNullOrWhiteSpace($query)) {
 
 $rankedResults = @(
   $results.Values |
-    Sort-Object -Property `
-      @{ Expression = { [int]$_.score }; Descending = $true }, `
-      @{ Expression = { [string]$_.name } } |
+    Sort-Object `
+      { -1 * [int]$_.score }, `
+      { [string]$_.name } |
     Select-Object -First $maxResults |
     ForEach-Object {
       @{
