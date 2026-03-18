@@ -1920,6 +1920,37 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
     summary.url = toolResult.url;
   }
 
+  if (Array.isArray(toolResult.messages)) {
+    summary.messages = toolResult.messages
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      .slice(0, 5)
+      .map((item) => ({
+        entry_id: typeof item.entry_id === "string" ? item.entry_id : undefined,
+        conversation_id: typeof item.conversation_id === "string" ? item.conversation_id : undefined,
+        subject: typeof item.subject === "string" ? truncateForLog(item.subject, 120) : undefined,
+        sender: typeof item.sender === "string" ? truncateForLog(item.sender, 100) : undefined,
+        recipients: typeof item.recipients === "string" ? truncateForLog(item.recipients, 120) : undefined,
+        body_snippet: typeof item.body_snippet === "string" ? truncateForLog(item.body_snippet, 180) : undefined,
+        folder: typeof item.folder === "string" ? item.folder : undefined,
+        store: typeof item.store === "string" ? item.store : undefined
+      }));
+  }
+
+  if (Array.isArray(toolResult.contacts)) {
+    summary.contacts = toolResult.contacts
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      .slice(0, 5)
+      .map((item) => ({
+        name: typeof item.name === "string" ? truncateForLog(item.name, 80) : undefined,
+        email: typeof item.email === "string" ? truncateForLog(item.email, 120) : undefined,
+        source: typeof item.source === "string" ? item.source : undefined,
+        company: typeof item.company === "string" ? truncateForLog(item.company, 80) : undefined,
+        department: typeof item.department === "string" ? truncateForLog(item.department, 80) : undefined,
+        job_title: typeof item.job_title === "string" ? truncateForLog(item.job_title, 80) : undefined,
+        entry_id: typeof item.entry_id === "string" ? item.entry_id : undefined
+      }));
+  }
+
   const clickTarget =
     typeof toolResult.click_target === "object" && toolResult.click_target !== null
       ? (toolResult.click_target as Record<string, unknown>)
