@@ -130,10 +130,14 @@ Windows quick test aliases:
 - `npm run win:test:2`: 네이버에서 SK hynix 뉴스 검색 후 핵심 결과 열기
 - `npm run win:test:3`: 구글에서 SK hynix 뉴스 검색 후 핵심 결과 열기
 - `npm run win:test:4`: 구글에서 상품 가격 검색 후 가격 확인
-- `npm run win:test:5`: 현재 페이지 핵심 내용 요약
-- `npm run win:test:6`: 현재 페이지 주요 행동 파악
+- `npm run win:test:5`: Outlook에서 `ae school 교육일정` 메일을 찾아 요약하고 발송용 초안을 만든 뒤 확인 요청
+- `npm run win:test:6`: Outlook에서 `ae school` 관련 메일을 찾아 가장 관련 높은 메일을 읽고 핵심 내용을 요약
 - `npm run win:test:7`: 현재 열린 상세 페이지에서 주가 직접 읽기
 - `npm run win:test:8`: 네이버 쇼핑/가격 검색 시나리오
+- `npm run win:test:9`: 메일 검색 -> 요약 -> 초안 작성 -> 승인 대기 시나리오
+- `npm run win:test:10`: 메일 작성 -> 발송 -> 회신 대기 설정 시나리오
+- `npm run win:test:11`: 현재 페이지 핵심 내용 요약
+- `npm run win:test:12`: 현재 페이지 주요 행동 파악
 ```
 
 See `docs/windows-real-test-runbook.md` for the current Windows extension setup.
