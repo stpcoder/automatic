@@ -7,25 +7,8 @@
     return;
   }
 
-  const config = await chrome.runtime.sendMessage({ type: "skh:get-config" });
-  if (!config?.enabled || !config?.serverOrigin || !config?.tabId) {
-    return;
-  }
-
-  window.__SKH_AGENT_EXTENSION_ACTIVE__ = true;
-  const sessionId = `ext-tab-${config.tabId}`;
-  const parentSessionId = config.openerTabId ? `ext-tab-${config.openerTabId}` : undefined;
-  const pollMs = Number(config.pollMs || 1000);
-  const observationChangeTimeoutMs = Number(config.observationChangeTimeoutMs || 4000);
-  const pointerMoveDurationMs = Number(config.pointerMoveDurationMs || 450);
-  const pointerClickDurationMs = Number(config.pointerClickDurationMs || 260);
-  const showPointerOverlay = Boolean(config.showPointerOverlay);
-  const overlayState = createPointerOverlay();
-  let system = null;
-  let bootstrapWaitLogged = false;
-  let systemWaitLogged = false;
-  let pointerStateSaveTimer = null;
   let extensionContextInvalidated = false;
+  let pointerStateSaveTimer = null;
 
   function isExtensionContextInvalidatedError(error) {
     const message = error instanceof Error ? error.message : String(error || "");
@@ -43,6 +26,55 @@
     }
     return true;
   }
+
+  async function safeSendMessage(message) {
+    try {
+      return await chrome.runtime.sendMessage(message);
+    } catch (error) {
+      if (markExtensionContextInvalidated(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async function safeStorageGet(keys) {
+    try {
+      return await chrome.storage.local.get(keys);
+    } catch (error) {
+      if (markExtensionContextInvalidated(error)) {
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  function safeStorageSet(value) {
+    try {
+      chrome.storage.local.set(value);
+      return true;
+    } catch (error) {
+      return !markExtensionContextInvalidated(error);
+    }
+  }
+
+  const config = await safeSendMessage({ type: "skh:get-config" });
+  if (!config?.enabled || !config?.serverOrigin || !config?.tabId) {
+    return;
+  }
+
+  window.__SKH_AGENT_EXTENSION_ACTIVE__ = true;
+  const sessionId = `ext-tab-${config.tabId}`;
+  const parentSessionId = config.openerTabId ? `ext-tab-${config.openerTabId}` : undefined;
+  const pollMs = Number(config.pollMs || 1000);
+  const observationChangeTimeoutMs = Number(config.observationChangeTimeoutMs || 4000);
+  const pointerMoveDurationMs = Number(config.pointerMoveDurationMs || 450);
+  const pointerClickDurationMs = Number(config.pointerClickDurationMs || 260);
+  const showPointerOverlay = Boolean(config.showPointerOverlay);
+  const overlayState = createPointerOverlay();
+  let system = null;
+  let bootstrapWaitLogged = false;
+  let systemWaitLogged = false;
 
   function normalize(value) {
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
@@ -1121,7 +1153,7 @@
     }
     pointerStateSaveTimer = window.setTimeout(() => {
       try {
-        chrome.storage.local.set({
+        safeStorageSet({
           [`skh-pointer-state:${sessionId}`]: {
             x: state.currentX,
             y: state.currentY,
@@ -1130,8 +1162,8 @@
             updatedAt: Date.now()
           }
         });
-      } catch (error) {
-        markExtensionContextInvalidated(error);
+      } catch (_error) {
+        // no-op: safeStorageSet already handles invalidated extension context
       }
       pointerStateSaveTimer = null;
     }, 30);
@@ -1146,14 +1178,9 @@
     }
     const currentKey = `skh-pointer-state:${sessionId}`;
     const parentKey = parentSessionId ? `skh-pointer-state:${parentSessionId}` : null;
-    let stored;
-    try {
-      stored = await chrome.storage.local.get(parentKey ? [currentKey, parentKey] : [currentKey]);
-    } catch (error) {
-      if (markExtensionContextInvalidated(error)) {
-        return;
-      }
-      throw error;
+    const stored = await safeStorageGet(parentKey ? [currentKey, parentKey] : [currentKey]);
+    if (!stored) {
+      return;
     }
     const snapshot = stored[currentKey] || (parentKey ? stored[parentKey] : null);
     if (!snapshot || typeof snapshot.x !== "number" || typeof snapshot.y !== "number") {
@@ -1332,7 +1359,7 @@
       break;
     }
     try {
-      await chrome.runtime.sendMessage({ type: "skh:process-tasks" }).catch(() => null);
+      await safeSendMessage({ type: "skh:process-tasks" });
       system = await ensureActiveSystem();
       await registerSession();
       setAgentState("reading", "reading");
