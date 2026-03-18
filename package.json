@@ -39,6 +39,7 @@
     "win:debug:mail:conversation": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-conversation.ps1",
     "win:debug:mail:reply": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-reply.ps1",
     "win:debug:mail:search": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-search.ps1",
+    "win:debug:mail:search-contacts": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-search-contacts.ps1",
     "win:debug:mail:send": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-send.ps1",
     "win:debug:mail:update-draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-update-draft.ps1",
     "win:debug:mail:preview-draft": "powershell -ExecutionPolicy Bypass -File scripts/windows/debug-mail-preview-draft.ps1",

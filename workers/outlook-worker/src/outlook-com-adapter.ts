@@ -151,6 +151,13 @@ export class OutlookComAdapter {
     return runScript("search-mail.ps1", input);
   }
 
+  async searchContacts(input: {
+    query: string;
+    max_results?: number;
+  }): Promise<Record<string, unknown>> {
+    return runScript("search-contacts.ps1", input);
+  }
+
   async pollReplies(input: { watch_directory?: string }): Promise<{ matches: Array<{
     case_id: string;
     sender: string;

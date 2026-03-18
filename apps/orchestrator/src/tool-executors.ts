@@ -12,7 +12,7 @@ export class CompositeToolExecutor implements ToolExecutor {
 
   async execute(request: ToolRequest): Promise<ToolResult> {
     if (
-      request.tool_name.includes("outlook_mail") ||
+      request.tool_name.includes("outlook_") ||
       request.tool_name === "watch_email_reply" ||
       request.tool_name === "await_email_reply"
     ) {

@@ -24,6 +24,16 @@ interface MailMessage {
   store?: string;
 }
 
+interface ContactCandidate {
+  name: string;
+  email: string;
+  source: string;
+  company?: string;
+  department?: string;
+  job_title?: string;
+  entry_id?: string;
+}
+
 export class OutlookWorker implements ToolExecutor {
   private readonly drafts = new Map<string, MailDraft>();
   private readonly watchedConversations = new Set<string>();
@@ -56,6 +66,8 @@ export class OutlookWorker implements ToolExecutor {
         return this.awaitReply(request);
       case "search_outlook_mail":
         return this.searchMail(request);
+      case "search_outlook_contacts":
+        return this.searchContacts(request);
       default:
         return this.fail(request, `Unsupported Outlook tool: ${request.tool_name}`);
     }
@@ -498,6 +510,66 @@ export class OutlookWorker implements ToolExecutor {
         keyword,
         count: matches.length,
         messages: matches
+      },
+      memory_patch: {},
+      emitted_events: []
+    };
+  }
+
+  private async searchContacts(request: ToolRequest): Promise<ToolResult> {
+    if (this.useRealAdapter) {
+      const output = await new OutlookComAdapter().searchContacts({
+        query: String(request.input.query ?? ""),
+        max_results: Number(request.input.max_results ?? 10)
+      });
+      return {
+        request_id: request.request_id,
+        success: true,
+        output,
+        memory_patch: {},
+        emitted_events: []
+      };
+    }
+
+    const query = String(request.input.query ?? "").toLowerCase();
+    const maxResults = typeof request.input.max_results === "number" ? request.input.max_results : 10;
+    const contacts: ContactCandidate[] = [
+      {
+        name: "Taeho Je",
+        email: "taeho.je@sk.com",
+        source: "directory_resolved",
+        company: "SK hynix",
+        department: "Automation",
+        job_title: "Engineer"
+      },
+      {
+        name: "AE School 운영팀",
+        email: "ae.school@sk.com",
+        source: "directory",
+        company: "SK hynix",
+        department: "Education",
+        job_title: "Distribution Group"
+      }
+    ];
+    const matches = contacts.filter((contact) => {
+      if (query.length === 0) {
+        return true;
+      }
+      const haystack = [contact.name, contact.email, contact.company, contact.department, contact.job_title]
+        .filter((value) => typeof value === "string")
+        .join("\n")
+        .toLowerCase();
+      return haystack.includes(query);
+    }).slice(0, maxResults);
+
+    return {
+      request_id: request.request_id,
+      success: true,
+      output: {
+        artifact_kind: "contact_search",
+        query,
+        count: matches.length,
+        contacts: matches
       },
       memory_patch: {},
       emitted_events: []

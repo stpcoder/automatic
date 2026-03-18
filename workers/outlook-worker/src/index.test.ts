@@ -145,4 +145,21 @@ test("outlook worker drafts, sends, reads, replies, previews, and watches replie
   assert.equal(search.output.artifact_kind, "mail_search");
   assert.equal(search.output.keyword, "ae school");
   assert.ok(Array.isArray(search.output.messages));
+
+  const contactSearch = await worker.execute({
+    request_id: "TR-5",
+    case_id: "CASE-1",
+    step_id: "search_contacts",
+    tool_name: "search_outlook_contacts",
+    mode: "preview",
+    input: {
+      query: "taeho je",
+      max_results: 10
+    }
+  });
+
+  assert.equal(contactSearch.success, true);
+  assert.equal(contactSearch.output.artifact_kind, "contact_search");
+  assert.ok(Array.isArray(contactSearch.output.contacts));
+  assert.ok(contactSearch.output.contacts.some((candidate: { email?: string }) => candidate.email === "taeho.je@sk.com"));
 });

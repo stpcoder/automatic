@@ -300,6 +300,14 @@ export async function createApp(
     }));
   });
 
+  app.post("/debug/mail/search-contacts", async (request) => {
+    const body = request.body as { query?: string; max_results?: number };
+    return outlookWorker.execute(buildDebugToolRequest("search_outlook_contacts", "preview", {
+      query: body.query ?? "",
+      max_results: body.max_results ?? 10
+    }));
+  });
+
   app.post("/debug/mail/poll-once", async (request) => {
     const body = request.body as { watch_directory?: string };
     const poller = new OutlookReplyPoller(new OutlookComAdapter(), new HttpOutlookReplyEventSink(), {
@@ -448,6 +456,14 @@ export async function createApp(
         description: "Search Outlook mail by keyword.",
         input_schema: {
           keyword: { type: "string" },
+          max_results: { type: "number" }
+        }
+      },
+      {
+        name: "search_outlook_contacts",
+        description: "Search Outlook contacts and organizational directory by person, team, or email query.",
+        input_schema: {
+          query: { type: "string" },
           max_results: { type: "number" }
         }
       }
@@ -1247,6 +1263,9 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
   if (toolName === "search_outlook_mail") {
     return truncateForLog(stringForLog(input.keyword), 40);
   }
+  if (toolName === "search_outlook_contacts") {
+    return truncateForLog(stringForLog(input.query), 40);
+  }
   return "";
 }
 
@@ -1440,6 +1459,14 @@ function buildDebugToolSpecs() {
       }
     },
     {
+      name: "search_outlook_contacts",
+      description: "Search Outlook contacts and organizational directory by person, team, or email query.",
+      input_schema: {
+        query: { type: "string" },
+        max_results: { type: "number" }
+      }
+    },
+    {
       name: "finish_task",
       description: "Finish the current task and return a short summary.",
       input_schema: {
@@ -1526,6 +1553,18 @@ function normalizeDebugToolInput(
   if (toolName === "search_outlook_mail") {
     if (typeof normalized.keyword !== "string" || normalized.keyword.trim().length === 0) {
       normalized.keyword = typeof context.keyword === "string" && context.keyword.trim().length > 0 ? context.keyword : instruction;
+    }
+    if (typeof normalized.max_results !== "number") {
+      normalized.max_results = typeof context.max_results === "number" ? context.max_results : 10;
+    }
+  }
+
+  if (toolName === "search_outlook_contacts") {
+    if (typeof normalized.query !== "string" || normalized.query.trim().length === 0) {
+      normalized.query =
+        typeof context.recipient_query === "string" && context.recipient_query.trim().length > 0
+          ? context.recipient_query
+          : instruction;
     }
     if (typeof normalized.max_results !== "number") {
       normalized.max_results = typeof context.max_results === "number" ? context.max_results : 10;
