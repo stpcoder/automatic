@@ -594,6 +594,7 @@ export async function createApp(
         current_observation_signature: currentObservationSignature ?? null,
         last_tool_result: summarizeToolResultForPlanner(lastToolResult) ?? null,
         mail_evidence: summarizeMailEvidenceForPlanner(steps, lastToolResult) ?? null,
+        contact_evidence: summarizeContactEvidenceForPlanner(steps, lastToolResult) ?? null,
         global_plan: globalPlan ?? null,
         current_step_plan: currentStepPlan ?? null,
         last_failure: lastFailure ?? null,
@@ -1612,12 +1613,12 @@ function normalizeDebugToolInput(
     }
     const toValues = Array.isArray(normalized.to) ? normalized.to.filter((value) => typeof value === "string" && value.trim().length > 0) : [];
     if (toValues.length === 0) {
-      const lastToolResult =
-        typeof context.last_tool_result === "object" && context.last_tool_result !== null
-          ? (context.last_tool_result as Record<string, unknown>)
+      const contactEvidence =
+        typeof context.contact_evidence === "object" && context.contact_evidence !== null
+          ? (context.contact_evidence as Record<string, unknown>)
           : undefined;
-      const contacts = Array.isArray(lastToolResult?.contacts)
-        ? lastToolResult.contacts.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      const contacts = Array.isArray(contactEvidence?.contacts)
+        ? contactEvidence.contacts.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
         : [];
       const contactEmail = contacts
         .map((item) => (typeof item.email === "string" ? item.email.trim() : ""))
@@ -2062,6 +2063,64 @@ function summarizeMailEvidenceForPlanner(
             sender: typeof item.sender === "string" ? truncateForLog(item.sender, 100) : undefined,
             body_snippet: typeof item.body_snippet === "string" ? truncateForLog(item.body_snippet, 220) : undefined
           }))
+      };
+    }
+  }
+
+  return undefined;
+}
+
+function summarizeContactEvidenceForPlanner(
+  steps: Array<Record<string, unknown>>,
+  lastToolResult: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const candidates: Array<Record<string, unknown>> = [];
+  if (lastToolResult) {
+    candidates.push(lastToolResult);
+  }
+
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
+    if (step.success !== true) {
+      continue;
+    }
+    const toolResult =
+      typeof step.tool_result === "object" && step.tool_result !== null
+        ? (step.tool_result as Record<string, unknown>)
+        : undefined;
+    const output =
+      typeof toolResult?.output === "object" && toolResult.output !== null
+        ? (toolResult.output as Record<string, unknown>)
+        : undefined;
+    if (output) {
+      candidates.push(output);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const artifactKind = typeof candidate.artifact_kind === "string" ? candidate.artifact_kind : "";
+    if (artifactKind !== "contact_search" || !Array.isArray(candidate.contacts)) {
+      continue;
+    }
+
+    const contacts = candidate.contacts
+      .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+      .map((item) => ({
+        name: typeof item.name === "string" ? truncateForLog(item.name, 80) : undefined,
+        email: typeof item.email === "string" ? truncateForLog(item.email, 120) : undefined,
+        source: typeof item.source === "string" ? item.source : undefined,
+        company: typeof item.company === "string" ? truncateForLog(item.company, 80) : undefined,
+        department: typeof item.department === "string" ? truncateForLog(item.department, 80) : undefined,
+        job_title: typeof item.job_title === "string" ? truncateForLog(item.job_title, 80) : undefined
+      }))
+      .filter((item) => typeof item.email === "string" && item.email.trim().length > 0)
+      .slice(0, 5);
+
+    if (contacts.length > 0) {
+      return {
+        artifact_kind: "contact_search",
+        query: typeof candidate.query === "string" ? truncateForLog(candidate.query, 80) : undefined,
+        contacts
       };
     }
   }
