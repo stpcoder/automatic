@@ -593,6 +593,7 @@ export async function createApp(
         previous_observation: summarizePreviousObservationForPlanner(previousObservation) ?? null,
         current_observation_signature: currentObservationSignature ?? null,
         last_tool_result: summarizeToolResultForPlanner(lastToolResult) ?? null,
+        mail_evidence: summarizeMailEvidenceForPlanner(steps, lastToolResult) ?? null,
         global_plan: globalPlan ?? null,
         current_step_plan: currentStepPlan ?? null,
         last_failure: lastFailure ?? null,
@@ -1609,6 +1610,22 @@ function normalizeDebugToolInput(
     if (typeof normalized.body_html !== "string" && typeof context.body_html === "string") {
       normalized.body_html = context.body_html;
     }
+    const toValues = Array.isArray(normalized.to) ? normalized.to.filter((value) => typeof value === "string" && value.trim().length > 0) : [];
+    if (toValues.length === 0) {
+      const lastToolResult =
+        typeof context.last_tool_result === "object" && context.last_tool_result !== null
+          ? (context.last_tool_result as Record<string, unknown>)
+          : undefined;
+      const contacts = Array.isArray(lastToolResult?.contacts)
+        ? lastToolResult.contacts.filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+        : [];
+      const contactEmail = contacts
+        .map((item) => (typeof item.email === "string" ? item.email.trim() : ""))
+        .find((value) => value.length > 0);
+      if (contactEmail) {
+        normalized.to = [contactEmail];
+      }
+    }
   }
 
   if (toolName === "send_outlook_mail") {
@@ -1936,6 +1953,24 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
       }));
   }
 
+  if (toolResult.artifact_kind === "mail_detail") {
+    summary.mail_detail = {
+      entry_id: typeof toolResult.entry_id === "string" ? toolResult.entry_id : undefined,
+      conversation_id: typeof toolResult.conversation_id === "string" ? toolResult.conversation_id : undefined,
+      subject: typeof toolResult.subject === "string" ? truncateForLog(toolResult.subject, 140) : undefined,
+      sender: typeof toolResult.sender === "string" ? truncateForLog(toolResult.sender, 100) : undefined,
+      recipients: typeof toolResult.recipients === "string" ? truncateForLog(toolResult.recipients, 140) : undefined,
+      folder: typeof toolResult.folder === "string" ? toolResult.folder : undefined,
+      store: typeof toolResult.store === "string" ? toolResult.store : undefined,
+      body_snippet:
+        typeof toolResult.body_snippet === "string"
+          ? truncateForLog(toolResult.body_snippet, 260)
+          : typeof toolResult.body === "string"
+            ? truncateForLog(toolResult.body, 260)
+            : undefined
+    };
+  }
+
   if (Array.isArray(toolResult.contacts)) {
     summary.contacts = toolResult.contacts
       .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
@@ -1965,4 +2000,71 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
   }
 
   return summary;
+}
+
+function summarizeMailEvidenceForPlanner(
+  steps: Array<Record<string, unknown>>,
+  lastToolResult: Record<string, unknown> | undefined
+): Record<string, unknown> | undefined {
+  const candidates: Array<Record<string, unknown>> = [];
+  if (lastToolResult) {
+    candidates.push(lastToolResult);
+  }
+
+  for (let index = steps.length - 1; index >= 0; index -= 1) {
+    const step = steps[index];
+    if (step.success !== true) {
+      continue;
+    }
+    const toolResult =
+      typeof step.tool_result === "object" && step.tool_result !== null
+        ? (step.tool_result as Record<string, unknown>)
+        : undefined;
+    const output =
+      typeof toolResult?.output === "object" && toolResult.output !== null
+        ? (toolResult.output as Record<string, unknown>)
+        : undefined;
+    if (output) {
+      candidates.push(output);
+    }
+  }
+
+  for (const candidate of candidates) {
+    const artifactKind = typeof candidate.artifact_kind === "string" ? candidate.artifact_kind : "";
+    if (artifactKind === "mail_detail") {
+      return {
+        artifact_kind: "mail_detail",
+        entry_id: typeof candidate.entry_id === "string" ? candidate.entry_id : undefined,
+        conversation_id: typeof candidate.conversation_id === "string" ? candidate.conversation_id : undefined,
+        subject: typeof candidate.subject === "string" ? truncateForLog(candidate.subject, 140) : undefined,
+        sender: typeof candidate.sender === "string" ? truncateForLog(candidate.sender, 100) : undefined,
+        recipients: typeof candidate.recipients === "string" ? truncateForLog(candidate.recipients, 140) : undefined,
+        body_snippet:
+          typeof candidate.body_snippet === "string"
+            ? truncateForLog(candidate.body_snippet, 320)
+            : typeof candidate.body === "string"
+              ? truncateForLog(candidate.body, 320)
+              : undefined
+      };
+    }
+
+    if (artifactKind === "mail_conversation" && Array.isArray(candidate.messages)) {
+      return {
+        artifact_kind: "mail_conversation",
+        conversation_id: typeof candidate.conversation_id === "string" ? candidate.conversation_id : undefined,
+        count: typeof candidate.count === "number" ? candidate.count : undefined,
+        messages: candidate.messages
+          .filter((item): item is Record<string, unknown> => typeof item === "object" && item !== null)
+          .slice(0, 3)
+          .map((item) => ({
+            entry_id: typeof item.entry_id === "string" ? item.entry_id : undefined,
+            subject: typeof item.subject === "string" ? truncateForLog(item.subject, 140) : undefined,
+            sender: typeof item.sender === "string" ? truncateForLog(item.sender, 100) : undefined,
+            body_snippet: typeof item.body_snippet === "string" ? truncateForLog(item.body_snippet, 220) : undefined
+          }))
+      };
+    }
+  }
+
+  return undefined;
 }
