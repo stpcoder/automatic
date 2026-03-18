@@ -31,10 +31,13 @@ async function runScript(scriptName: string, payload: Record<string, unknown>): 
 
 export class OutlookComAdapter {
   async draftMail(input: {
-    template_id: string;
+    template_id?: string;
     to: string[];
     cc: string[];
-    variables: Record<string, unknown>;
+    variables?: Record<string, unknown>;
+    subject?: string;
+    body_text?: string;
+    body_html?: string;
   }): Promise<Record<string, unknown>> {
     return runScript("draft-mail.ps1", input);
   }

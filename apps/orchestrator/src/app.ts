@@ -381,8 +381,16 @@ export async function createApp(
       },
       {
         name: "draft_outlook_mail",
-        description: "Create an Outlook mail draft.",
-        input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
+        description: "Create an Outlook mail draft with recipients and optional subject/body.",
+        input_schema: {
+          template_id: { type: "string" },
+          to: { type: "array" },
+          cc: { type: "array" },
+          variables: { type: "object" },
+          subject: { type: "string" },
+          body_text: { type: "string" },
+          body_html: { type: "string" }
+        }
       },
       {
         name: "send_outlook_mail",
@@ -1380,8 +1388,16 @@ function buildDebugToolSpecs() {
     },
     {
       name: "draft_outlook_mail",
-      description: "Create an Outlook mail draft.",
-      input_schema: { template_id: { type: "string" }, to: { type: "array" }, cc: { type: "array" }, variables: { type: "object" } }
+      description: "Create an Outlook mail draft with recipients and optional subject/body.",
+      input_schema: {
+        template_id: { type: "string" },
+        to: { type: "array" },
+        cc: { type: "array" },
+        variables: { type: "object" },
+        subject: { type: "string" },
+        body_text: { type: "string" },
+        body_html: { type: "string" }
+      }
     },
     {
       name: "send_outlook_mail",
@@ -1583,6 +1599,15 @@ function normalizeDebugToolInput(
     }
     if ((typeof normalized.variables !== "object" || normalized.variables === null) && typeof context.variables === "object" && context.variables !== null) {
       normalized.variables = context.variables;
+    }
+    if (typeof normalized.subject !== "string" && typeof context.subject === "string") {
+      normalized.subject = context.subject;
+    }
+    if (typeof normalized.body_text !== "string" && typeof context.body_text === "string") {
+      normalized.body_text = context.body_text;
+    }
+    if (typeof normalized.body_html !== "string" && typeof context.body_html === "string") {
+      normalized.body_html = context.body_html;
     }
   }
 

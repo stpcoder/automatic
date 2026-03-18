@@ -163,3 +163,40 @@ test("outlook worker drafts, sends, reads, replies, previews, and watches replie
   assert.ok(Array.isArray(contactSearch.output.contacts));
   assert.ok(contactSearch.output.contacts.some((candidate: { email?: string }) => candidate.email === "taeho.je@sk.com"));
 });
+
+test("outlook worker can draft a natural mail with direct subject and body", async () => {
+  const worker = new OutlookWorker();
+
+  const draft = await worker.execute({
+    request_id: "TR-DIRECT-1",
+    case_id: "CASE-1",
+    step_id: "compose_mail",
+    tool_name: "draft_outlook_mail",
+    mode: "draft",
+    input: {
+      to: ["taeho.je@sk.com"],
+      cc: [],
+      subject: "AE School 교육일정 요약",
+      body_text: "안녕하세요.\nAE School 교육일정을 정리해서 전달드립니다."
+    }
+  });
+
+  assert.equal(draft.success, true);
+  assert.equal(draft.output.subject, "AE School 교육일정 요약");
+  assert.ok(draft.output.draft_id);
+
+  const preview = await worker.execute({
+    request_id: "TR-DIRECT-2",
+    case_id: "CASE-1",
+    step_id: "preview_mail",
+    tool_name: "preview_outlook_draft",
+    mode: "preview",
+    input: {
+      draft_id: draft.output.draft_id
+    }
+  });
+
+  assert.equal(preview.success, true);
+  assert.equal(preview.output.subject, "AE School 교육일정 요약");
+  assert.match(String(preview.output.body_html), /AE School 교육일정/);
+});

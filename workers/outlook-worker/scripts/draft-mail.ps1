@@ -10,15 +10,30 @@ $mail = $outlook.CreateItem(0)
 
 $mail.To = (@($payload.to) -join ";")
 $mail.CC = (@($payload.cc) -join ";")
-$templateId = [string]$payload.template_id
+$templateId = if ([string]::IsNullOrWhiteSpace([string]$payload.template_id)) { "general_mail" } else { [string]$payload.template_id }
+$subject = if ([string]::IsNullOrWhiteSpace([string]$payload.subject)) { "[$templateId] Automated Draft" } else { [string]$payload.subject }
+$bodyHtml = [string]$payload.body_html
+$bodyText = [string]$payload.body_text
 $variablesJson = ($payload.variables | ConvertTo-Json -Depth 10)
 
-$mail.Subject = "[$templateId] Automated Draft"
-$mail.HTMLBody = "<pre>$variablesJson</pre>"
+$mail.Subject = $subject
+if (-not [string]::IsNullOrWhiteSpace($bodyHtml)) {
+  $mail.HTMLBody = $bodyHtml
+}
+elseif (-not [string]::IsNullOrWhiteSpace($bodyText)) {
+  $escaped = [System.Net.WebUtility]::HtmlEncode($bodyText) -replace "(\r?\n)", "<br/>"
+  $mail.HTMLBody = "<div>$escaped</div>"
+}
+else {
+  $mail.HTMLBody = "<pre>$variablesJson</pre>"
+}
 $mail.Save()
 
 @{
   artifact_kind = "mail_draft"
   draft_id = $mail.EntryID
-  preview_summary = "Drafted $templateId for $($mail.To)"
+  preview_summary = "Drafted $subject for $($mail.To)"
+  subject = $mail.Subject
+  to = @($payload.to)
+  cc = @($payload.cc)
 } | ConvertTo-Json -Depth 10 -Compress

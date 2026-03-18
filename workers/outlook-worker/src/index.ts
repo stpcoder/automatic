@@ -76,13 +76,16 @@ export class OutlookWorker implements ToolExecutor {
   private async draftMail(request: ToolRequest): Promise<ToolResult> {
     if (this.useRealAdapter) {
       const output = await new OutlookComAdapter().draftMail({
-        template_id: String(request.input.template_id ?? "unknown"),
+        template_id: typeof request.input.template_id === "string" ? request.input.template_id : undefined,
         to: Array.isArray(request.input.to) ? (request.input.to as string[]) : [],
         cc: Array.isArray(request.input.cc) ? (request.input.cc as string[]) : [],
         variables:
           typeof request.input.variables === "object" && request.input.variables !== null
             ? (request.input.variables as Record<string, unknown>)
-            : {}
+            : undefined,
+        subject: typeof request.input.subject === "string" ? request.input.subject : undefined,
+        body_text: typeof request.input.body_text === "string" ? request.input.body_text : undefined,
+        body_html: typeof request.input.body_html === "string" ? request.input.body_html : undefined
       });
       return {
         request_id: request.request_id,
@@ -98,19 +101,27 @@ export class OutlookWorker implements ToolExecutor {
       draftId,
       to: Array.isArray(request.input.to) ? (request.input.to as string[]) : [],
       cc: Array.isArray(request.input.cc) ? (request.input.cc as string[]) : [],
-      templateId: String(request.input.template_id ?? "unknown"),
+      templateId: typeof request.input.template_id === "string" ? request.input.template_id : "general_mail",
       variables:
         typeof request.input.variables === "object" && request.input.variables !== null
           ? (request.input.variables as Record<string, unknown>)
           : {},
-      subject: `[${String(request.input.template_id ?? "unknown")}] Automated Draft`,
-      bodyHtml: `<pre>${JSON.stringify(
-        typeof request.input.variables === "object" && request.input.variables !== null
-          ? (request.input.variables as Record<string, unknown>)
-          : {},
-        null,
-        2
-      )}</pre>`
+      subject:
+        typeof request.input.subject === "string" && request.input.subject.trim().length > 0
+          ? request.input.subject
+          : `[${typeof request.input.template_id === "string" ? request.input.template_id : "general_mail"}] Automated Draft`,
+      bodyHtml:
+        typeof request.input.body_html === "string" && request.input.body_html.trim().length > 0
+          ? request.input.body_html
+          : typeof request.input.body_text === "string"
+            ? `<div>${request.input.body_text}</div>`
+            : `<pre>${JSON.stringify(
+                typeof request.input.variables === "object" && request.input.variables !== null
+                  ? (request.input.variables as Record<string, unknown>)
+                  : {},
+                null,
+                2
+              )}</pre>`
     };
     this.drafts.set(draftId, draft);
 
