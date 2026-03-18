@@ -278,9 +278,15 @@ function Show-DraftPreview {
     [string]$DraftId
   )
 
-  $preview = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/preview-draft") -Body @{
+  $previewResult = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/preview-draft") -Body @{
     draft_id = $DraftId
   }
+  if ($previewResult.success -ne $true) {
+    $message = if ($previewResult.output.error) { [string]$previewResult.output.error } else { "Draft preview failed." }
+    throw $message
+  }
+
+  $preview = if ($previewResult.output) { $previewResult.output } else { $previewResult }
 
   $bodyPreview = Convert-HtmlToPreviewText -Html ([string]$preview.body_html)
   Write-Host ""
@@ -324,11 +330,24 @@ function Confirm-AndMaybeSendDraft {
   $sendResult = Invoke-AgentApi -Method "POST" -Uri (Get-AgentUrl "/debug/mail/send") -Body @{
     draft_id = $draftId
   }
+  if ($sendResult.success -ne $true) {
+    $message = if ($sendResult.output.error) { [string]$sendResult.output.error } else { "Draft send failed." }
+    Write-Host "[skh-agent] send failed: $message"
+    return @{
+      sent = $false
+      draft_id = $draftId
+      error = $message
+      result = $sendResult
+    }
+  }
 
-  Write-Host "[skh-agent] draft sent."
+  $sendOutput = if ($sendResult.output) { $sendResult.output } else { $sendResult }
+  $recipients = @($sendOutput.recipients) | Where-Object { $_ -and $_.ToString().Trim().Length -gt 0 }
+  $recipientText = if ($recipients.Count -gt 0) { $recipients -join "; " } else { "(unknown recipients)" }
+  Write-Host "[skh-agent] draft sent to $recipientText"
   return @{
     sent = $true
     draft_id = $draftId
-    result = $sendResult
+    result = $sendOutput
   }
 }
