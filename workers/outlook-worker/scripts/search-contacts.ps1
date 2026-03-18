@@ -8,6 +8,8 @@ $payload = ConvertFrom-AgentJson -Json $PayloadJson
 $query = [string]$payload.query
 $maxResults = if ($payload.max_results) { [int]$payload.max_results } else { 10 }
 $maxResults = [Math]::Min([Math]::Max($maxResults, 1), 25)
+$addressBookTokenKorean = Decode-Utf8Base64 -Value "7KO87IaM66Gd"
+$organizationTokenKorean = Decode-Utf8Base64 -Value "7KGw7KeB"
 
 function Get-SafeString {
   param($Value)
@@ -210,8 +212,8 @@ function Get-MatchScore {
     $listNameNormalized.Contains("globaladdresslist") -or
     $listNameNormalized.Contains("allusers") -or
     $listNameNormalized.Contains("organiz") -or
-    $listNameNormalized.Contains("주소록") -or
-    $listNameNormalized.Contains("조직")
+    $listNameNormalized.Contains((Normalize-SearchText -Value $addressBookTokenKorean)) -or
+    $listNameNormalized.Contains((Normalize-SearchText -Value $organizationTokenKorean))
   ) {
     $score += 40
   }

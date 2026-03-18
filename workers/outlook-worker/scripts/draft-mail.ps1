@@ -13,7 +13,7 @@ function Wrap-MailHtml {
     [string]$Content
   )
 
-  return "<div style=""font-family:'Malgun Gothic','맑은 고딕',sans-serif;font-size:10pt;"">$Content</div>"
+  return "<div style=""font-family:'Malgun Gothic',sans-serif;font-size:10pt;"">$Content</div>"
 }
 
 $mail.To = (@($payload.to) -join ";")
@@ -34,7 +34,7 @@ elseif (-not [string]::IsNullOrWhiteSpace($bodyText)) {
 }
 else {
   $escapedVariables = [System.Net.WebUtility]::HtmlEncode($variablesJson)
-  $mail.HTMLBody = Wrap-MailHtml -Content "<pre style=""font-family:'Malgun Gothic','맑은 고딕',sans-serif;font-size:10pt;margin:0;"">$escapedVariables</pre>"
+  $mail.HTMLBody = Wrap-MailHtml -Content "<pre style=""font-family:'Malgun Gothic',sans-serif;font-size:10pt;margin:0;"">$escapedVariables</pre>"
 }
 $mail.Save()
 
