@@ -84,7 +84,8 @@
     "win:test:8": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-web-prompt.ps1",
     "win:test:9": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-agent-scenario-mail-prompt.ps1",
     "win:test:10": "npm run win:test:agent:scenario:current-page-summary",
-    "win:test:11": "npm run win:test:agent:scenario:current-page-actions"
+    "win:test:11": "npm run win:test:agent:scenario:current-page-actions",
+    "win:test:0": "powershell -ExecutionPolicy Bypass -File scripts/windows/test-llm-model-bench.ps1"
   },
   "dependencies": {
     "@ai-sdk/openai-compatible": "^2.0.35",
