@@ -6,6 +6,14 @@ param(
 . (Join-Path $PSScriptRoot "..\..\..\scripts\windows\common.ps1")
 $payload = ConvertFrom-AgentJson -Json $PayloadJson
 
+function Wrap-MailHtml {
+  param(
+    [string]$Content
+  )
+
+  return "<div style=""font-family:'Malgun Gothic','맑은 고딕',sans-serif;font-size:10pt;"">$Content</div>"
+}
+
 $outlook = New-Object -ComObject Outlook.Application
 $namespace = $outlook.GetNamespace("MAPI")
 $draft = $namespace.GetItemFromID([string]$payload.draft_id)
@@ -24,9 +32,10 @@ if ($null -ne $payload.cc) {
   $draft.CC = (@($payload.cc) -join ";")
 }
 if ($payload.body_html) {
-  $draft.HTMLBody = [string]$payload.body_html
+  $draft.HTMLBody = Wrap-MailHtml -Content ([string]$payload.body_html)
 } elseif ($payload.body_text) {
-  $draft.HTMLBody = "<div>$([string]$payload.body_text)</div>"
+  $escaped = [System.Net.WebUtility]::HtmlEncode([string]$payload.body_text) -replace "(\r?\n)", "<br/>"
+  $draft.HTMLBody = Wrap-MailHtml -Content $escaped
 }
 
 $draft.Save()

@@ -16,6 +16,14 @@ function Get-SafeString {
   }
 }
 
+function Wrap-MailHtml {
+  param(
+    [string]$Content
+  )
+
+  return "<div style=""font-family:'Malgun Gothic','맑은 고딕',sans-serif;font-size:10pt;"">$Content</div>"
+}
+
 function Find-ReplyBaseItem {
   param(
     [Parameter(Mandatory = $true)]
@@ -92,9 +100,12 @@ if ($replyAll) {
 }
 
 if (-not [string]::IsNullOrWhiteSpace($bodyHtml)) {
-  $reply.HTMLBody = "$bodyHtml<hr/>$($reply.HTMLBody)"
+  $styledBody = Wrap-MailHtml -Content $bodyHtml
+  $reply.HTMLBody = "$styledBody<hr/>$($reply.HTMLBody)"
 } elseif (-not [string]::IsNullOrWhiteSpace($bodyText)) {
-  $reply.HTMLBody = "<div>$bodyText</div><hr/>$($reply.HTMLBody)"
+  $escaped = [System.Net.WebUtility]::HtmlEncode($bodyText) -replace "(\r?\n)", "<br/>"
+  $styledBody = Wrap-MailHtml -Content $escaped
+  $reply.HTMLBody = "$styledBody<hr/>$($reply.HTMLBody)"
 }
 
 $reply.Save()
