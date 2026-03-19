@@ -2,3 +2,5 @@
 node_modules
 dist
 opencode.ai/config.json
+.local-only/
+data/*.sqlite
