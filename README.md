@@ -142,6 +142,43 @@ Windows quick test aliases:
 
 See `docs/windows-real-test-runbook.md` for the current Windows extension setup.
 
+## macOS Local Web Testing
+
+macOS in this repo is intended for:
+- orchestrator/server startup
+- Chrome extension bridge based web testing
+- direct LLM config/model benchmarking
+
+macOS is not intended for:
+- Outlook COM mail tools
+- Outlook reply poller
+- Windows desktop automation
+
+Helpful macOS commands:
+
+```bash
+npm run mac:setup
+npm run mac:llm:init -- <api-key> <base-url> [model]
+npm run mac:start
+npm run mac:doctor
+npm run mac:test:1
+npm run mac:test:2
+npm run mac:test:3
+npm run mac:test:4
+npm run mac:test:8 -- --prompt "https://www.google.com 에 접속해서 원하는 내용을 검색하고 핵심 결과를 요약해줘"
+npm run mac:test:0
+```
+
+macOS LLM setup:
+- `mac:llm:init` requires a user-provided API key and base URL, either as arguments or via `LLM_API_KEY`, `LLM_BASE_URL`, and optional `LLM_MODEL`
+- official path: use a legitimate OpenAI API or another legitimately provisioned OpenAI-compatible endpoint
+- if you intentionally run your own compatible server in a local environment, pass that local URL explicitly; the repo does not assume or ship any private local proxy by default
+- example:
+
+```bash
+npm run mac:llm:init -- sk-your-key https://your-endpoint.example/v1 gpt-5.1-codex-mini
+```
+
 Important Chrome extension note:
 
 - Set the extension site access to `On all sites`.

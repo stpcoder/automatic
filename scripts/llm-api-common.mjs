@@ -17,7 +17,9 @@ export function resolveLlmConfig(cwd = process.cwd()) {
 
   const configPath = path.resolve(cwd, "opencode.ai", "config.json");
   if (!fs.existsSync(configPath)) {
-    throw new Error(`Missing LLM config at ${configPath}. Run 'npm run win:llm:init' or set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL.`);
+    throw new Error(
+      `Missing LLM config at ${configPath}. Run 'npm run win:llm:init' or 'npm run mac:llm:init', or set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL.`
+    );
   }
 
   const raw = fs.readFileSync(configPath, "utf8").replace(/^\uFEFF/, "").trim();
@@ -43,7 +45,9 @@ export function resolveLlmConfig(cwd = process.cwd()) {
   }
 
   if (!baseUrl || !apiKey || !model) {
-    throw new Error(`Unable to resolve baseUrl/apiKey/model from ${configPath}. Run 'npm run win:llm:init' or set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL.`);
+    throw new Error(
+      `Unable to resolve baseUrl/apiKey/model from ${configPath}. Run 'npm run win:llm:init' or 'npm run mac:llm:init', or set LLM_BASE_URL, LLM_API_KEY, and LLM_MODEL.`
+    );
   }
 
   return {

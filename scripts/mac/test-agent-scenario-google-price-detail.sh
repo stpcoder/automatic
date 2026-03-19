@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/common.sh"
+agent_set_environment
+instruction="https://www.google.com 에 접속해서 MacBook Air 가격을 검색하고 가장 관련 높은 결과를 열어서 가격을 알려줘"
+instruction_base64="$(encode_utf8_base64 "${instruction}")"
+body="$(node --input-type=module - "${instruction_base64}" <<'NODE'
+console.log(JSON.stringify({ instruction_base64: process.argv[2], context: {} }));
+NODE
+)"
+echo "[skh-agent] running prompt-only scenario: google price detail..."
+invoke_agent_api POST "$(agent_get_url /debug/agent/run-loop)" "${body}" | format_agent_run_result
+
