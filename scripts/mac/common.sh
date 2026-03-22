@@ -124,10 +124,14 @@ invoke_agent_api() {
 }
 
 format_agent_run_result() {
-  local raw
-  raw="$(cat)"
-  AGENT_RUN_RESULT_JSON="${raw}" node --input-type=module - <<'NODE'
-const raw = process.env.AGENT_RUN_RESULT_JSON ?? "";
+  local result_file
+  result_file="$(mktemp)"
+  cat > "${result_file}"
+  node --input-type=module - "${result_file}" <<'NODE'
+import fs from "node:fs";
+
+const resultFile = process.argv[2];
+const raw = fs.readFileSync(resultFile, "utf8");
 const result = JSON.parse(raw);
 
 if (result.ok === true) {
@@ -155,4 +159,5 @@ if (result.timing?.total_ms != null) {
 }
 process.exit(0);
 NODE
+  rm -f "${result_file}"
 }
