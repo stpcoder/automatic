@@ -118,6 +118,14 @@ npm run win:debug:mail:draft -- -To vendor@example.com -TemplateId request_custo
 npm run win:debug:agent:run -- -Instruction "메일 초안을 작성해줘" -ContextJson '{"template_id":"request_customs_number","to":["vendor@example.com"],"variables":{"traveler_name":"Kim"}}'
 ```
 
+Web observation focus:
+- `read_web_page` supports an optional `focus` input: `default`, `cards`, `metrics`, `content`, `forms`
+- use `default` first
+- use `cards` when a result/listing page is dominated by header or navigation UI and you need result or product cards
+- use `metrics` when you need price, quote, quantity, or label-value style data
+- use `content` for article/document body reading
+- use `forms` when you need current field values or submit controls
+
 Naver stock prompt examples:
 
 ```bash

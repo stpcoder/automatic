@@ -2,7 +2,16 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 import { WebWorker } from "./index.js";
-import type { ClickResult, FillResult, PageObservation, PreviewResult, SubmitResult, WebAdapter } from "./types.js";
+import { applyObservationFocus } from "./observation-focus.js";
+import type {
+  ClickResult,
+  FillResult,
+  ObservationOptions,
+  PageObservation,
+  PreviewResult,
+  SubmitResult,
+  WebAdapter
+} from "./types.js";
 
 function getOutput(result: { output: unknown }) {
   return result.output as {
@@ -26,13 +35,29 @@ class StubExtensionBridgeAdapter implements WebAdapter {
       title: "Live Page",
       summary: "Observed via live chrome adapter.",
       domOutline: "[search]<button key=search>Search />",
+      keyMetrics: [
+        { label: "현재가", value: "1,021,000원", importance: 0.95 },
+        { label: "거래량", value: "1,092,008", importance: 0.9 }
+      ],
+      actionableCards: [
+        {
+          id: "card-1",
+          type: "search_result",
+          title: "SK hynix 뉴스",
+          source: "노컷뉴스",
+          href: "https://example.test/article",
+          targetKey: "result_1",
+          targetHandle: "4",
+          importance: 0.88
+        }
+      ],
       finalActionButton: "Submit",
       interactiveElements: []
     };
   }
 
-  async observe(systemId: string): Promise<PageObservation> {
-    return this.openSystem(systemId);
+  async observe(systemId: string, _sessionId?: string, options?: ObservationOptions): Promise<PageObservation> {
+    return applyObservationFocus(await this.openSystem(systemId), options?.focus);
   }
 
   async fillForm(systemId: string, values: Record<string, unknown>): Promise<FillResult> {
@@ -65,8 +90,8 @@ class StubExtensionBridgeAdapter implements WebAdapter {
     };
   }
 
-  async followNavigation(systemId: string): Promise<PageObservation> {
-    return this.openSystem(systemId);
+  async followNavigation(systemId: string, _sessionId?: string, options?: ObservationOptions): Promise<PageObservation> {
+    return applyObservationFocus(await this.openSystem(systemId), options?.focus);
   }
 }
 
@@ -170,6 +195,56 @@ test("web worker reports extension_bridge harness when extension adapter is inje
   assert.equal(openOutput.harness, "extension_bridge");
   assert.equal(openOutput.observation.title, "Live Page");
   assert.equal(typeof openOutput.observation.domOutline, "string");
+  assert.equal(openOutput.observation.keyMetrics?.[0]?.label, "현재가");
+  assert.equal(openOutput.observation.actionableCards?.[0]?.targetKey, "result_1");
+
+  const read = await worker.execute({
+    request_id: "TR-live-1",
+    case_id: "CASE-2",
+    step_id: "create_dhl_shipment",
+    tool_name: "read_web_page",
+    mode: "preview",
+    input: {
+      system_id: "dhl"
+    }
+  });
+
+  assert.equal(read.success, true);
+  const readOutput = read.output as {
+    key_metrics?: Array<{ label: string }>;
+    actionable_cards?: Array<{ title: string }>;
+  };
+  assert.equal(readOutput.key_metrics?.[0]?.label, "현재가");
+  assert.equal(readOutput.actionable_cards?.[0]?.title, "SK hynix 뉴스");
+});
+
+test("web worker read_web_page accepts focus and returns focus metadata", async () => {
+  const worker = new WebWorker({
+    adapter: new StubExtensionBridgeAdapter()
+  });
+
+  const read = await worker.execute({
+    request_id: "TR-live-focus",
+    case_id: "CASE-focus",
+    step_id: "read",
+    tool_name: "read_web_page",
+    mode: "preview",
+    input: {
+      system_id: "web_generic",
+      focus: "metrics"
+    }
+  });
+
+  assert.equal(read.success, true);
+  const output = read.output as {
+    focus_used?: string;
+    recommended_focus?: string;
+    observation: PageObservation;
+  };
+  assert.equal(output.focus_used, "metrics");
+  assert.equal(output.observation.focusUsed, "metrics");
+  assert.equal(typeof output.recommended_focus, "string");
+  assert.equal(output.observation.keyMetrics?.[0]?.label, "현재가");
 });
 
 test("web worker can read the current page without extracting a final answer", async () => {

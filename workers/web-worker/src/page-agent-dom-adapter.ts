@@ -1,9 +1,11 @@
 import { buildHarnessPage } from "./system-definitions.js";
+import { applyObservationFocus } from "./observation-focus.js";
 import type {
   ClickResult,
   FillResult,
   HarnessPageDefinition,
   HistoryNavigationResult,
+  ObservationOptions,
   PageObservation,
   PreviewResult,
   SemanticBlock,
@@ -36,12 +38,18 @@ export class PageAgentDomAdapter implements WebAdapter {
       historyIndex: 0
     });
     const session = this.getSession(systemId);
-    return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
+    return applyObservationFocus(
+      this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+      "default"
+    );
   }
 
-  async observe(systemId: string): Promise<PageObservation> {
+  async observe(systemId: string, _sessionId?: string, options?: ObservationOptions): Promise<PageObservation> {
     const session = this.getOrCreateSession(systemId);
-    return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
+    return applyObservationFocus(
+      this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+      options?.focus
+    );
   }
 
   async fillForm(systemId: string, values: Record<string, unknown>): Promise<FillResult> {
@@ -70,7 +78,10 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       draftId: `WEBDRAFT-${crypto.randomUUID()}`,
       filledFields: values,
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+      observation: applyObservationFocus(
+        this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+        "default"
+      )
     };
   }
 
@@ -100,7 +111,10 @@ export class PageAgentDomAdapter implements WebAdapter {
         domPath: target.domPath,
         nearbyText: target.nearbyText
       },
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+      observation: applyObservationFocus(
+        this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+        "default"
+      )
     };
   }
 
@@ -108,7 +122,10 @@ export class PageAgentDomAdapter implements WebAdapter {
     const session = this.getOrCreateSession(systemId);
     return {
       scrollId: `WEBSCROLL-${crypto.randomUUID()}`,
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+      observation: applyObservationFocus(
+        this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+        "default"
+      )
     };
   }
 
@@ -125,7 +142,10 @@ export class PageAgentDomAdapter implements WebAdapter {
     return {
       navigationId: `WEBNAV-${crypto.randomUUID()}`,
       direction,
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+      observation: applyObservationFocus(
+        this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+        "default"
+      )
     };
   }
 
@@ -133,7 +153,10 @@ export class PageAgentDomAdapter implements WebAdapter {
     const session = this.getOrCreateSession(systemId);
     return {
       previewId: `PREVIEW-${crypto.randomUUID()}`,
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+      observation: applyObservationFocus(
+        this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+        "default"
+      )
     };
   }
 
@@ -158,13 +181,19 @@ export class PageAgentDomAdapter implements WebAdapter {
 
     return {
       recordId: `REC-${crypto.randomUUID()}`,
-      observation: this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId)
+      observation: applyObservationFocus(
+        this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+        "default"
+      )
     };
   }
 
   async followNavigation(systemId: string): Promise<PageObservation> {
     const session = this.getOrCreateSession(systemId);
-    return this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId);
+    return applyObservationFocus(
+      this.toObservation(session.page, systemId, session.sessionId, session.parentSessionId),
+      "default"
+    );
   }
 
   private getSession(systemId: string): SessionState {

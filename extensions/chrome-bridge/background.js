@@ -88,6 +88,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === "skh:bridge-unregister-session") {
+    const sessionId = String(message.sessionId || "");
+    withConfig((config) =>
+      bridgeFetchJson(config.serverOrigin, `/bridge/sessions/${encodeURIComponent(sessionId)}`, {
+        method: "DELETE"
+      })
+    )
+      .then((result) => sendResponse({ ok: true, result }))
+      .catch((error) =>
+        sendResponse({
+          ok: false,
+          error: error instanceof Error ? error.message : String(error)
+        })
+      );
+    return true;
+  }
+
   if (message.type === "skh:bridge-push-observation") {
     const sessionId = String(message.sessionId || "");
     withConfig((config) =>
@@ -160,6 +177,15 @@ chrome.tabs.onUpdated.addListener(async (_tabId, changeInfo) => {
   if (changeInfo.status === "complete") {
     await processPendingTasks().catch(() => null);
   }
+});
+
+chrome.tabs.onRemoved.addListener(async (tabId) => {
+  const sessionId = `ext-tab-${tabId}`;
+  await withConfig((config) =>
+    bridgeFetchJson(config.serverOrigin, `/bridge/sessions/${encodeURIComponent(sessionId)}`, {
+      method: "DELETE"
+    }).catch(() => null)
+  ).catch(() => null);
 });
 
 async function processPendingTasks() {

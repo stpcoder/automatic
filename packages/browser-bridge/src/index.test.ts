@@ -92,3 +92,27 @@ test("browser bridge can follow navigation to a child session", async () => {
   assert.equal(followed.session.session_id, "child-session");
   assert.equal(followed.session.parent_session_id, "parent-session");
 });
+
+test("browser bridge deduplicates pending open-tab tasks for the same url", () => {
+  const coordinator = new BrowserBridgeCoordinator();
+
+  const first = coordinator.enqueueOpenTab("https://www.naver.com");
+  const second = coordinator.enqueueOpenTab("https://www.naver.com");
+
+  assert.equal(first.task_id, second.task_id);
+  assert.equal(coordinator.pullPendingBrowserTasks().length, 1);
+});
+
+test("browser bridge unregisters sessions explicitly", () => {
+  const coordinator = new BrowserBridgeCoordinator();
+  coordinator.registerSession({
+    session_id: "session-3",
+    system_id: "web_generic",
+    title: "NAVER",
+    url: "https://www.naver.com"
+  });
+
+  assert.equal(coordinator.listSessions().length, 1);
+  assert.equal(coordinator.unregisterSession("session-3"), true);
+  assert.equal(coordinator.listSessions().length, 0);
+});

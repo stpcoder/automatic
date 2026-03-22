@@ -56,11 +56,15 @@ export class BrowserBridgeCoordinator {
   private readonly browserTasks: BridgeBrowserTask[] = [];
   private readonly observationTimeoutMs = Number(process.env.BRIDGE_OBSERVATION_TIMEOUT_MS ?? "30000");
   private readonly commandTimeoutMs = Number(process.env.BRIDGE_COMMAND_TIMEOUT_MS ?? "30000");
-  private readonly sessionFreshnessMs = Number(process.env.BRIDGE_SESSION_FRESHNESS_MS ?? "10000");
+  private readonly sessionFreshnessMs = Number(process.env.BRIDGE_SESSION_FRESHNESS_MS ?? "120000");
 
   reset(): void {
     this.sessions.clear();
     this.browserTasks.length = 0;
+  }
+
+  unregisterSession(sessionId: string): boolean {
+    return this.sessions.delete(sessionId);
   }
 
   registerSession(input: {
@@ -70,12 +74,13 @@ export class BrowserBridgeCoordinator {
     title?: string;
     url?: string;
   }): BridgeSession {
+    this.pruneStaleSessions();
     const now = new Date().toISOString();
     const existing = this.sessions.get(input.session_id);
     const session = bridgeSessionSchema.parse({
       session_id: input.session_id,
       parent_session_id: input.parent_session_id,
-      system_id: input.system_id,
+      system_id: normalizeBridgeSystemId(input.system_id),
       title: input.title,
       url: input.url,
       created_at: existing?.session.created_at ?? now,
@@ -90,12 +95,17 @@ export class BrowserBridgeCoordinator {
   }
 
   updateObservation(sessionId: string, observation: unknown): z.infer<typeof observationSchema> {
+    this.pruneStaleSessions();
     const state = this.requireSession(sessionId);
     const parsed = observationSchema.parse(observation);
     state.latestObservation = parsed;
     state.session = {
       ...state.session,
       updated_at: new Date().toISOString(),
+      system_id:
+        typeof parsed.payload.systemId === "string" && parsed.payload.systemId.trim().length > 0
+          ? normalizeBridgeSystemId(parsed.payload.systemId)
+          : state.session.system_id,
       title: typeof parsed.payload.title === "string" ? parsed.payload.title : state.session.title,
       url: typeof parsed.payload.url === "string" ? parsed.payload.url : state.session.url
     };
@@ -104,6 +114,7 @@ export class BrowserBridgeCoordinator {
   }
 
   listSessions(): Array<BridgeSession & { has_observation: boolean; is_stale: boolean }> {
+    this.pruneStaleSessions();
     return [...this.sessions.values()].map(({ session, latestObservation }) => ({
       ...session,
       has_observation: Boolean(latestObservation),
@@ -112,6 +123,7 @@ export class BrowserBridgeCoordinator {
   }
 
   getSessionInfo(sessionId: string): BridgeSession | undefined {
+    this.pruneStaleSessions();
     return this.sessions.get(sessionId)?.session;
   }
 
@@ -120,6 +132,8 @@ export class BrowserBridgeCoordinator {
   }
 
   getLatestObservation(systemId: string, preferredSessionId?: string): z.infer<typeof observationSchema> | undefined {
+    this.pruneStaleSessions();
+    const normalizedSystemId = normalizeBridgeSystemId(systemId);
     if (preferredSessionId) {
       const preferred = this.sessions.get(preferredSessionId);
       if (preferred && !this.isStale(preferred.session)) {
@@ -128,7 +142,7 @@ export class BrowserBridgeCoordinator {
       return undefined;
     }
     const candidates = [...this.sessions.values()]
-      .filter((session) => session.session.system_id === systemId && session.latestObservation && !this.isStale(session.session))
+      .filter((session) => session.session.system_id === normalizedSystemId && session.latestObservation && !this.isStale(session.session))
       .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at));
     return candidates[0]?.latestObservation;
   }
@@ -138,16 +152,27 @@ export class BrowserBridgeCoordinator {
     return session?.latestObservation;
   }
 
+  getSessionBySelector(selector: SessionSelector): BridgeSession | undefined {
+    return this.findSessionBySelector(selector, false)?.session;
+  }
+
+  getObservationBySession(sessionId: string): z.infer<typeof observationSchema> | undefined {
+    this.pruneStaleSessions();
+    return this.sessions.get(sessionId)?.latestObservation;
+  }
+
   enqueueCommand(
     systemId: string,
     type: BridgeCommand["type"],
     payload: Record<string, unknown>,
     preferredSessionId?: string
   ): BridgeCommand {
-    const state = preferredSessionId ? this.requireSession(preferredSessionId) : this.findLatestSessionState(systemId)!;
+    this.pruneStaleSessions();
+    const normalizedSystemId = normalizeBridgeSystemId(systemId);
+    const state = preferredSessionId ? this.requireSession(preferredSessionId) : this.findLatestSessionState(normalizedSystemId)!;
     const command = bridgeCommandSchema.parse({
       command_id: `BC-${crypto.randomUUID()}`,
-      system_id: systemId,
+      system_id: normalizedSystemId,
       type,
       payload,
       status: "pending",
@@ -159,6 +184,17 @@ export class BrowserBridgeCoordinator {
   }
 
   enqueueOpenTab(url: string): BridgeBrowserTask {
+    this.pruneStaleSessions();
+    const normalizedUrl = normalizeUrlForMatch(url);
+    const existing = this.browserTasks.find(
+      (task) =>
+        task.type === "open_tab" &&
+        task.status === "pending" &&
+        normalizeUrlForMatch(String(task.payload.url ?? "")) === normalizedUrl
+    );
+    if (existing) {
+      return existing;
+    }
     const task = bridgeBrowserTaskSchema.parse({
       task_id: `BT-${crypto.randomUUID()}`,
       type: "open_tab",
@@ -193,11 +229,13 @@ export class BrowserBridgeCoordinator {
   }
 
   pullPendingCommands(sessionId: string): BridgeCommand[] {
+    this.pruneStaleSessions();
     const state = this.requireSession(sessionId);
     return state.commands.filter((command) => command.status === "pending");
   }
 
   completeCommand(sessionId: string, commandId: string, input: { success: boolean; result?: Record<string, unknown>; error?: string }): BridgeCommand {
+    this.pruneStaleSessions();
     const state = this.requireSession(sessionId);
     const index = state.commands.findIndex((command) => command.command_id === commandId);
     if (index === -1) {
@@ -216,9 +254,11 @@ export class BrowserBridgeCoordinator {
   }
 
   getCommand(systemId: string, commandId: string, preferredSessionId?: string): BridgeCommand | undefined {
+    this.pruneStaleSessions();
+    const normalizedSystemId = normalizeBridgeSystemId(systemId);
     const state = preferredSessionId
       ? this.getFreshSessionState(preferredSessionId)
-      : this.findLatestSessionState(systemId, false);
+      : this.findLatestSessionState(normalizedSystemId, false);
     return state?.commands.find((command) => command.command_id === commandId);
   }
 
@@ -275,7 +315,8 @@ export class BrowserBridgeCoordinator {
 
   async waitForNavigation(
     sessionId: string,
-    timeoutMs = this.observationTimeoutMs
+    timeoutMs = this.observationTimeoutMs,
+    expectedUrl?: string
   ): Promise<{ session: BridgeSession; observation: z.infer<typeof observationSchema> }> {
     const baseline = this.requireSession(sessionId);
     const baselineUpdatedAt = baseline.session.updated_at;
@@ -307,6 +348,19 @@ export class BrowserBridgeCoordinator {
         };
       }
 
+      const related = this.findRelatedNavigationSession({
+        sourceSessionId: sessionId,
+        sourceSystemId: baselineSystemId,
+        sinceUpdatedAt: baselineUpdatedAt,
+        expectedUrl
+      });
+      if (related) {
+        return {
+          session: related.session,
+          observation: related.latestObservation!
+        };
+      }
+
       await sleep(150);
     }
 
@@ -335,6 +389,7 @@ export class BrowserBridgeCoordinator {
   }
 
   private requireSession(sessionId: string): BridgeSessionState {
+    this.pruneStaleSessions();
     const state = this.sessions.get(sessionId);
     if (!state) {
       throw new Error(`Bridge session ${sessionId} not found`);
@@ -351,11 +406,12 @@ export class BrowserBridgeCoordinator {
   }
 
   private findLatestSessionState(systemId: string, required = true): BridgeSessionState | undefined {
+    const normalizedSystemId = normalizeBridgeSystemId(systemId);
     const latest = [...this.sessions.values()]
-      .filter((session) => session.session.system_id === systemId && !this.isStale(session.session))
+      .filter((session) => session.session.system_id === normalizedSystemId && !this.isStale(session.session))
       .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at))[0];
     if (!latest && required) {
-      throw new Error(`No fresh bridge session registered for system ${systemId}`);
+      throw new Error(`No fresh bridge session registered for system ${normalizedSystemId}`);
     }
     return latest;
   }
@@ -374,9 +430,10 @@ export class BrowserBridgeCoordinator {
 
     const normalizedUrlContains = selector.urlContains?.trim().toLowerCase();
     const normalizedTitleContains = selector.titleContains?.trim().toLowerCase();
+    const normalizedSystemId = selector.systemId ? normalizeBridgeSystemId(selector.systemId) : undefined;
     const candidates = [...this.sessions.values()]
       .filter((state) => !this.isStale(state.session))
-      .filter((state) => !selector.systemId || state.session.system_id === selector.systemId)
+      .filter((state) => !normalizedSystemId || state.session.system_id === normalizedSystemId)
       .filter((state) => !normalizedUrlContains || String(state.session.url ?? "").toLowerCase().includes(normalizedUrlContains))
       .filter((state) => !normalizedTitleContains || String(state.session.title ?? "").toLowerCase().includes(normalizedTitleContains))
       .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at));
@@ -397,10 +454,81 @@ export class BrowserBridgeCoordinator {
     }
     return Date.now() - updatedAtMs > this.sessionFreshnessMs;
   }
+
+  private pruneStaleSessions(): void {
+    for (const [sessionId, state] of this.sessions.entries()) {
+      if (this.isStale(state.session)) {
+        this.sessions.delete(sessionId);
+      }
+    }
+  }
+
+  private findRelatedNavigationSession(input: {
+    sourceSessionId: string;
+    sourceSystemId: string;
+    sinceUpdatedAt: string;
+    expectedUrl?: string;
+  }): BridgeSessionState | undefined {
+    const normalizedExpectedUrl = normalizeUrlForMatch(input.expectedUrl ?? "");
+    if (!normalizedExpectedUrl) {
+      return undefined;
+    }
+
+    return [...this.sessions.values()]
+      .filter((candidate) => !this.isStale(candidate.session))
+      .filter((candidate) => candidate.latestObservation)
+      .filter((candidate) => candidate.session.session_id !== input.sourceSessionId)
+      .filter((candidate) => candidate.session.system_id === input.sourceSystemId)
+      .filter((candidate) => candidate.session.updated_at > input.sinceUpdatedAt)
+      .filter((candidate) =>
+        urlsLikelySameDocument(candidate.session.url, input.expectedUrl) ||
+        urlsLikelySameDocument(
+          typeof candidate.latestObservation?.payload.url === "string" ? candidate.latestObservation.payload.url : undefined,
+          input.expectedUrl
+        )
+      )
+      .sort((left, right) => right.session.updated_at.localeCompare(left.session.updated_at))[0];
+  }
 }
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeBridgeSystemId(systemId: string): string {
+  const normalized = String(systemId || "").trim();
+  if (!normalized || normalized === "unknown" || normalized === "default") {
+    return "web_generic";
+  }
+  return normalized;
+}
+
+function normalizeUrlForMatch(url: string): string {
+  return String(url || "").trim().toLowerCase();
+}
+
+function urlsLikelySameDocument(left?: string, right?: string): boolean {
+  const normalizedLeft = normalizeUrlForMatch(left ?? "");
+  const normalizedRight = normalizeUrlForMatch(right ?? "");
+  if (!normalizedLeft || !normalizedRight) {
+    return false;
+  }
+  if (normalizedLeft === normalizedRight) {
+    return true;
+  }
+
+  try {
+    const leftUrl = new URL(normalizedLeft);
+    const rightUrl = new URL(normalizedRight);
+    leftUrl.hash = "";
+    rightUrl.hash = "";
+    if (leftUrl.toString() === rightUrl.toString()) {
+      return true;
+    }
+    return leftUrl.origin === rightUrl.origin && leftUrl.pathname === rightUrl.pathname;
+  } catch {
+    return false;
+  }
 }
 
 export const browserBridgeCoordinator = new BrowserBridgeCoordinator();

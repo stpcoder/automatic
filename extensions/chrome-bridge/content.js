@@ -90,6 +90,10 @@
     return String(value || "").trim().toLowerCase().replace(/\s+/g, " ");
   }
 
+  function compactText(value) {
+    return String(value || "").replace(/\s+/g, " ").trim();
+  }
+
   function slugify(value) {
     return normalize(value).replace(/[^a-z0-9가-힣]+/g, "_").replace(/^_+|_+$/g, "") || "field";
   }
@@ -199,6 +203,108 @@
 
   function hasResultLikeContext(text) {
     return /검색 결과|result|article|headline|뉴스|기사|주가|가격|시세|product|quote|detail/i.test(normalize(text));
+  }
+
+  function hasProductLikeContext(text) {
+    return /(product|상품|판매처|구매|쇼핑|스토어|무료배송|할인|리뷰|옵션|장바구니|price|가격|krw|원|ssd|ram|tb|gb|hynix|memory)/i.test(normalize(text));
+  }
+
+  function hasMetricLikeContext(text) {
+    return /(현재가|전일대비|전일가|시가|고가|저가|거래량|거래대금|시가총액|가격|price|quote|volume|market cap|from)/i.test(normalize(text));
+  }
+
+  function hasCardLikeContext(text) {
+    return hasResultLikeContext(text) || hasProductLikeContext(text) || hasMetricLikeContext(text);
+  }
+
+  function hasArticleLikeContext(text) {
+    return /(언론사|기자|뉴스|기사|headline|article|published|updated|minutes ago|hours ago|일 전|시간 전)/i.test(normalize(text));
+  }
+
+  function hasChipLikeContext(text) {
+    return /(정렬|sort|필터|filter|카테고리|category|주제|topic|태그|tag|옵션|option|전체|all|낮은 가격순|높은 가격순|리뷰 많은순|리뷰 좋은순|등록일순|인기순|최신순|관련 검색|연관 검색)/i.test(
+      normalize(text)
+    );
+  }
+
+  function countMetadataSignals(text) {
+    const compact = compactText(text);
+    if (!compact) {
+      return 0;
+    }
+    let score = 0;
+    if (/[+\-]?\s*[0-9][0-9,.\s]*(?:원|krw|usd|eur|달러|백만|억|%|퍼센트)/i.test(compact)) {
+      score += 1;
+    }
+    if (/(무료배송|배송비|delivery|shipping)/i.test(compact)) {
+      score += 1;
+    }
+    if (/(리뷰|review|평점|rating|별점)/i.test(compact)) {
+      score += 1;
+    }
+    if (/(판매처|seller|merchant|store|shop|스토어|공식몰|스마트스토어|brand)/i.test(compact)) {
+      score += 1;
+    }
+    if (/(분 전|시간 전|일 전|month|months|day|days|hour|hours|published|updated)/i.test(compact)) {
+      score += 1;
+    }
+    return score;
+  }
+
+  function isLikelyUtilityLink(text, href) {
+    const normalized = normalize(text);
+    const normalizedHref = normalize(href);
+    return /(도움말|help|privacy|약관|login|로그인|가입|공지|센터|서비스 더보기|더보기|option|옵션|설정)/i.test(normalized) ||
+      /(help|privacy|policy|login|signin|signup|account)/i.test(normalizedHref);
+  }
+
+  function isLikelyChipOrFilterLink(text, href, containerText) {
+    const compact = compactText(text);
+    const normalizedHref = normalize(href);
+    const surrounding = compactText(containerText);
+    if (!compact) {
+      return false;
+    }
+    if (compact.length <= 24 && hasChipLikeContext(compact)) {
+      return true;
+    }
+    if (compact.length <= 20 && /^[\w가-힣.+#&/-]+$/.test(compact) && countMetadataSignals(surrounding) === 0) {
+      if (normalizedHref.includes("query=") || normalizedHref.includes("search?")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function isLikelyRefinementLink(element, href) {
+    if (!(element instanceof HTMLAnchorElement) || !href) {
+      return false;
+    }
+    try {
+      const currentUrl = new URL(location.href);
+      const targetUrl = new URL(href, location.href);
+      if (currentUrl.origin !== targetUrl.origin) {
+        return false;
+      }
+      if (currentUrl.pathname !== targetUrl.pathname) {
+        return false;
+      }
+      const currentQuery = currentUrl.searchParams.toString();
+      const targetQuery = targetUrl.searchParams.toString();
+      return currentQuery !== targetQuery;
+    } catch {
+      return false;
+    }
+  }
+
+  function getRepeatingSiblingCount(container) {
+    if (!(container instanceof HTMLElement) || !container.parentElement) {
+      return 0;
+    }
+    const tagName = container.tagName;
+    return Array.from(container.parentElement.children).filter((child) => {
+      return child instanceof HTMLElement && child.tagName === tagName && isVisibleElement(child);
+    }).length;
   }
 
   function isMainContentContainer(element) {
@@ -330,6 +436,9 @@
       if (iconLike && !hasResultLikeContext(nearbyText)) {
         return false;
       }
+      if (isMainContentContainer(element) && hasCardLikeContext(`${text} ${nearbyText}`)) {
+        return true;
+      }
     }
     return Boolean(structuralContainer || isElementNearViewportCenter(element));
   }
@@ -360,6 +469,7 @@
 
   function extractNearbyText(element) {
     const candidates = [
+      element.closest("article, li, [role='listitem'], section, main"),
       element.closest("form, section, article, li, tr, td, th, div, fieldset"),
       element.parentElement
     ].filter(Boolean);
@@ -371,6 +481,119 @@
       }
     }
     return "";
+  }
+
+  function findCardContainer(element) {
+    const candidates = [
+      element.closest("article"),
+      element.closest("[role='listitem']"),
+      element.closest("li"),
+      element.closest("section"),
+      element.closest("div")
+    ].filter(Boolean);
+
+    for (const candidate of candidates) {
+      if (!(candidate instanceof HTMLElement) || !isVisibleElement(candidate)) {
+        continue;
+      }
+      if (isUtilityContainer(candidate) && !isMainContentContainer(candidate)) {
+        continue;
+      }
+      const text = compactText(candidate.innerText || candidate.textContent || "");
+      if (text.length < 12 || text.length > 800) {
+        continue;
+      }
+      if (!hasCardLikeContext(text)) {
+        continue;
+      }
+      if (candidate.tagName.toLowerCase() === "div") {
+        const linkCount = candidate.querySelectorAll("a[href]").length;
+        const childCount = candidate.children.length;
+        if (linkCount > 10 && countMetadataSignals(text) === 0) {
+          continue;
+        }
+        if (childCount <= 1 && countMetadataSignals(text) === 0) {
+          continue;
+        }
+      }
+      return candidate;
+    }
+    return null;
+  }
+
+  function isStructuredCardContainer(container) {
+    if (!(container instanceof HTMLElement)) {
+      return false;
+    }
+    const tagName = container.tagName.toLowerCase();
+    if (tagName === "article" || tagName === "li" || container.getAttribute("role") === "listitem") {
+      return true;
+    }
+    if (container.closest("p")) {
+      return false;
+    }
+    const childCount = container.children.length;
+    const linkCount = container.querySelectorAll("a[href]").length;
+    const text = compactText(container.innerText || container.textContent || "");
+    const repeatingSiblings = getRepeatingSiblingCount(container);
+    return (childCount >= 2 && linkCount >= 1 && countMetadataSignals(text) > 0) || repeatingSiblings >= 3;
+  }
+
+  function extractCardTitle(control, container) {
+    const heading = container?.querySelector("h1, h2, h3, h4, strong, b");
+    const headingText = compactText(heading?.innerText || heading?.textContent || "");
+    if (headingText && headingText.length >= 4 && headingText.length <= 140) {
+      return headingText;
+    }
+    return compactText(control.label).slice(0, 140);
+  }
+
+  function extractCardSummary(title, containerText) {
+    if (!containerText) {
+      return "";
+    }
+    const cleaned = compactText(containerText).replace(title, "").trim();
+    return cleaned.slice(0, 220);
+  }
+
+  function extractCardMetrics(containerText) {
+    const matches = compactText(containerText).match(/[+\-]?\s*[0-9][0-9,.\s]*(?:원|krw|usd|eur|달러|백만|억|%|퍼센트)/gi) || [];
+    return matches.slice(0, 3).join(" | ");
+  }
+
+  function scorePrimaryCardLink(control, containerText) {
+    let score = Number(control.importance || 0.5);
+    const normalizedLabel = normalize(control.label);
+    const normalizedNearby = normalize(containerText || control.nearbyText || "");
+    if (control.semanticRole === "result_link") {
+      score += 0.35;
+    }
+    if (control.semanticRole === "detail_link") {
+      score += 0.2;
+    }
+    if (hasArticleLikeContext(`${normalizedLabel} ${normalizedNearby}`)) {
+      score += 0.15;
+    }
+    if (countMetadataSignals(normalizedNearby) > 0) {
+      score += 0.15;
+    }
+    if (normalizedLabel.length <= 2) {
+      score -= 0.25;
+    }
+    if (isLikelyChipOrFilterLink(control.label, control.href, containerText)) {
+      score -= 0.5;
+    }
+    if (isLikelyRefinementLink(control.element, control.href) && countMetadataSignals(containerText) === 0) {
+      score -= 0.45;
+    }
+    return score;
+  }
+
+  function buildContainerKey(container, control) {
+    if (container instanceof HTMLElement) {
+      return `container:${buildDomPath(container)}`;
+    }
+    return `link:${normalize(control.href || control.key || control.label)}`;
   }
 
   function inferInteractiveSemanticRole(element, type, label, nearbyText) {
@@ -389,7 +612,11 @@
       if (isSocialOrVideoHost(host)) {
         return "navigation_link";
       }
-      if (/result|article|detail|상세|기사|바로가기|go to|read more/.test(normalizedLabel) || /검색 결과|result/.test(normalizedNearby)) {
+      if (
+        /result|article|detail|상세|기사|바로가기|go to|read more/.test(normalizedLabel) ||
+        /검색 결과|result/.test(normalizedNearby) ||
+        hasProductLikeContext(`${normalizedLabel} ${normalizedNearby}`)
+      ) {
         return "result_link";
       }
       if (/next|more|자세히|더보기|open|열기/.test(normalizedLabel)) {
@@ -432,8 +659,11 @@
     if (/search|검색|submit|조회|확인|등록|price|가격|주가|시세|article|뉴스|headline/.test(normalizedLabel)) {
       score += 0.12;
     }
-    if (/search|검색 결과|price|가격|주가|headline|뉴스|result|상품|article/.test(normalizedNearby)) {
+    if (/search|검색 결과|price|가격|주가|headline|뉴스|result|상품|article/.test(normalizedNearby) || hasProductLikeContext(normalizedNearby)) {
       score += 0.06;
+    }
+    if (type === "link" && hasProductLikeContext(`${normalizedLabel} ${normalizedNearby}`)) {
+      score += 0.12;
     }
     if (type === "link" && isSocialOrVideoHost(host)) {
       score -= 0.28;
@@ -547,6 +777,204 @@
     return collectSemanticBlocks().map((block) => block.text);
   }
 
+  function extractKeyMetrics(orderedBlocks) {
+    const metrics = [];
+    const seen = new Set();
+
+    function pushMetric(label, value, options = {}) {
+      const cleanLabel = compactText(label).replace(/[:：]$/, "");
+      const cleanValue = compactText(value);
+      if (!cleanLabel || !cleanValue) {
+        return;
+      }
+      const dedupeKey = `${normalize(cleanLabel)}|${normalize(cleanValue)}`;
+      if (seen.has(dedupeKey)) {
+        return;
+      }
+      seen.add(dedupeKey);
+      metrics.push({
+        label: cleanLabel,
+        value: cleanValue,
+        unit: options.unit,
+        context: options.context ? compactText(options.context).slice(0, 120) : undefined,
+        importance: options.importance || 0.7
+      });
+    }
+
+    const definitionLists = Array.from(document.querySelectorAll("dl"));
+    for (const list of definitionLists) {
+      if (!isVisibleElement(list)) {
+        continue;
+      }
+      const terms = Array.from(list.querySelectorAll("dt"));
+      for (const term of terms) {
+        const label = compactText(term.innerText || term.textContent || "");
+        const valueNode = term.nextElementSibling;
+        const value = valueNode ? compactText(valueNode.innerText || valueNode.textContent || "") : "";
+        if (label && value && (hasMetricLikeContext(label) || /[0-9]/.test(value))) {
+          pushMetric(label, value, {
+            importance: hasMetricLikeContext(label) ? 0.94 : 0.76,
+            context: compactText(list.innerText || list.textContent || "")
+          });
+        }
+      }
+    }
+
+    const tableRows = Array.from(document.querySelectorAll("table tr"));
+    for (const row of tableRows) {
+      if (!isVisibleElement(row)) {
+        continue;
+      }
+      const header = row.querySelector("th");
+      const cells = Array.from(row.querySelectorAll("td"));
+      const label = compactText(header?.innerText || header?.textContent || "");
+      const value = compactText(cells[0]?.innerText || cells[0]?.textContent || "");
+      if (label && value && (hasMetricLikeContext(label) || /[0-9]/.test(value))) {
+        pushMetric(label, value, {
+          importance: hasMetricLikeContext(label) ? 0.92 : 0.74,
+          context: compactText(row.innerText || row.textContent || "")
+        });
+      }
+    }
+
+    const metricPattern = /(현재가|전일대비|전일가|시가|고가|저가|거래량|거래대금|시가총액(?:\(억\))?|price|quote|volume|market cap|from)\s*[:：]?\s*([+\-]?\s*[0-9][0-9,.\s]*(?:원|krw|usd|eur|달러|백만|억|%|퍼센트)?)/gi;
+    for (const block of orderedBlocks) {
+      if (!block || typeof block.text !== "string") {
+        continue;
+      }
+      let match;
+      while ((match = metricPattern.exec(block.text)) !== null) {
+        pushMetric(match[1], match[2], {
+          importance: Math.max(0.8, Number(block.importance || 0.7)),
+          context: block.text
+        });
+      }
+    }
+
+    return metrics
+      .sort((left, right) => Number(right.importance || 0) - Number(left.importance || 0))
+      .slice(0, 12);
+  }
+
+  function inferActionableCardType(control, nearbyText) {
+    const normalizedNearby = normalize(nearbyText);
+    const normalizedLabel = normalize(control.label);
+    const combined = `${normalizedLabel} ${normalizedNearby}`;
+    if (/뉴스|기사|article|headline|기자|언론사/.test(combined) || hasArticleLikeContext(combined)) {
+      return "article";
+    }
+    if (/product|제품|모델|구입|쇼핑|compare|비교/.test(combined) || hasProductLikeContext(combined)) {
+      return "product";
+    }
+    if (/quote|price|현재가|주가|시세|거래량/.test(combined)) {
+      return "metric_panel";
+    }
+    if (control.semanticRole === "result_link") {
+      return "search_result";
+    }
+    return "generic";
+  }
+
+  function extractCardSource(text) {
+    const compact = compactText(text);
+    if (!compact) {
+      return "";
+    }
+    const newsMatch = compact.match(/([가-힣A-Za-z0-9·&.\-]+)\s+\d+(?:분|시간|일|주|개월|month|months|day|days|hour|hours)/i);
+    if (newsMatch) {
+      return newsMatch[1];
+    }
+    const publisherMatch = compact.match(/(연합뉴스|노컷뉴스|파이낸셜뉴스|한국경제|조선비즈|매일경제|Reuters|Bloomberg|Apple)/i);
+    if (publisherMatch) {
+      return publisherMatch[1];
+    }
+    return "";
+  }
+
+  function buildActionableCards(controls) {
+    const grouped = new Map();
+    for (const control of controls) {
+      if (
+        control.type !== "link" ||
+        !control.href ||
+        control.href.startsWith("javascript:") ||
+        isLikelyUtilityLink(control.label, control.href)
+      ) {
+        continue;
+      }
+
+      const container = findCardContainer(control.element);
+      const containerText = compactText(container?.innerText || container?.textContent || "");
+      const nearbyText = containerText || control.nearbyText || "";
+      if (isLikelyChipOrFilterLink(control.label, control.href, nearbyText)) {
+        continue;
+      }
+      if (isLikelyRefinementLink(control.element, control.href) && countMetadataSignals(nearbyText) === 0) {
+        continue;
+      }
+      const promote =
+        control.semanticRole === "result_link" ||
+        control.semanticRole === "detail_link" ||
+        hasResultLikeContext(`${control.label} ${nearbyText}`) ||
+        hasProductLikeContext(`${control.label} ${nearbyText}`) ||
+        hasMetricLikeContext(`${control.label} ${nearbyText}`);
+      if (!promote) {
+        continue;
+      }
+      const metadataSignals = countMetadataSignals(nearbyText);
+      if (!isStructuredCardContainer(container) && metadataSignals === 0 && !hasArticleLikeContext(nearbyText)) {
+        continue;
+      }
+      const groupKey = buildContainerKey(container, control);
+      const entry = grouped.get(groupKey) || { container, containerText: nearbyText, controls: [] };
+      entry.controls.push(control);
+      grouped.set(groupKey, entry);
+    }
+
+    const cards = [];
+    const seen = new Set();
+    for (const entry of grouped.values()) {
+      const control = entry.controls
+        .slice()
+        .sort((left, right) => scorePrimaryCardLink(right, entry.containerText) - scorePrimaryCardLink(left, entry.containerText))[0];
+      if (!control) {
+        continue;
+      }
+      const title = extractCardTitle(control, entry.container);
+      if (!title) {
+        continue;
+      }
+      if (isLikelyChipOrFilterLink(title, control.href, entry.containerText) && countMetadataSignals(entry.containerText) === 0) {
+        continue;
+      }
+      const metrics = extractCardMetrics(entry.containerText);
+      const summary = extractCardSummary(title, entry.containerText);
+      const dedupeKey = normalize(control.href || title);
+      if (!dedupeKey || seen.has(dedupeKey)) {
+        continue;
+      }
+      seen.add(dedupeKey);
+
+      const source = extractCardSource(entry.containerText);
+      cards.push({
+        id: `card-${cards.length + 1}`,
+        type: inferActionableCardType(control, entry.containerText),
+        title,
+        subtitle: source || undefined,
+        summary: (metrics ? `${metrics}${summary ? ` | ${summary}` : ""}` : summary) || undefined,
+        source: source || undefined,
+        href: control.href,
+        targetKey: control.key,
+        targetHandle: control.handle,
+        importance: Math.max(0.6, Number(control.importance || 0.6)) + (entry.container ? 0.05 : 0)
+      });
+    }
+
+    return cards
+      .sort((left, right) => Number(right.importance || 0) - Number(left.importance || 0))
+      .slice(0, 8);
+  }
+
   function buildInteractiveCandidates() {
     const controls = Array.from(document.querySelectorAll("input, textarea, select, button, a[href], [role='button'], [role='link']"))
       .filter((element) => shouldIncludeInteractiveElement(element))
@@ -589,7 +1017,18 @@
         control.key = `${control.key}_${currentCount + 1}`;
       }
     }
-    return controls;
+    return controls.sort((left, right) => {
+      const leftRoleBoost = left.semanticRole === "result_link" || left.semanticRole === "detail_link" ? 1 : 0;
+      const rightRoleBoost = right.semanticRole === "result_link" || right.semanticRole === "detail_link" ? 1 : 0;
+      if (leftRoleBoost !== rightRoleBoost) {
+        return rightRoleBoost - leftRoleBoost;
+      }
+      const importanceDelta = Number(right.importance || 0) - Number(left.importance || 0);
+      if (importanceDelta !== 0) {
+        return importanceDelta;
+      }
+      return left.index - right.index;
+    });
   }
 
   function buildDomOutline(controls, orderedBlocks) {
@@ -659,15 +1098,29 @@
     const orderedBlocks = collectSemanticBlocksInDomOrder();
     const semanticBlocks = orderedBlocks.slice().sort((left, right) => right.importance - left.importance);
     const visibleTextBlocks = orderedBlocks.map((block) => block.text);
+    const keyMetrics = extractKeyMetrics(orderedBlocks);
+    const actionableCards = buildActionableCards(controls);
     const pageText = orderedBlocks.map((block) => block.text).join(" ").slice(0, 4000);
     const domOutline = buildDomOutline(controls, orderedBlocks);
     return {
       channel: "web",
-      summary: `${document.title}. ${orderedBlocks
-        .slice(0, 5)
-        .map((block) => block.text)
+      summary: `${document.title}. ${[
+        keyMetrics
+          .slice(0, 3)
+          .map((metric) => `${metric.label} ${metric.value}`)
+          .join(" | "),
+        actionableCards
+          .slice(0, 2)
+          .map((card) => card.title)
+          .join(" | "),
+        orderedBlocks
+          .slice(0, 3)
+          .map((block) => block.text)
+          .join(" | ")
+      ]
+        .filter(Boolean)
         .join(" | ")
-        .slice(0, 240)}`,
+        .slice(0, 280)}`,
       payload: {
         sessionId,
         parentSessionId,
@@ -679,6 +1132,8 @@
         domOutline,
         visibleTextBlocks,
         semanticBlocks,
+        keyMetrics,
+        actionableCards,
         interactiveElements: controls.map(({ element, ...control }) => control),
         finalActionButton: system?.final_action_button ?? "Submit"
       }
@@ -754,10 +1209,14 @@
     const candidates = resolveButtonCandidates(targetKey);
     const normalizedTargetKey = normalize(targetKey);
     const buttons = buildInteractiveCandidates().filter((candidate) => candidate.type === "button" || candidate.type === "link");
+    const byKey = buttons.find((candidate) => normalize(candidate.key) === normalizedTargetKey);
+    const byLabel = buttons.find((candidate) => candidates.includes(normalize(candidate.label)));
+    const byHandle = buttons.find((candidate) => String(candidate.handle) === String(targetHandle || ""));
     const resolved =
-      buttons.find((candidate) => String(candidate.handle) === String(targetHandle || "")) ||
-      buttons.find((candidate) => normalize(candidate.key) === normalizedTargetKey) ||
-      buttons.find((candidate) => candidates.includes(normalize(candidate.label)));
+      byKey ||
+      byLabel ||
+      (byHandle && candidateMatchesTarget(byHandle, normalizedTargetKey, candidates) ? byHandle : undefined) ||
+      (!normalizedTargetKey ? byHandle : undefined);
     if (!resolved) {
       const available = buttons
         .slice(0, 8)
@@ -776,6 +1235,22 @@
       simulateClickSequence(target);
       return resolved;
     });
+  }
+
+  function candidateMatchesTarget(candidate, normalizedTargetKey, labelCandidates) {
+    if (!candidate) {
+      return false;
+    }
+    const candidateKey = normalize(candidate.key);
+    const candidateLabel = normalize(candidate.label);
+    const candidateNearbyText = normalize(candidate.nearbyText || "");
+    if (normalizedTargetKey && candidateKey === normalizedTargetKey) {
+      return true;
+    }
+    if (labelCandidates.includes(candidateLabel)) {
+      return true;
+    }
+    return Boolean(normalizedTargetKey && candidateNearbyText.includes(normalizedTargetKey));
   }
 
   function dispatchPointerLikeEvent(element, type) {
@@ -889,6 +1364,8 @@
           handle: target.handle,
           key: target.key,
           label: target.label,
+          href: target.href,
+          semanticRole: target.semanticRole,
           domPath: target.domPath,
           nearbyText: target.nearbyText
         }
@@ -961,7 +1438,25 @@
       return existingOverlay;
     }
 
-    const pointer = document.createElement("div");
+    const pointer = safeCreateOverlayElement("div");
+    const halo = safeCreateOverlayElement("div");
+    const label = safeCreateOverlayElement("div");
+    const reader = safeCreateOverlayElement("div");
+    if (!pointer || !halo || !label || !reader || !document.documentElement) {
+      return {
+        pointer: null,
+        label: null,
+        halo: null,
+        reader: null,
+        state: "idle",
+        homeX: 34,
+        homeY: 34,
+        currentX: 34,
+        currentY: 34,
+        idleTimer: null
+      };
+    }
+
     pointer.id = "__skh-agent-pointer__";
     pointer.style.position = "fixed";
     pointer.style.left = "0";
@@ -978,7 +1473,6 @@
       '<path d="M4 2 L4 26 L10 20 L14 29 L18 27 L14 18 L22 18 Z" fill="rgba(255,255,255,0.98)" stroke="rgba(35,84,255,0.95)" stroke-width="1.8" stroke-linejoin="round"/>' +
       "</svg>";
 
-    const halo = document.createElement("div");
     halo.id = "__skh-agent-pointer-halo__";
     halo.style.position = "fixed";
     halo.style.left = "0";
@@ -993,7 +1487,6 @@
     halo.style.transition = "opacity 180ms ease, transform 180ms ease, left 180ms ease, top 180ms ease";
     halo.style.zIndex = "2147483646";
 
-    const label = document.createElement("div");
     label.id = "__skh-agent-pointer-label__";
     label.style.position = "fixed";
     label.style.left = "0";
@@ -1010,7 +1503,6 @@
     label.style.zIndex = "2147483647";
     label.textContent = "reading";
 
-    const reader = document.createElement("div");
     reader.id = "__skh-agent-reader__";
     reader.style.position = "fixed";
     reader.style.left = "0";
@@ -1045,6 +1537,15 @@
     restorePointerState(state).catch(() => undefined);
     startIdleAnimation(state);
     return state;
+  }
+
+  function safeCreateOverlayElement(tagName) {
+    try {
+      const element = document.createElement(tagName);
+      return element instanceof HTMLElement ? element : null;
+    } catch {
+      return null;
+    }
   }
 
   function sleep(ms) {

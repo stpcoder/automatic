@@ -1,5 +1,6 @@
 import { type ToolExecutor, type ToolRequest, type ToolResult } from "../../../packages/contracts/src/index.js";
 import { ExtensionBridgeAdapter } from "./extension-bridge-adapter.js";
+import { normalizeObservationFocus } from "./observation-focus.js";
 import { PageAgentDomAdapter } from "./page-agent-dom-adapter.js";
 import type { WebAdapter } from "./types.js";
 
@@ -77,7 +78,8 @@ export class WebWorker implements ToolExecutor {
   private async readWebPage(request: ToolRequest): Promise<ToolResult> {
     const systemId = String(request.input.system_id ?? "unknown");
     const sessionId = typeof request.input.session_id === "string" ? request.input.session_id : undefined;
-    const observation = await this.adapter.observe(systemId, sessionId);
+    const focus = request.input.focus !== undefined ? normalizeObservationFocus(request.input.focus) : undefined;
+    const observation = await this.adapter.observe(systemId, sessionId, { focus });
     return {
       request_id: request.request_id,
       success: true,
@@ -87,12 +89,17 @@ export class WebWorker implements ToolExecutor {
         system_id: systemId,
         session_id: observation.sessionId,
         harness: this.adapter.harnessName,
+        focus_used: observation.focusUsed,
+        recommended_focus: observation.recommendedFocus,
+        focus_reason: observation.focusReason,
         summary: observation.summary,
         title: observation.title,
         url: observation.url,
         dom_outline: observation.domOutline,
         visible_text_blocks: observation.visibleTextBlocks ?? [],
         semantic_blocks: observation.semanticBlocks ?? [],
+        key_metrics: observation.keyMetrics ?? [],
+        actionable_cards: observation.actionableCards ?? [],
         interactive_elements: observation.interactiveElements,
         observation
       },
@@ -144,7 +151,9 @@ export class WebWorker implements ToolExecutor {
         session_id: result.observation.sessionId,
         target_key: targetKey,
         target_handle: targetHandle,
+        previous_page: result.previousPage,
         target: result.target,
+        navigation_event: result.navigationEvent,
         harness: this.adapter.harnessName,
         observation: result.observation
       },

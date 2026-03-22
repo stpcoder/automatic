@@ -33,6 +33,29 @@ export interface SemanticBlock {
   relatedKeys?: string[];
 }
 
+export interface KeyMetric {
+  label: string;
+  value: string;
+  unit?: string;
+  context?: string;
+  importance: number;
+}
+
+export interface ActionableCard {
+  id: string;
+  type: "search_result" | "article" | "product" | "metric_panel" | "generic";
+  title: string;
+  subtitle?: string;
+  summary?: string;
+  source?: string;
+  href?: string;
+  targetKey?: string;
+  targetHandle?: string;
+  importance: number;
+}
+
+export type ObservationFocus = "default" | "cards" | "metrics" | "content" | "forms";
+
 export interface PageObservation {
   sessionId?: string;
   parentSessionId?: string;
@@ -45,8 +68,13 @@ export interface PageObservation {
   domOutline?: string;
   visibleTextBlocks?: string[];
   semanticBlocks?: SemanticBlock[];
+  keyMetrics?: KeyMetric[];
+  actionableCards?: ActionableCard[];
   interactiveElements: InteractiveElement[];
   finalActionButton?: string;
+  focusUsed?: ObservationFocus;
+  recommendedFocus?: ObservationFocus;
+  focusReason?: string;
 }
 
 export interface HarnessPageDefinition {
@@ -79,12 +107,33 @@ export interface ClickResult {
   clickId: string;
   targetKey: string;
   targetHandle?: string;
+  previousPage?: {
+    sessionId?: string;
+    title?: string;
+    url?: string;
+    summary?: string;
+  };
   target?: {
     handle?: string;
     key: string;
     label: string;
+    href?: string;
+    semanticRole?: InteractiveElement["semanticRole"];
     domPath?: string;
     nearbyText?: string;
+  };
+  navigationEvent?: {
+    kind: "same_session" | "child_session" | "none" | "uncertain";
+    expectedNavigation: boolean;
+    matchedExpectation: boolean;
+    currentSessionChanged: boolean;
+    newSessionOpened: boolean;
+    fromSessionId?: string;
+    toSessionId?: string;
+    fromUrl?: string;
+    toUrl?: string;
+    fromTitle?: string;
+    toTitle?: string;
   };
   observation: PageObservation;
 }
@@ -118,15 +167,19 @@ export interface WebOpenSelection {
   openIfMissing?: boolean;
 }
 
+export interface ObservationOptions {
+  focus?: ObservationFocus;
+}
+
 export interface WebAdapter {
   readonly harnessName: string;
   openSystem(systemId: string, pageId?: string, selection?: WebOpenSelection): Promise<PageObservation>;
-  observe(systemId: string, sessionId?: string): Promise<PageObservation>;
+  observe(systemId: string, sessionId?: string, options?: ObservationOptions): Promise<PageObservation>;
   fillForm(systemId: string, values: Record<string, unknown>, sessionId?: string): Promise<FillResult>;
   clickElement(systemId: string, targetKey: string, sessionId?: string, targetHandle?: string): Promise<ClickResult>;
   scrollPage?(systemId: string, direction: "up" | "down", amount?: number, sessionId?: string): Promise<ScrollResult>;
   navigateHistory?(systemId: string, direction: "back" | "forward", sessionId?: string): Promise<HistoryNavigationResult>;
   previewSubmission(systemId: string, sessionId?: string): Promise<PreviewResult>;
   submit(systemId: string, expectedButton: string, sessionId?: string): Promise<SubmitResult>;
-  followNavigation?(systemId: string, sessionId?: string): Promise<PageObservation>;
+  followNavigation?(systemId: string, sessionId?: string, options?: ObservationOptions): Promise<PageObservation>;
 }

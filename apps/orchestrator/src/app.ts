@@ -130,10 +130,11 @@ export async function createApp(
   });
 
   app.post("/debug/web/read", async (request) => {
-    const body = request.body as { system_id?: string; session_id?: string };
+    const body = request.body as { system_id?: string; session_id?: string; focus?: string };
     return webWorker.execute(buildDebugToolRequest("read_web_page", "preview", {
       system_id: body.system_id ?? "web_generic",
-      session_id: body.session_id
+      session_id: body.session_id,
+      focus: body.focus
     }));
   });
 
@@ -337,18 +338,26 @@ export async function createApp(
       },
       {
         name: "read_web_page",
-        description: "Read the current page DOM, visible text, semantic blocks, and interactive elements without deciding success yet.",
-        input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
+        description:
+          "Read the current page DOM, visible text, semantic blocks, interactive elements, and focused observation slices. Optional focus values are default, cards, metrics, content, or forms.",
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, focus: { type: "string" } }
       },
       {
         name: "fill_web_form",
-        description: "Enter text or set detected field values on the current page. Use session_id when available.",
+        description:
+          "Enter text or set detected field values on the current page. Use the semantic field key exposed by the observation instead of placeholder handles like 0, #2, query, or search when a real key is visible. Use session_id when available.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
       },
       {
         name: "click_web_element",
         description: "Click a specific button or clickable control on the active web system. Prefer target_handle from domOutline when available.",
         input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" }, target_handle: { type: "string" } }
+      },
+      {
+        name: "follow_web_navigation",
+        description:
+          "After clicking a result link, article link, product link, or any control that may navigate, attach to the resulting page. This covers both new page/tab sessions and same-tab navigation where the current session updates in place.",
+        input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
       },
       {
         name: "scroll_web_page",
@@ -869,6 +878,13 @@ export async function createApp(
     return browserBridgeCoordinator.registerSession(body);
   });
 
+  app.delete("/bridge/sessions/:sessionId", async (request) => {
+    const params = request.params as { sessionId: string };
+    return {
+      removed: browserBridgeCoordinator.unregisterSession(params.sessionId)
+    };
+  });
+
   app.post("/bridge/sessions/:sessionId/snapshot", async (request) => {
     const params = request.params as { sessionId: string };
     return browserBridgeCoordinator.updateObservation(params.sessionId, request.body);
@@ -982,6 +998,10 @@ function logDebugToolResult(
     typeof toolResult.output.target === "object" && toolResult.output.target !== null
       ? (toolResult.output.target as Record<string, unknown>)
       : undefined;
+  const navigationEvent =
+    typeof toolResult.output.navigation_event === "object" && toolResult.output.navigation_event !== null
+      ? (toolResult.output.navigation_event as Record<string, unknown>)
+      : undefined;
   const clickTargetSummary =
     clickTarget
       ? formatClickTargetSummary({
@@ -1007,6 +1027,10 @@ function logDebugToolResult(
     console.log(`[${step}] MAIL  ${mailSummary}`);
   } else if (pageSummary) {
     console.log(`[${step}] PAGE  ${pageSummary}`);
+  }
+  const navigationSummary = formatNavigationEventSummary(navigationEvent);
+  if (navigationSummary) {
+    console.log(`[${step}] NAV   ${navigationSummary}`);
   }
   if (summary && summary !== "-") {
     console.log(`[${step}] INFO  ${truncateForLog(summary, 140)}`);
@@ -1263,7 +1287,8 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
     return fields || "";
   }
   if (toolName === "read_web_page") {
-    return "read";
+    const focus = typeof input.focus === "string" ? input.focus.trim() : "";
+    return focus ? `read:${truncateForLog(focus, 20)}` : "read";
   }
   if (toolName === "click_web_element") {
     const targetHandle = stringForLog(input.target_handle);
@@ -1272,6 +1297,9 @@ function formatToolHint(toolName: string, input: Record<string, unknown>): strin
   }
   if (toolName === "navigate_browser_history") {
     return truncateForLog(stringForLog(input.direction), 20);
+  }
+  if (toolName === "follow_web_navigation") {
+    return "follow";
   }
   if (toolName === "draft_outlook_mail") {
     return truncateForLog(stringForLog(input.template_id), 40);
@@ -1342,6 +1370,36 @@ function formatClickTargetSummary(target: {
   return parts.join(" ");
 }
 
+function formatNavigationEventSummary(event: Record<string, unknown> | undefined): string {
+  if (!event) {
+    return "";
+  }
+  const kind = typeof event.kind === "string" ? event.kind : "";
+  const expectedNavigation = typeof event.expectedNavigation === "boolean" ? event.expectedNavigation : undefined;
+  const matchedExpectation = typeof event.matchedExpectation === "boolean" ? event.matchedExpectation : undefined;
+  const newSessionOpened = typeof event.newSessionOpened === "boolean" ? event.newSessionOpened : undefined;
+  const currentSessionChanged =
+    typeof event.currentSessionChanged === "boolean" ? event.currentSessionChanged : undefined;
+  const toSessionId = typeof event.toSessionId === "string" ? event.toSessionId : undefined;
+  const toTitle = typeof event.toTitle === "string" ? event.toTitle : undefined;
+  const toUrl = typeof event.toUrl === "string" ? event.toUrl : undefined;
+  if (!kind && expectedNavigation === undefined && matchedExpectation === undefined) {
+    return "";
+  }
+
+  const parts = [
+    kind ? `kind=${kind}` : undefined,
+    expectedNavigation !== undefined ? `expected=${expectedNavigation}` : undefined,
+    matchedExpectation !== undefined ? `matched=${matchedExpectation}` : undefined,
+    newSessionOpened !== undefined ? `new_tab=${newSessionOpened}` : undefined,
+    currentSessionChanged !== undefined ? `current_changed=${currentSessionChanged}` : undefined,
+    toSessionId ? `to=${truncateForLog(toSessionId, 40)}` : undefined,
+    toTitle ? `title="${truncateForLog(toTitle, 60)}"` : undefined,
+    toUrl ? `url=${truncateForLog(toUrl, 100)}` : undefined
+  ].filter(Boolean);
+  return parts.join(" | ");
+}
+
 function normalizeLogToken(value: string): string {
   return value.trim().toLowerCase().replace(/\s+/g, " ");
 }
@@ -1374,18 +1432,26 @@ function buildDebugToolSpecs() {
     },
     {
       name: "read_web_page",
-      description: "Read the current page DOM, visible text, semantic blocks, and interactive elements without deciding success yet.",
-      input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
+      description:
+        "Read the current page DOM, visible text, semantic blocks, interactive elements, and focused observation slices. Optional focus values are default, cards, metrics, content, or forms.",
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, focus: { type: "string" } }
     },
     {
       name: "fill_web_form",
-      description: "Enter text or set detected field values on the current page.",
+      description:
+        "Enter text or set detected field values on the current page. Use the semantic field key exposed by the observation instead of placeholder handles like 0, #2, query, or search when a real key is visible.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, field_values: { type: "object" } }
     },
     {
       name: "click_web_element",
       description: "Click a specific button or clickable control on the active web system. Prefer target_handle from domOutline when available.",
       input_schema: { system_id: { type: "string" }, session_id: { type: "string" }, target_key: { type: "string" }, target_handle: { type: "string" } }
+    },
+    {
+      name: "follow_web_navigation",
+      description:
+        "After clicking a result link, article link, product link, or any control that may navigate, attach to the resulting page. This covers both new page/tab sessions and same-tab navigation where the current session updates in place.",
+      input_schema: { system_id: { type: "string" }, session_id: { type: "string" } }
     },
     {
       name: "scroll_web_page",
@@ -1544,10 +1610,11 @@ function normalizeDebugToolInput(
     if (typeof normalized.session_id !== "string" || normalized.session_id.trim().length === 0) {
       normalized.session_id = inferSessionIdFromContext(context);
     }
-    if (typeof normalized.system_id !== "string" || normalized.system_id.trim().length === 0) {
-      const inferredSystemId = inferSystemIdFromContext(context, instruction);
-      normalized.system_id = inferredSystemId ?? "web_generic";
-    }
+    const inferredSystemId = inferSystemIdFromContext(context, instruction);
+    normalized.system_id = normalizeWebSystemIdInput(
+      typeof normalized.system_id === "string" ? normalized.system_id : undefined,
+      inferredSystemId
+    );
     if (toolName === "open_system" && (typeof normalized.target_url !== "string" || normalized.target_url.trim().length === 0)) {
       const extractedUrl = extractFirstUrlFromText(instruction);
       if (extractedUrl) {
@@ -1579,9 +1646,20 @@ function normalizeDebugToolInput(
     if (toolName === "fill_web_form" && (typeof normalized.field_values !== "object" || normalized.field_values === null)) {
       normalized.field_values = typeof context.field_values === "object" && context.field_values !== null ? context.field_values : {};
     }
+    if (toolName === "fill_web_form" && typeof normalized.field_values === "object" && normalized.field_values !== null) {
+      normalized.field_values = normalizeWebFieldValuesForObservation(
+        normalized.field_values as Record<string, unknown>,
+        typeof context.current_observation === "object" && context.current_observation !== null
+          ? (context.current_observation as Record<string, unknown>)
+          : undefined
+      );
+    }
     if (toolName === "read_web_page") {
       delete normalized.goal;
       delete normalized.query;
+      if (normalized.focus !== undefined) {
+        normalized.focus = normalizeObservationFocusInput(normalized.focus);
+      }
     }
     if (toolName === "click_web_element" && (typeof normalized.target_key !== "string" || normalized.target_key.trim().length === 0)) {
       normalized.target_key = typeof context.target_key === "string" && context.target_key.trim().length > 0 ? context.target_key : "";
@@ -1815,6 +1893,95 @@ function normalizeDebugToolInput(
   return normalized;
 }
 
+function normalizeWebFieldValuesForObservation(
+  fieldValues: Record<string, unknown>,
+  observation: Record<string, unknown> | undefined
+): Record<string, unknown> {
+  const entries = Object.entries(fieldValues);
+  if (entries.length !== 1) {
+    return fieldValues;
+  }
+
+  const [rawKey, rawValue] = entries[0];
+  const key = String(rawKey || "").trim();
+  if (!key) {
+    return fieldValues;
+  }
+
+  const candidates = extractWebFieldCandidates(observation);
+  if (candidates.length === 0) {
+    return fieldValues;
+  }
+  if (candidates.some((candidate) => candidate.key === key)) {
+    return fieldValues;
+  }
+
+  const primaryCandidate = selectPrimaryWebFieldCandidate(candidates);
+  if (!primaryCandidate) {
+    return fieldValues;
+  }
+  if (!looksLikePlaceholderFieldKey(key)) {
+    return fieldValues;
+  }
+
+  return {
+    [primaryCandidate.key]: rawValue
+  };
+}
+
+function extractWebFieldCandidates(
+  observation: Record<string, unknown> | undefined
+): Array<{ key: string; semanticRole?: string; importance?: number }> {
+  if (!observation) {
+    return [];
+  }
+  const interactiveElements = Array.isArray(observation.interactiveElements)
+    ? observation.interactiveElements
+    : [];
+  return interactiveElements
+    .filter((element): element is Record<string, unknown> => typeof element === "object" && element !== null)
+    .map((element) => ({
+      key: typeof element.key === "string" ? element.key.trim() : "",
+      semanticRole: typeof element.semanticRole === "string" ? element.semanticRole : undefined,
+      importance: typeof element.importance === "number" ? element.importance : undefined,
+      type: typeof element.type === "string" ? element.type : undefined
+    }))
+    .filter((element) => {
+      if (!element.key) {
+        return false;
+      }
+      return (
+        element.semanticRole === "search_input" ||
+        element.semanticRole === "form_field" ||
+        element.type === "input" ||
+        element.type === "textarea" ||
+        element.type === "select"
+      );
+    });
+}
+
+function selectPrimaryWebFieldCandidate(
+  candidates: Array<{ key: string; semanticRole?: string; importance?: number }>
+): { key: string; semanticRole?: string; importance?: number } | undefined {
+  const searchInputs = candidates.filter((candidate) => candidate.semanticRole === "search_input");
+  const pool = searchInputs.length > 0 ? searchInputs : candidates;
+  if (pool.length === 1) {
+    return pool[0];
+  }
+  const best = [...pool].sort((left, right) => (right.importance ?? 0) - (left.importance ?? 0))[0];
+  const bestImportance = best?.importance ?? 0;
+  const sameBest = pool.filter((candidate) => (candidate.importance ?? 0) === bestImportance);
+  return sameBest.length === 1 ? best : undefined;
+}
+
+function looksLikePlaceholderFieldKey(key: string): boolean {
+  const normalized = key.trim().toLowerCase();
+  return (
+    /^#?\d+$/.test(normalized) ||
+    ["query", "search", "search_query", "input", "field", "field_0", "textbox"].includes(normalized)
+  );
+}
+
 function isWebDebugTool(toolName: string): boolean {
   return (
     toolName === "open_system" ||
@@ -1851,14 +2018,14 @@ function inferSessionIdFromContext(context: Record<string, unknown>): string | u
 
 function inferSystemIdFromContext(context: Record<string, unknown>, instruction: string): string | undefined {
   if (typeof context.system_id === "string" && context.system_id.trim().length > 0) {
-    return context.system_id;
+    return normalizeWebSystemIdInput(context.system_id);
   }
   const currentObservation =
     typeof context.current_observation === "object" && context.current_observation !== null
       ? (context.current_observation as Record<string, unknown>)
       : undefined;
   if (typeof currentObservation?.systemId === "string" && currentObservation.systemId.trim().length > 0) {
-    return currentObservation.systemId;
+    return normalizeWebSystemIdInput(currentObservation.systemId);
   }
 
   const lastToolResult =
@@ -1866,7 +2033,30 @@ function inferSystemIdFromContext(context: Record<string, unknown>, instruction:
       ? (context.last_tool_result as Record<string, unknown>)
       : undefined;
   if (typeof lastToolResult?.system_id === "string" && lastToolResult.system_id.trim().length > 0) {
-    return lastToolResult.system_id;
+    return normalizeWebSystemIdInput(lastToolResult.system_id);
+  }
+  return undefined;
+}
+
+function normalizeWebSystemIdInput(systemId: unknown, fallback = "web_generic"): string {
+  const normalized = typeof systemId === "string" ? systemId.trim() : "";
+  if (!normalized || normalized === "unknown" || normalized === "default") {
+    return fallback;
+  }
+  const knownSystemIds = new Set(listWebSystemDefinitions().map((definition) => definition.systemId));
+  if (knownSystemIds.has(normalized)) {
+    return normalized;
+  }
+  return fallback;
+}
+
+function normalizeObservationFocusInput(value: unknown): string | undefined {
+  const normalized = typeof value === "string" ? value.trim().toLowerCase() : "";
+  if (!normalized) {
+    return undefined;
+  }
+  if (["default", "cards", "metrics", "content", "forms"].includes(normalized)) {
+    return normalized;
   }
   return undefined;
 }
@@ -1923,6 +2113,37 @@ function summarizeObservationForPlanner(observation: Record<string, unknown> | u
     return undefined;
   }
 
+  const keyMetrics = Array.isArray(observation.keyMetrics)
+    ? observation.keyMetrics
+        .filter((metric): metric is Record<string, unknown> => typeof metric === "object" && metric !== null)
+        .slice(0, 8)
+        .map((metric) => ({
+          label: typeof metric.label === "string" ? truncateForLog(metric.label, 60) : undefined,
+          value: typeof metric.value === "string" ? truncateForLog(metric.value, 80) : undefined,
+          unit: typeof metric.unit === "string" ? truncateForLog(metric.unit, 20) : undefined,
+          context: typeof metric.context === "string" ? truncateForLog(metric.context, 120) : undefined,
+          importance: typeof metric.importance === "number" ? metric.importance : undefined
+        }))
+    : [];
+
+  const actionableCards = Array.isArray(observation.actionableCards)
+    ? observation.actionableCards
+        .filter((card): card is Record<string, unknown> => typeof card === "object" && card !== null)
+        .slice(0, 6)
+        .map((card) => ({
+          id: typeof card.id === "string" ? card.id : undefined,
+          type: typeof card.type === "string" ? card.type : undefined,
+          title: typeof card.title === "string" ? truncateForLog(card.title, 120) : undefined,
+          subtitle: typeof card.subtitle === "string" ? truncateForLog(card.subtitle, 60) : undefined,
+          source: typeof card.source === "string" ? truncateForLog(card.source, 40) : undefined,
+          summary: typeof card.summary === "string" ? truncateForLog(card.summary, 160) : undefined,
+          href: typeof card.href === "string" ? truncateForLog(card.href, 140) : undefined,
+          targetKey: typeof card.targetKey === "string" ? truncateForLog(card.targetKey, 80) : undefined,
+          targetHandle: typeof card.targetHandle === "string" ? card.targetHandle : undefined,
+          importance: typeof card.importance === "number" ? card.importance : undefined
+        }))
+    : [];
+
   const semanticBlocks = Array.isArray(observation.semanticBlocks)
     ? observation.semanticBlocks
         .filter((block): block is Record<string, unknown> => typeof block === "object" && block !== null)
@@ -1948,6 +2169,8 @@ function summarizeObservationForPlanner(observation: Record<string, unknown> | u
           type: typeof element.type === "string" ? element.type : undefined,
           semanticRole: typeof element.semanticRole === "string" ? element.semanticRole : undefined,
           importance: typeof element.importance === "number" ? element.importance : undefined,
+          href: typeof element.href === "string" ? truncateForLog(element.href, 140) : undefined,
+          domPath: typeof element.domPath === "string" ? truncateForLog(element.domPath, 140) : undefined,
           nearbyText: typeof element.nearbyText === "string" ? truncateForLog(element.nearbyText, 160) : undefined,
           required: typeof element.required === "boolean" ? element.required : undefined
         }))
@@ -1965,11 +2188,16 @@ function summarizeObservationForPlanner(observation: Record<string, unknown> | u
     parentSessionId: typeof observation.parentSessionId === "string" ? observation.parentSessionId : undefined,
     systemId: typeof observation.systemId === "string" ? observation.systemId : undefined,
     pageId: typeof observation.pageId === "string" ? observation.pageId : undefined,
+    focusUsed: typeof observation.focusUsed === "string" ? observation.focusUsed : undefined,
+    recommendedFocus: typeof observation.recommendedFocus === "string" ? observation.recommendedFocus : undefined,
+    focusReason: typeof observation.focusReason === "string" ? truncateForLog(observation.focusReason, 180) : undefined,
     title: typeof observation.title === "string" ? observation.title : undefined,
     url: typeof observation.url === "string" ? observation.url : undefined,
     summary: typeof observation.summary === "string" ? truncateForLog(observation.summary, 220) : undefined,
     pageText: typeof observation.pageText === "string" ? truncateForLog(observation.pageText, 1200) : undefined,
     domOutline: typeof observation.domOutline === "string" ? truncateForLog(observation.domOutline, 1800) : undefined,
+    keyMetrics,
+    actionableCards,
     visibleTextBlocks,
     semanticBlocks,
     interactiveElements,
@@ -2001,6 +2229,50 @@ function summarizeToolResultForPlanner(toolResult: Record<string, unknown> | und
     if (key in toolResult) {
       summary[key] = toolResult[key];
     }
+  }
+
+  if (typeof toolResult.target === "object" && toolResult.target !== null) {
+    const target = toolResult.target as Record<string, unknown>;
+    summary.target = {
+      handle: typeof target.handle === "string" ? target.handle : undefined,
+      key: typeof target.key === "string" ? truncateForLog(target.key, 120) : undefined,
+      label: typeof target.label === "string" ? truncateForLog(target.label, 140) : undefined,
+      href: typeof target.href === "string" ? truncateForLog(target.href, 160) : undefined,
+      semanticRole: typeof target.semanticRole === "string" ? target.semanticRole : undefined
+    };
+  }
+
+  if (typeof toolResult.previous_page === "object" && toolResult.previous_page !== null) {
+    const previousPage = toolResult.previous_page as Record<string, unknown>;
+    summary.previous_page = {
+      sessionId: typeof previousPage.sessionId === "string" ? previousPage.sessionId : undefined,
+      title: typeof previousPage.title === "string" ? truncateForLog(previousPage.title, 120) : undefined,
+      url: typeof previousPage.url === "string" ? truncateForLog(previousPage.url, 160) : undefined,
+      summary: typeof previousPage.summary === "string" ? truncateForLog(previousPage.summary, 160) : undefined
+    };
+  }
+
+  if (typeof toolResult.navigation_event === "object" && toolResult.navigation_event !== null) {
+    const navigationEvent = toolResult.navigation_event as Record<string, unknown>;
+    summary.navigation_event = {
+      kind: typeof navigationEvent.kind === "string" ? navigationEvent.kind : undefined,
+      expectedNavigation:
+        typeof navigationEvent.expectedNavigation === "boolean" ? navigationEvent.expectedNavigation : undefined,
+      matchedExpectation:
+        typeof navigationEvent.matchedExpectation === "boolean" ? navigationEvent.matchedExpectation : undefined,
+      currentSessionChanged:
+        typeof navigationEvent.currentSessionChanged === "boolean" ? navigationEvent.currentSessionChanged : undefined,
+      newSessionOpened:
+        typeof navigationEvent.newSessionOpened === "boolean" ? navigationEvent.newSessionOpened : undefined,
+      fromSessionId:
+        typeof navigationEvent.fromSessionId === "string" ? navigationEvent.fromSessionId : undefined,
+      toSessionId: typeof navigationEvent.toSessionId === "string" ? navigationEvent.toSessionId : undefined,
+      fromUrl: typeof navigationEvent.fromUrl === "string" ? truncateForLog(navigationEvent.fromUrl, 160) : undefined,
+      toUrl: typeof navigationEvent.toUrl === "string" ? truncateForLog(navigationEvent.toUrl, 160) : undefined,
+      fromTitle:
+        typeof navigationEvent.fromTitle === "string" ? truncateForLog(navigationEvent.fromTitle, 120) : undefined,
+      toTitle: typeof navigationEvent.toTitle === "string" ? truncateForLog(navigationEvent.toTitle, 120) : undefined
+    };
   }
 
   if (typeof toolResult.title === "string") {
